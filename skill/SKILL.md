@@ -33,7 +33,7 @@ A Vellum plan is one canonical markdown file with hidden revision history and a 
    ```
    (CLI: `vellum` on PATH — install once from the vellum repo with `npm install && npm run build && npm link`)
 4. Render: `vellum render <Name>.md -o <name>.html` — standalone HTML, works anywhere. For claude.ai Artifact publishing add `--artifact` (the platform wraps the fragment itself; a full document would nest invalidly).
-5. Publish: Claude Code renders with `--artifact` and publishes via the Artifact tool (favicon 📜, same file path every round so the URL is stable). Other agents serve the standalone render (local viewer / Tailscale-bound file server).
+5. Publish: Claude Code renders with `--artifact` and publishes via the Artifact tool (favicon 📜, same file path every round so the URL is stable). Alternatively (or additionally), `vellum serve <dir> [--tailscale]` runs the live viewer: document index, revision picker, diff pages, hot reload — no per-round publishing needed.
 6. Feedback round: revise the markdown → `snapshot` → `render` → republish. The rendered page automatically shows a collapsible "What changed in rNNN" diff, so write snapshot summaries for the reader. Never edit history files; `vellum list` / `vellum diff` / `vellum revert` manage them.
 7. If the user asks what changed between older revisions: `vellum diff <Name>.md rA rB --html -o changes.html` renders a readable word-level diff page you can publish alongside the plan.
 8. Periodically (or in CI): `vellum verify .` cross-checks every Vellum document's frontmatter, history files, and meta.yml.

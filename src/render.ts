@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import MarkdownIt from 'markdown-it'
+import { parse as parseYaml } from 'yaml'
 import { loadDoc, readMeta, readRevision, splitRaw, type Doc, type Meta } from './core.js'
 import { renderDiffHtml } from './semdiff.js'
 
@@ -418,6 +419,27 @@ export const renderToFile = (docPath: string, outPath?: string, opts: RenderOpti
     : path.join(path.dirname(doc.canonicalPath), `${doc.name.toLowerCase()}.html`)
   fs.writeFileSync(out, render(docPath, opts), 'utf8')
   return out
+}
+
+/** Render the document as it stood at a given revision (evolution strip trimmed to that point). */
+export const renderRevisionHtml = (docPath: string, rev: string, opts: RenderOptions = {}): string => {
+  const doc = loadDoc(docPath)
+  const raw = readRevision(docPath, rev)
+  const { frontmatterRaw, body } = splitRaw(raw)
+  let frontmatter: Record<string, unknown> = { ...doc.frontmatter, 'Current Revision': rev }
+  if (frontmatterRaw) {
+    try {
+      frontmatter = { ...((parseYaml(frontmatterRaw) ?? {}) as Record<string, unknown>), 'Current Revision': rev }
+    } catch { /* fall back to the canonical's frontmatter */ }
+  }
+  const meta = readMeta(doc.historyDir)
+  const idx = meta.revisions.findIndex((r) => r.id === rev)
+  const trimmed: Meta = {
+    revisions: idx >= 0 ? meta.revisions.slice(0, idx + 1) : meta.revisions,
+    comments: meta.comments,
+  }
+  const revDoc: Doc = { ...doc, raw, body, frontmatter }
+  return chrome(revDoc, trimmed, prepare(body), opts)
 }
 
 /** Standalone page showing the changes between two revisions ('canonical' = current file). */

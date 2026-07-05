@@ -236,6 +236,24 @@ footer.doc code { background: none; padding: 0; }
 :root[data-theme="dark"][data-palette="iris"] { --bg:#151020; --raise:#1E1830; --ink:#EAE6F4; --soft:#A29AC0;
   --line:#332A4D; --accent:#A78BE0; --accent-deep:#BCA8EA; --wash:rgba(167,139,224,.12); --code-bg:#241D38; --design:#A78BE0; }
 
+/* viewer chrome (vellum serve) */
+.vbar-pad { height: 3.2rem; }
+.vbar { position: fixed; bottom: 0; left: 0; right: 0; display: flex; align-items: center; gap: .8rem;
+  padding: .5rem 1rem; background: var(--raise); border-top: 1px solid var(--line);
+  font-size: .82rem; z-index: 10; flex-wrap: wrap; }
+.vbar a { text-decoration: none; }
+.vbar-name { font-family: var(--mono); font-size: .75rem; color: var(--soft);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 40%; }
+.vbar select { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 4px; padding: .15rem .4rem; max-width: 16rem; }
+.vbar select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.vcards { display: grid; gap: .8rem; margin-top: 2rem; }
+.vcard { display: block; background: var(--raise); border: 1px solid var(--line); border-radius: 6px;
+  padding: .9rem 1.1rem; text-decoration: none; color: var(--ink); }
+.vcard:hover { border-color: var(--accent); }
+.vcard h3 { margin: .4rem 0 .2rem; }
+.vcard p { margin: 0; font-size: .88rem; color: var(--soft); }
+
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
@@ -247,7 +265,7 @@ footer.doc code { background: none; padding: 0; }
 <header class="doc">
   <div class="meta-row">
     <span class="badge badge-design-doc">Design doc · PRD</span>
-    <span class="chip">r005</span>
+    <span class="chip">r006</span>
     <span class="chip">2026-07-05</span>
     <span class="chip">repos/vellum/PLAN.md</span>
     <div class="palettes" role="group" aria-label="Color theme">
@@ -258,22 +276,44 @@ footer.doc code { background: none; padding: 0; }
   </div>
   <h1>Vellum v1 — Living Plans</h1>
   <p class="standfirst">Plans are markdown, versioned in place, rendered to constrained HTML. The agent writes content; the system owns the pixels.</p>
+  <div class="evolution"><span class="rev">r006</span><span class="what"><strong>Phase 2 shipped: vellum serve viewer (index, revision picker, diff pages, SSE hot reload, Tailscale-only binding); Hermes skill updated to CLI v2</strong> — Lucas approved moving to Phase 2 after the hardening pass</span></div>
   <div class="evolution"><span class="rev">r005</span><span class="what"><strong>Hardening for sharing: What-changed diff panel in every render, vellum diff --html, vellum verify fsck, HTML/SVG sanitization, README/LICENSE/CI, scoped npm package</strong> — Lucas could not tell what the agent changed across 3 revisions of a real plan; plus the production-review gap list</span></div>
   <div class="evolution"><span class="rev">r004</span><span class="what"><strong>Iris is the default palette; renderer emits standalone HTML by default with --artifact for claude.ai; Palette: frontmatter override</strong> — Lucas fell for Iris; production review found the fragment-only output was claude.ai-shaped rather than self-contained</span></div>
   <div class="evolution"><span class="rev">r003</span><span class="what"><strong>Phase 1 shipped: CLI v2, theme.css, deterministic renderer, /vellum-plan skill; plan source converted to directive syntax</strong> — This revision is the first rendered by the toolchain instead of by hand — the golden pair closes</span></div>
-  <div class="evolution"><span class="rev">r002</span><span class="what"><strong>Feedback round 1: '#' anchors, collapsible TOC, Mist + Iris palettes alongside Verdigris; Pandora remediation approved</strong> — Lucas review of r001 artifact: disliked pilcrow glyph, wanted TOC and two more themes (apple/vercel + purple)</span></div>
-  <details class="changes"><summary>What changed in r005 (vs r004)</summary><div class="rdiff"><div class="rdiff-skip">⋯ 13 unchanged blocks</div>
-<div class="rdiff-ctx">### vellum CLI v2 — TypeScript/Node</div>
-<div class="rdiff-block">Commands: `snapshot`, `list`, `diff` <ins>(terminal patch or `--html` word-level diff page)</ins>, `<ins>verify` (consistency fsck across a whole repo or vault — CI-able), `</ins>revert`, `render` — shipped at `repos/vellum`, on PATH via `npm link` (the legacy Obsidian-CDP helper is retired to `vellum-obsidian-legacy`). Fixes every audit finding by construction: snapshots bump `Current Revision` and refuse to overwrite existing revisions; frontmatter and `meta.yml` go through a real YAML parser (no lossy round-trips, no injection); `History Folder` is canonical-relative — the single path contract; timestamps use the actual local timezone; writes are temp-file-then-rename with a per-document lock.</div>
-<div class="rdiff-skip">⋯ 5 unchanged blocks</div>
-<div class="rdiff-ctx">### Renderer — deterministic markdown → HTML</div>
-<div class="rdiff-block">`markdown-it` plus container directives — the agent's entire expressive surface: `::: callout`, `::: verdict`, `::: findings`, `::: timeline`, `::: diff`, `::: figure`, plus plain tables (auto-wrapped, scrollable) and `{dot:...}` swatches. Diffs are written as unified diffs and rendered side-by-side on wide screens, unified on narrow — no client-side diff library, which also satisfies the Artifact CSP. Every heading gets a stable anchor id (the comment substrate). Output is a standalone HTML document by default (doctype, viewport — works served raw on any device); `--artifact` emits the fragment form claude.ai wraps itself. <ins>Agent-supplied HTML/SVG is stripped of active content (scripts, event handlers, javascript: URLs) at render time. Every render embeds a collapsible **What changed in rNNN** panel — a block-aware, word-level diff against the previous snapshot with unchanged runs collapsed — so a reader never has to ask the agent what a revision touched. </ins>This page is rendered by `vellum render PLAN.md` — the toolchain eating its own dogfood.</div>
+  <details class="changes"><summary>What changed in r006 (vs r005)</summary><div class="rdiff"><div class="rdiff-skip">⋯ 11 unchanged blocks</div>
+<div class="rdiff-ctx">## Architecture</div>
+<div class="rdiff-block codey">::: figure aria=&quot;Flow: PLAN.md through the vellum CLI to plan.html, delivered to the claude.ai Artifact and the local viewer; the CLI also writes revision history and meta.yml&quot;
+&lt;svg viewBox=&quot;0 0 640 190&quot; xmlns=&quot;http://www.w3.org/2000/svg&quot;&gt;
+  &lt;defs&gt;&lt;marker id=&quot;arr&quot; viewBox=&quot;0 0 8 8&quot; refX=&quot;7&quot; refY=&quot;4&quot; markerWidth=&quot;7&quot; markerHeight=&quot;7&quot; orient=&quot;auto&quot;&gt;&lt;path d=&quot;M0 0 L8 4 L0 8 z&quot; fill=&quot;var(--soft)&quot;/&gt;&lt;/marker&gt;&lt;/defs&gt;
+  &lt;rect class=&quot;nodebox&quot; x=&quot;8&quot; y=&quot;40&quot; width=&quot;110&quot; height=&quot;36&quot; rx=&quot;5&quot;/&gt;
+  &lt;text x=&quot;63&quot; y=&quot;62&quot; text-anchor=&quot;middle&quot;&gt;PLAN.md&lt;/text&gt;
+  &lt;rect class=&quot;accentbox&quot; x=&quot;180&quot; y=&quot;40&quot; width=&quot;120&quot; height=&quot;36&quot; rx=&quot;5&quot;/&gt;
+  &lt;text x=&quot;240&quot; y=&quot;62&quot; text-anchor=&quot;middle&quot;&gt;vellum CLI&lt;/text&gt;
+  &lt;text class=&quot;lbl&quot; x=&quot;240&quot; y=&quot;94&quot; text-anchor=&quot;middle&quot;&gt;snapshot · diff · render&lt;/text&gt;
+  &lt;rect class=&quot;nodebox&quot; x=&quot;360&quot; y=&quot;40&quot; width=&quot;110&quot; height=&quot;36&quot; rx=&quot;5&quot;/&gt;
+  &lt;text x=&quot;415&quot; y=&quot;62&quot; text-anchor=&quot;middle&quot;&gt;plan.html&lt;/text&gt;
+  &lt;rect class=&quot;nodebox&quot; x=&quot;522&quot; y=&quot;10&quot; width=&quot;110&quot; height=&quot;36&quot; rx=&quot;5&quot;/&gt;
+  &lt;text x=&quot;577&quot; y=&quot;32&quot; text-anchor=&quot;middle&quot;&gt;Artifact&lt;/text&gt;
+  &lt;rect class=&quot;nodebox&quot; x=&quot;522&quot; y=&quot;70&quot; width=&quot;110&quot; height=&quot;36&quot; rx=&quot;5&quot;/&gt;
+  &lt;text x=&quot;577&quot; y=&quot;92&quot; text-anchor=&quot;middle&quot;&gt;viewer&lt;/text&gt;
+  &lt;text class=&quot;lbl&quot; x=&quot;577&quot; y=&quot;120&quot; text-anchor=&quot;middle&quot;&gt;Tailscale-only · <del>Ph 2</del><ins>:4820</ins>&lt;/text&gt;
+  &lt;rect class=&quot;nodebox&quot; x=&quot;180&quot; y=&quot;136&quot; width=&quot;220&quot; height=&quot;36&quot; rx=&quot;5&quot;/&gt;
+  &lt;text x=&quot;290&quot; y=&quot;158&quot; text-anchor=&quot;middle&quot;&gt;.history/ rNNN.md + meta.yml&lt;/text&gt;
+  &lt;path class=&quot;flow&quot; d=&quot;M118 58 H176&quot;/&gt;
+  &lt;path class=&quot;flow&quot; d=&quot;M300 58 H356&quot;/&gt;
+  &lt;path class=&quot;flow&quot; d=&quot;M470 52 C 495 45, 500 35, 518 30&quot;/&gt;
+  &lt;path class=&quot;flow&quot; d=&quot;M470 64 C 495 71, 500 81, 518 86&quot;/&gt;
+  &lt;path class=&quot;flow&quot; d=&quot;M240 76 V132&quot;/&gt;
+&lt;/svg&gt;
+:::</div>
 <div class="rdiff-skip">⋯ 14 unchanged blocks</div>
-<div class="rdiff-ctx">## Open questions</div>
-<div class="rdiff-block">- Final <del>product</del><ins>public</ins> name<del> if</del><ins>: `vellum` on npm is likely blocked by</ins> the <del>viewer gets published</del><ins>Vellum AI trademark orbit; the package is scoped `@lucastraba/vellum` for now</ins> (PRD <del>candidates: lvng, tome, </del><ins>candidate `</ins>palimpsest<ins>` remains available</ins>). <del>Working name and </del>CLI surface <del>stay</del><ins>stays</ins> `vellum`.
-- Comment transport for Phase 3: how anchored comments travel from a published Artifact back to the agent (the local viewer has an obvious path; the Artifact doesn't).
-- Whether Pandora's evolving notes should adopt `vellum render` for reading, or stay markdown-only inside Obsidian.
-- Mermaid: deferred — v1 diagrams are constrained inline SVG via `::: figure`; revisit if hand-composed SVG becomes the bottleneck.</div></div></details>
+<div class="rdiff-ctx">## Build order</div>
+<div class="rdiff-block codey">::: timeline
+1. **CLI core + design system + renderer + skill** [done] — Shipped 2026-07-05: `snapshot`/`list`/`diff`/`revert`/`render`, `theme.css` with three palettes, deterministic renderer (13 tests green), `/vellum-plan` skill. This page is its output.
+2. **Local viewer** [<del>next</del><ins>done</ins>] — <ins>Shipped 2026-07-05: `vellum serve &lt;dir&gt;` (</ins>Hono<del> daemon bound</del><ins>) — document index, revision picker in a fixed bottom bar, per-revision rendering with the evolution trimmed</ins> to <ins>that point in time, diff pages, SSE hot reload on file changes. Binds 127.0.0.1 by default or </ins>the Tailscale IP <del>only — never</del><ins>via `--tailscale`; refuses</ins> 0.0.0.0 <ins>outright. Live </ins>on nyx <ins>at port 4820 over Tailscale</ins>.<del> Watches `.history/`, SSE hot reload, revision picker, diff pane. If it's good, productize it.</del>
+3. **Anchored comments** [<del>later</del><ins>next</ins>] — Click a block in the viewer → comment lands in `meta.yml`; `vellum address` has the agent read open comments, revise, snapshot, resolve. The Antigravity loop<ins>, anchored by quote + context (W3C-annotation style) so comments survive revisions</ins>.
+:::</div>
+<div class="rdiff-skip">⋯ 8 unchanged blocks</div></div></details>
 </header>
 
 <details class="toc" open>
@@ -331,7 +371,7 @@ footer.doc code { background: none; padding: 0; }
   <text x="577" y="32" text-anchor="middle">Artifact</text>
   <rect class="nodebox" x="522" y="70" width="110" height="36" rx="5"/>
   <text x="577" y="92" text-anchor="middle">viewer</text>
-  <text class="lbl" x="577" y="120" text-anchor="middle">Tailscale-only · Ph 2</text>
+  <text class="lbl" x="577" y="120" text-anchor="middle">Tailscale-only · :4820</text>
   <rect class="nodebox" x="180" y="136" width="220" height="36" rx="5"/>
   <text x="290" y="158" text-anchor="middle">.history/ rNNN.md + meta.yml</text>
   <path class="flow" d="M118 58 H176"/>
@@ -401,8 +441,8 @@ footer.doc code { background: none; padding: 0; }
   <span class="eyebrow">Sequence</span>
   <h2 id="build">Build order<a class="anch" href="#build" aria-label="Link to this section">#</a></h2>
 <ol class="timeline"><li><span class="ph">1</span><div><h3>CLI core + design system + renderer + skill <span class="pill done">done</span></h3><p>Shipped 2026-07-05: <code>snapshot</code>/<code>list</code>/<code>diff</code>/<code>revert</code>/<code>render</code>, <code>theme.css</code> with three palettes, deterministic renderer (13 tests green), <code>/vellum-plan</code> skill. This page is its output.</p></div></li>
-<li><span class="ph">2</span><div><h3>Local viewer <span class="pill">next</span></h3><p>Hono daemon bound to the Tailscale IP only — never 0.0.0.0 on nyx. Watches <code>.history/</code>, SSE hot reload, revision picker, diff pane. If it's good, productize it.</p></div></li>
-<li><span class="ph">3</span><div><h3>Anchored comments <span class="pill later">later</span></h3><p>Click a block in the viewer → comment lands in <code>meta.yml</code>; <code>vellum address</code> has the agent read open comments, revise, snapshot, resolve. The Antigravity loop.</p></div></li></ol>
+<li><span class="ph">2</span><div><h3>Local viewer <span class="pill done">done</span></h3><p>Shipped 2026-07-05: <code>vellum serve &lt;dir&gt;</code> (Hono) — document index, revision picker in a fixed bottom bar, per-revision rendering with the evolution trimmed to that point in time, diff pages, SSE hot reload on file changes. Binds 127.0.0.1 by default or the Tailscale IP via <code>--tailscale</code>; refuses 0.0.0.0 outright. Live on nyx at port 4820 over Tailscale.</p></div></li>
+<li><span class="ph">3</span><div><h3>Anchored comments <span class="pill">next</span></h3><p>Click a block in the viewer → comment lands in <code>meta.yml</code>; <code>vellum address</code> has the agent read open comments, revise, snapshot, resolve. The Antigravity loop, anchored by quote + context (W3C-annotation style) so comments survive revisions.</p></div></li></ol>
 
 </section>
 
@@ -450,7 +490,7 @@ footer.doc code { background: none; padding: 0; }
 </main>
 
 <footer class="doc">
-  Source: <code>repos/vellum/PLAN.md</code> · history: <code>.history/PLAN/</code> (r005) · Rendered by <code>vellum render</code>.
+  Source: <code>repos/vellum/PLAN.md</code> · history: <code>.history/PLAN/</code> (r006) · Rendered by <code>vellum render</code>.
 </footer>
 </div>
 <script>

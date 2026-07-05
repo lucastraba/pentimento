@@ -5,16 +5,25 @@
   "license": "MIT",
   "author": "Lucas Traba",
   "type": "module",
-  "engines": { "node": ">=18" },
-  "bin": { "vellum": "./dist/cli.js" },
-  "files": ["dist", "assets"],
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "vellum": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "assets"
+  ],
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
     "prepare": "tsc"
   },
   "dependencies": {
+    "@hono/node-server": "^2.0.8",
     "diff": "^7.0.0",
+    "hono": "^4.12.27",
     "markdown-it": "^14.1.0",
     "yaml": "^2.5.0"
   },

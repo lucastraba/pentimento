@@ -1,10 +1,13 @@
 #!/usr/bin/env node
+import { execSync } from 'node:child_process'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { createTwoFilesPatch } from 'diff'
 import { loadDoc, readMeta, readRevision, revert, snapshot } from './core.js'
 import { renderDiffPage, renderToFile } from './render.js'
 import { findVellumDocs, verifyDoc } from './verify.js'
+import { serveViewer } from './viewer.js'
 
 const USAGE = `vellum — living documents
 
@@ -19,6 +22,9 @@ Usage:
   vellum render <doc> [-o out.html] [--artifact]
                                       (--artifact: fragment for claude.ai Artifact publishing;
                                        default: standalone HTML that works anywhere)
+  vellum serve [dir] [--port 4820] [--host 127.0.0.1 | --tailscale]
+                                      (live viewer: document index, revision picker, diffs,
+                                       hot reload; never binds 0.0.0.0)
 `
 
 interface Args {
@@ -29,7 +35,7 @@ interface Args {
 const parseArgs = (argv: string[]): Args => {
   const positional: string[] = []
   const flags: Record<string, string> = {}
-  const boolean = new Set(['artifact', 'html'])
+  const boolean = new Set(['artifact', 'html', 'tailscale'])
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a.startsWith('--') && boolean.has(a.slice(2))) flags[a.slice(2)] = 'true'
@@ -45,6 +51,20 @@ const parseArgs = (argv: string[]): Args => {
 const fail = (msg: string): never => {
   console.error(`vellum: ${msg}`)
   process.exit(1)
+}
+
+const tailscaleIp = (): string => {
+  try {
+    const out = execSync('tailscale ip -4', { encoding: 'utf8', timeout: 5000 }).trim().split('\n')[0]
+    if (/^100\./.test(out)) return out
+  } catch { /* fall through to interface scan */ }
+  for (const addrs of Object.values(os.networkInterfaces())) {
+    for (const a of addrs ?? []) {
+      // Tailscale hands out CGNAT range 100.64.0.0/10
+      if (a.family === 'IPv4' && /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(a.address)) return a.address
+    }
+  }
+  return fail('could not determine a Tailscale IP (is tailscale up?)')
 }
 
 const main = (): void => {
@@ -137,6 +157,15 @@ const main = (): void => {
       if (!doc) fail('render needs a document path')
       const out = renderToFile(doc, flags.out, { artifact: flags.artifact === 'true' })
       console.log(out)
+      break
+    }
+    case 'serve': {
+      const root = path.resolve(doc ?? '.')
+      if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) fail(`not a directory: ${root}`)
+      const port = Number(flags.port ?? 4820)
+      const host = flags.tailscale === 'true' ? tailscaleIp() : (flags.host ?? '127.0.0.1')
+      serveViewer(root, { host, port })
+      console.log(`vellum viewer → http://${host}:${port}/  (watching ${root})`)
       break
     }
     default:

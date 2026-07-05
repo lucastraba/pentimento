@@ -39,4 +39,11 @@ revisions:
       scoped npm package"
     why: Lucas could not tell what the agent changed across 3 revisions of a real
       plan; plus the production-review gap list
+  - id: r006
+    created_at: 2026-07-05T18:38:31+02:00
+    author: lucas+claude
+    summary: "Phase 2 shipped: vellum serve viewer (index, revision picker, diff
+      pages, SSE hot reload, Tailscale-only binding); Hermes skill updated to
+      CLI v2"
+    why: Lucas approved moving to Phase 2 after the hardening pass
 comments: []

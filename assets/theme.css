@@ -234,6 +234,24 @@ footer.doc code { background: none; padding: 0; }
 :root[data-theme="dark"][data-palette="iris"] { --bg:#151020; --raise:#1E1830; --ink:#EAE6F4; --soft:#A29AC0;
   --line:#332A4D; --accent:#A78BE0; --accent-deep:#BCA8EA; --wash:rgba(167,139,224,.12); --code-bg:#241D38; --design:#A78BE0; }
 
+/* viewer chrome (vellum serve) */
+.vbar-pad { height: 3.2rem; }
+.vbar { position: fixed; bottom: 0; left: 0; right: 0; display: flex; align-items: center; gap: .8rem;
+  padding: .5rem 1rem; background: var(--raise); border-top: 1px solid var(--line);
+  font-size: .82rem; z-index: 10; flex-wrap: wrap; }
+.vbar a { text-decoration: none; }
+.vbar-name { font-family: var(--mono); font-size: .75rem; color: var(--soft);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 40%; }
+.vbar select { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 4px; padding: .15rem .4rem; max-width: 16rem; }
+.vbar select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.vcards { display: grid; gap: .8rem; margin-top: 2rem; }
+.vcard { display: block; background: var(--raise); border: 1px solid var(--line); border-radius: 6px;
+  padding: .9rem 1.1rem; text-decoration: none; color: var(--ink); }
+.vcard:hover { border-color: var(--accent); }
+.vcard h3 { margin: .4rem 0 .2rem; }
+.vcard p { margin: 0; font-size: .88rem; color: var(--soft); }
+
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }

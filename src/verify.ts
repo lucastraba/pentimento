@@ -12,15 +12,25 @@ const SKIP_DIRS = new Set(['.git', 'node_modules', '.history', 'dist', '.obsidia
 export const findVellumDocs = (root: string): string[] => {
   const out: string[] = []
   const walk = (dir: string): void => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    let entries
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true })
+    } catch {
+      return // unreadable directory — skip
+    }
+    for (const entry of entries) {
       if (entry.isDirectory()) {
         if (!SKIP_DIRS.has(entry.name) && !entry.name.startsWith('.')) walk(path.join(dir, entry.name))
         continue
       }
       if (!entry.name.endsWith('.md')) continue
       const p = path.join(dir, entry.name)
-      const head = fs.readFileSync(p, 'utf8').slice(0, 2000)
-      if (/^Vellum:\s*true$/m.test(head)) out.push(p)
+      try {
+        const head = fs.readFileSync(p, 'utf8').slice(0, 2000)
+        if (/^Vellum:\s*true$/m.test(head)) out.push(p)
+      } catch {
+        // broken symlink or unreadable file — not a Vellum doc
+      }
     }
   }
   walk(root)
