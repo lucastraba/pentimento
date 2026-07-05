@@ -1,0 +1,28 @@
+{
+  "name": "@lucastraba/vellum",
+  "version": "0.2.0",
+  "description": "Living documents: one canonical markdown file, hidden revision history, deterministic HTML rendering",
+  "license": "MIT",
+  "author": "Lucas Traba",
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "bin": { "vellum": "./dist/cli.js" },
+  "files": ["dist", "assets"],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "prepare": "tsc"
+  },
+  "dependencies": {
+    "diff": "^7.0.0",
+    "markdown-it": "^14.1.0",
+    "yaml": "^2.5.0"
+  },
+  "devDependencies": {
+    "@types/diff": "^6.0.0",
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

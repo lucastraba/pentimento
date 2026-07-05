@@ -1,0 +1,42 @@
+revisions:
+  - id: r001
+    created_at: 2026-07-05T09:45:00+02:00
+    author: lucas+claude
+    summary: "Initial v1 plan: CLI v2, design system, deterministic renderer, skill,
+      viewer/comments phased"
+    why: "Session 2026-07-05: brain dump + Vellum Lite audit + four locked decisions
+      (dual delivery, 4 archetypes, read-only v1 with comment-ready anchors,
+      in-repo Vellum Lite)"
+    source: claude code session
+  - id: r002
+    created_at: 2026-07-05T10:15:00+02:00
+    author: lucas+claude
+    summary: "Feedback round 1: '#' anchors, collapsible TOC, Mist + Iris palettes
+      alongside Verdigris; Pandora remediation approved"
+    why: "Lucas review of r001 artifact: disliked pilcrow glyph, wanted TOC and two
+      more themes (apple/vercel + purple)"
+    source: claude code session
+  - id: r003
+    created_at: 2026-07-05T10:14:28+00:00
+    author: lucas+claude
+    summary: "Phase 1 shipped: CLI v2, theme.css, deterministic renderer,
+      /vellum-plan skill; plan source converted to directive syntax"
+    why: This revision is the first rendered by the toolchain instead of by hand —
+      the golden pair closes
+    source: claude code session
+  - id: r004
+    created_at: 2026-07-05T18:05:15+02:00
+    author: lucas+claude
+    summary: "Iris is the default palette; renderer emits standalone HTML by default
+      with --artifact for claude.ai; Palette: frontmatter override"
+    why: Lucas fell for Iris; production review found the fragment-only output was
+      claude.ai-shaped rather than self-contained
+  - id: r005
+    created_at: 2026-07-05T18:20:43+02:00
+    author: lucas+claude
+    summary: "Hardening for sharing: What-changed diff panel in every render, vellum
+      diff --html, vellum verify fsck, HTML/SVG sanitization, README/LICENSE/CI,
+      scoped npm package"
+    why: Lucas could not tell what the agent changed across 3 revisions of a real
+      plan; plus the production-review gap list
+comments: []

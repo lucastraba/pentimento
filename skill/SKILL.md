@@ -1,0 +1,56 @@
+---
+name: vellum-plan
+description: Produce a plan as a living document — markdown source, versioned history, rendered to a constrained HTML artifact. Use when the user asks for a plan, design doc, brainstorm, audit report, or invokes /vellum-plan. Also for revising an existing Vellum plan after feedback.
+---
+
+# Vellum plans
+
+A Vellum plan is one canonical markdown file with hidden revision history and a deterministic HTML render. You write **markdown + directives only** — the toolchain owns every pixel.
+
+## Hard rules
+
+- Never write CSS, `<style>`, `style=""` attributes, or JavaScript. No exceptions.
+- Never hand-write the HTML output. `vellum render` is the only way to produce it.
+- Rich elements come from the directive vocabulary below — nothing else.
+- One inline-SVG figure is allowed per `::: figure` block, composed only of `theme.css` classes (`nodebox`, `accentbox`, `flow`, `lbl`).
+- The markdown plan is what the user approves; the HTML is how they read it.
+
+## The loop
+
+1. Research and think as normal (in plan mode if active). Decide the archetype: `implementation` | `brainstorm` | `audit` | `design-doc` (see `references/archetypes.md` for section skeletons).
+2. Write `<Name>.md` with frontmatter:
+   ```yaml
+   ---
+   Archetype: implementation
+   Palette: iris        # optional: verdigris | mist | iris (default iris)
+   ---
+   ```
+   Structure: `# Title`, then a `> standfirst` blockquote, then `##` sections. Add
+   `<!-- id: short-id; eyebrow: Section Label -->` at the end of `##` heading lines.
+3. Snapshot — this drafts the decision log the reader sees at the top:
+   ```bash
+   vellum snapshot <Name>.md --summary "what changed" --why "why" --author <who>
+   ```
+   (CLI: `vellum` on PATH — install once from the vellum repo with `npm install && npm run build && npm link`)
+4. Render: `vellum render <Name>.md -o <name>.html` — standalone HTML, works anywhere. For claude.ai Artifact publishing add `--artifact` (the platform wraps the fragment itself; a full document would nest invalidly).
+5. Publish: Claude Code renders with `--artifact` and publishes via the Artifact tool (favicon 📜, same file path every round so the URL is stable). Other agents serve the standalone render (local viewer / Tailscale-bound file server).
+6. Feedback round: revise the markdown → `snapshot` → `render` → republish. The rendered page automatically shows a collapsible "What changed in rNNN" diff, so write snapshot summaries for the reader. Never edit history files; `vellum list` / `vellum diff` / `vellum revert` manage them.
+7. If the user asks what changed between older revisions: `vellum diff <Name>.md rA rB --html -o changes.html` renders a readable word-level diff page you can publish alongside the plan.
+8. Periodically (or in CI): `vellum verify .` cross-checks every Vellum document's frontmatter, history files, and meta.yml.
+
+## Directive vocabulary
+
+Full syntax and examples: `references/directives.md`. Summary:
+
+| Directive | Use for |
+|---|---|
+| `::: callout decision\|info\|warn\|risk` | decisions (link ids like `d-1`), notes, risks |
+| `::: verdict` | 2–4 headline question :: answer cells |
+| `::: findings` + `@collapse` | severity-graded findings (CRIT/HIGH/MED/LOW) |
+| `::: timeline` | numbered phases with `[next]`/`[later]`/`[done]` pills |
+| `::: diff head="file · what"` | proposed file changes, written as a unified diff |
+| `::: figure aria="..."` | inline SVG diagrams |
+| `{dot:impl}` etc. | color swatches in tables |
+| plain markdown tables | comparisons, file-touch lists (auto-wrapped, scrollable) |
+
+Pick components the archetype calls for; leave the rest out. Flexibility = archetype + component choice. Everything visual is fixed.
