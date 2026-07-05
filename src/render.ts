@@ -3,7 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import MarkdownIt from 'markdown-it'
 import { parse as parseYaml } from 'yaml'
-import { loadDoc, readMeta, readRevision, splitRaw, type Doc, type Meta } from './core.js'
+import { loadDoc, readMeta, readRevision, slugify, splitRaw, type Doc, type Meta } from './core.js'
 import { renderDiffHtml } from './semdiff.js'
 
 const ASSETS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../assets')
@@ -29,9 +29,6 @@ const sanitize = (html: string): string =>
     .replace(/<\s*(script|iframe|object|embed|foreignObject)\b[^>]*\/?>/gi, '')
     .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
     .replace(/(href|src|xlink:href)\s*=\s*(["'])\s*javascript:[^"']*\2/gi, '$1=$2#$2')
-
-const slugify = (s: string): string =>
-  s.toLowerCase().replace(/`/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 
 const plainText = (s: string): string => s.replace(/[`*_]/g, '')
 
@@ -320,6 +317,16 @@ const chrome = (doc: Doc, meta: Meta, prepared: Prepared, opts: RenderOptions): 
     `<span class="what"><strong>${inline(r.summary)}</strong>` +
     `${r.why ? ` — ${inline(r.why)}` : ''}</span></div>`).join('\n  ')
 
+  const openComments = meta.comments.filter((c) => c.status === 'open')
+  const commentsPanel = openComments.length
+    ? `\n  <details class="comments" open><summary>${openComments.length} open comment${openComments.length > 1 ? 's' : ''}</summary>${openComments.map((c) =>
+        `<div class="vcomment" data-cid="${escapeHtml(c.id)}">` +
+        `${c.anchor ? `<a class="vc-anchor" href="${escapeHtml(c.anchor)}">${escapeHtml(c.anchor)}</a> ` : ''}` +
+        `${c.quote ? `<blockquote>${escapeHtml(c.quote)}</blockquote>` : ''}` +
+        `<p>${sanitize(md.renderInline(c.text))}</p>` +
+        `<span class="vc-meta">${escapeHtml(c.author)} · ${escapeHtml(String(c.created_at).slice(0, 10))}</span></div>`).join('')}</details>`
+    : ''
+
   // what changed since the previous revision — so a reader never has to ask the agent
   let changes = ''
   if (meta.revisions.length >= 2) {
@@ -364,7 +371,7 @@ const chrome = (doc: Doc, meta: Meta, prepared: Prepared, opts: RenderOptions): 
   </div>
   <h1>${inline(prepared.title)}</h1>
   ${prepared.standfirst ? `<p class="standfirst">${inline(prepared.standfirst)}</p>` : ''}
-  ${evolution}${changes}
+  ${evolution}${changes}${commentsPanel}
 </header>
 
 <details class="toc" open>

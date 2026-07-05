@@ -3,7 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
-import { loadDoc, readMeta, type Meta } from './core.js'
+import { addComment, loadDoc, readMeta, resolveComment, type Meta } from './core.js'
 import { render, renderDiffPage, renderRevisionHtml } from './render.js'
 import { findVellumDocs } from './verify.js'
 
@@ -107,8 +107,14 @@ export interface ViewerApp {
   broadcast: () => void
 }
 
-export const createApp = (root: string): ViewerApp => {
+export interface ViewerOptions {
+  /** author recorded on comments added through the viewer */
+  author?: string
+}
+
+export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerApp => {
   const absRoot = path.resolve(root)
+  const viewerJs = fs.readFileSync(path.join(ASSETS, 'viewer.js'), 'utf8')
   const app = new Hono()
   const clients = new Set<() => void>()
   const broadcast = () => clients.forEach((send) => send())
@@ -134,7 +140,45 @@ export const createApp = (root: string): ViewerApp => {
       return c.text(e instanceof Error ? e.message : String(e), 500)
     }
     const meta = readMeta(loadDoc(abs).historyDir)
-    return c.html(html.replace('</body>', `${viewerBar(rel, meta, rev)}\n</body>`))
+    const cfg = {
+      rel,
+      canComment: !rev,
+      comments: meta.comments
+        .filter((cm) => cm.status === 'open')
+        .map((cm) => ({ id: cm.id, quote: cm.quote ?? null, text: cm.text })),
+    }
+    const cfgScript = `<script>window.__vellum=${JSON.stringify(cfg).replace(/</g, '\\u003c')}</script>\n<script>\n${viewerJs}</script>`
+    return c.html(html.replace('</body>', `${viewerBar(rel, meta, rev)}\n${cfgScript}\n</body>`))
+  })
+
+  app.post('/api/comment', async (c) => {
+    const b = await c.req.json().catch(() => null)
+    if (!b) return c.text('bad json', 400)
+    const abs = resolveDoc(String(b.rel ?? ''))
+    if (!abs) return c.notFound()
+    const text = String(b.text ?? '').trim()
+    if (!text) return c.text('missing text', 400)
+    const entry = addComment(abs, {
+      text,
+      anchor: typeof b.anchor === 'string' ? b.anchor : '',
+      quote: typeof b.quote === 'string' && b.quote ? b.quote.slice(0, 600) : undefined,
+      prefix: typeof b.prefix === 'string' && b.prefix ? b.prefix : undefined,
+      suffix: typeof b.suffix === 'string' && b.suffix ? b.suffix : undefined,
+      author: viewerOpts.author ?? 'reader',
+    })
+    return c.json(entry)
+  })
+
+  app.post('/api/resolve', async (c) => {
+    const b = await c.req.json().catch(() => null)
+    if (!b) return c.text('bad json', 400)
+    const abs = resolveDoc(String(b.rel ?? ''))
+    if (!abs) return c.notFound()
+    try {
+      return c.json(resolveComment(abs, String(b.id ?? '')))
+    } catch (e) {
+      return c.text(e instanceof Error ? e.message : String(e), 404)
+    }
   })
 
   app.get('/diff/*', (c) => {
@@ -182,14 +226,15 @@ export const createApp = (root: string): ViewerApp => {
 export interface ServeOptions {
   host: string
   port: number
+  author?: string
 }
 
-export const serveViewer = (root: string, { host, port }: ServeOptions): void => {
+export const serveViewer = (root: string, { host, port, author }: ServeOptions): void => {
   if (host === '0.0.0.0' || host === '::' || host === '*') {
     throw new Error('refusing to bind all interfaces — use 127.0.0.1 or a Tailscale IP (--tailscale)')
   }
   const absRoot = path.resolve(root)
-  const { app, broadcast } = createApp(absRoot)
+  const { app, broadcast } = createApp(absRoot, { author })
 
   let timer: NodeJS.Timeout | null = null
   fs.watch(absRoot, { recursive: true }, (_event, fname) => {

@@ -236,6 +236,35 @@ footer.doc code { background: none; padding: 0; }
 :root[data-theme="dark"][data-palette="iris"] { --bg:#151020; --raise:#1E1830; --ink:#EAE6F4; --soft:#A29AC0;
   --line:#332A4D; --accent:#A78BE0; --accent-deep:#BCA8EA; --wash:rgba(167,139,224,.12); --code-bg:#241D38; --design:#A78BE0; }
 
+/* comments */
+details.comments { margin: .75rem 0 0; }
+.vcomment { border: 1px solid var(--line); border-left: 3px solid var(--high); border-radius: 6px;
+  background: var(--raise); padding: .6rem .9rem; margin: .5rem 0; font-size: .9rem; }
+.vcomment blockquote { margin: .3rem 0; padding: .1rem .6rem; border-left: 2px solid var(--line);
+  color: var(--soft); font-style: italic; }
+.vcomment p { margin: .3rem 0; }
+.vc-anchor { font-family: var(--mono); font-size: .75rem; }
+.vc-meta { font-size: .72rem; color: var(--soft); }
+mark.vc-mark { background: color-mix(in srgb, var(--high) 22%, transparent); color: inherit;
+  border-bottom: 1px dotted var(--high); padding: 0 .05em; border-radius: 2px; }
+.vc-add { position: absolute; z-index: 30; font: 600 .78rem var(--sans); color: var(--bg); background: var(--accent);
+  border: none; border-radius: 999px; padding: .3rem .7rem; cursor: pointer; }
+.vc-form { position: fixed; bottom: 3.8rem; left: 50%; transform: translateX(-50%);
+  width: min(34rem, calc(100vw - 2rem)); background: var(--raise); border: 1px solid var(--line);
+  border-radius: 8px; padding: .8rem; z-index: 40; box-shadow: 0 6px 24px rgba(0, 0, 0, .18); }
+.vc-form blockquote { margin: 0 0 .5rem; padding: .1rem .6rem; border-left: 2px solid var(--accent);
+  color: var(--soft); font-size: .85rem; font-style: italic; max-height: 4.5rem; overflow: hidden; }
+.vc-form textarea { width: 100%; min-height: 4rem; font: inherit; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: .5rem; box-sizing: border-box; }
+.vc-form textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.vc-row { display: flex; gap: .5rem; justify-content: flex-end; margin-top: .5rem; }
+.vc-form button, .vc-resolve { font: 600 .78rem var(--sans); border-radius: 6px; padding: .3rem .8rem;
+  cursor: pointer; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+.vc-form .vc-save { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.vc-resolve { display: block; margin-top: .4rem; }
+.vc-form button:focus-visible, .vc-resolve:focus-visible, .vc-add:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px; }
+
 /* viewer chrome (vellum serve) */
 .vbar-pad { height: 3.2rem; }
 .vbar { position: fixed; bottom: 0; left: 0; right: 0; display: flex; align-items: center; gap: .8rem;
@@ -265,7 +294,7 @@ footer.doc code { background: none; padding: 0; }
 <header class="doc">
   <div class="meta-row">
     <span class="badge badge-design-doc">Design doc · PRD</span>
-    <span class="chip">r006</span>
+    <span class="chip">r007</span>
     <span class="chip">2026-07-05</span>
     <span class="chip">repos/vellum/PLAN.md</span>
     <div class="palettes" role="group" aria-label="Color theme">
@@ -276,44 +305,19 @@ footer.doc code { background: none; padding: 0; }
   </div>
   <h1>Vellum v1 — Living Plans</h1>
   <p class="standfirst">Plans are markdown, versioned in place, rendered to constrained HTML. The agent writes content; the system owns the pixels.</p>
+  <div class="evolution"><span class="rev">r007</span><span class="what"><strong>Phase 3 shipped: anchored comments — select-to-comment in the viewer, quote+context anchoring, comments panel with in-place highlights, vellum comments/comment/address/resolve, inline %% @c %% extraction</strong> — Lucas approved the viewer service and Phase 3; the full Antigravity-style review loop now closes</span></div>
   <div class="evolution"><span class="rev">r006</span><span class="what"><strong>Phase 2 shipped: vellum serve viewer (index, revision picker, diff pages, SSE hot reload, Tailscale-only binding); Hermes skill updated to CLI v2</strong> — Lucas approved moving to Phase 2 after the hardening pass</span></div>
   <div class="evolution"><span class="rev">r005</span><span class="what"><strong>Hardening for sharing: What-changed diff panel in every render, vellum diff --html, vellum verify fsck, HTML/SVG sanitization, README/LICENSE/CI, scoped npm package</strong> — Lucas could not tell what the agent changed across 3 revisions of a real plan; plus the production-review gap list</span></div>
   <div class="evolution"><span class="rev">r004</span><span class="what"><strong>Iris is the default palette; renderer emits standalone HTML by default with --artifact for claude.ai; Palette: frontmatter override</strong> — Lucas fell for Iris; production review found the fragment-only output was claude.ai-shaped rather than self-contained</span></div>
-  <div class="evolution"><span class="rev">r003</span><span class="what"><strong>Phase 1 shipped: CLI v2, theme.css, deterministic renderer, /vellum-plan skill; plan source converted to directive syntax</strong> — This revision is the first rendered by the toolchain instead of by hand — the golden pair closes</span></div>
-  <details class="changes"><summary>What changed in r006 (vs r005)</summary><div class="rdiff"><div class="rdiff-skip">⋯ 11 unchanged blocks</div>
-<div class="rdiff-ctx">## Architecture</div>
-<div class="rdiff-block codey">::: figure aria=&quot;Flow: PLAN.md through the vellum CLI to plan.html, delivered to the claude.ai Artifact and the local viewer; the CLI also writes revision history and meta.yml&quot;
-&lt;svg viewBox=&quot;0 0 640 190&quot; xmlns=&quot;http://www.w3.org/2000/svg&quot;&gt;
-  &lt;defs&gt;&lt;marker id=&quot;arr&quot; viewBox=&quot;0 0 8 8&quot; refX=&quot;7&quot; refY=&quot;4&quot; markerWidth=&quot;7&quot; markerHeight=&quot;7&quot; orient=&quot;auto&quot;&gt;&lt;path d=&quot;M0 0 L8 4 L0 8 z&quot; fill=&quot;var(--soft)&quot;/&gt;&lt;/marker&gt;&lt;/defs&gt;
-  &lt;rect class=&quot;nodebox&quot; x=&quot;8&quot; y=&quot;40&quot; width=&quot;110&quot; height=&quot;36&quot; rx=&quot;5&quot;/&gt;
-  &lt;text x=&quot;63&quot; y=&quot;62&quot; text-anchor=&quot;middle&quot;&gt;PLAN.md&lt;/text&gt;
-  &lt;rect class=&quot;accentbox&quot; x=&quot;180&quot; y=&quot;40&quot; width=&quot;120&quot; height=&quot;36&quot; rx=&quot;5&quot;/&gt;
-  &lt;text x=&quot;240&quot; y=&quot;62&quot; text-anchor=&quot;middle&quot;&gt;vellum CLI&lt;/text&gt;
-  &lt;text class=&quot;lbl&quot; x=&quot;240&quot; y=&quot;94&quot; text-anchor=&quot;middle&quot;&gt;snapshot · diff · render&lt;/text&gt;
-  &lt;rect class=&quot;nodebox&quot; x=&quot;360&quot; y=&quot;40&quot; width=&quot;110&quot; height=&quot;36&quot; rx=&quot;5&quot;/&gt;
-  &lt;text x=&quot;415&quot; y=&quot;62&quot; text-anchor=&quot;middle&quot;&gt;plan.html&lt;/text&gt;
-  &lt;rect class=&quot;nodebox&quot; x=&quot;522&quot; y=&quot;10&quot; width=&quot;110&quot; height=&quot;36&quot; rx=&quot;5&quot;/&gt;
-  &lt;text x=&quot;577&quot; y=&quot;32&quot; text-anchor=&quot;middle&quot;&gt;Artifact&lt;/text&gt;
-  &lt;rect class=&quot;nodebox&quot; x=&quot;522&quot; y=&quot;70&quot; width=&quot;110&quot; height=&quot;36&quot; rx=&quot;5&quot;/&gt;
-  &lt;text x=&quot;577&quot; y=&quot;92&quot; text-anchor=&quot;middle&quot;&gt;viewer&lt;/text&gt;
-  &lt;text class=&quot;lbl&quot; x=&quot;577&quot; y=&quot;120&quot; text-anchor=&quot;middle&quot;&gt;Tailscale-only · <del>Ph 2</del><ins>:4820</ins>&lt;/text&gt;
-  &lt;rect class=&quot;nodebox&quot; x=&quot;180&quot; y=&quot;136&quot; width=&quot;220&quot; height=&quot;36&quot; rx=&quot;5&quot;/&gt;
-  &lt;text x=&quot;290&quot; y=&quot;158&quot; text-anchor=&quot;middle&quot;&gt;.history/ rNNN.md + meta.yml&lt;/text&gt;
-  &lt;path class=&quot;flow&quot; d=&quot;M118 58 H176&quot;/&gt;
-  &lt;path class=&quot;flow&quot; d=&quot;M300 58 H356&quot;/&gt;
-  &lt;path class=&quot;flow&quot; d=&quot;M470 52 C 495 45, 500 35, 518 30&quot;/&gt;
-  &lt;path class=&quot;flow&quot; d=&quot;M470 64 C 495 71, 500 81, 518 86&quot;/&gt;
-  &lt;path class=&quot;flow&quot; d=&quot;M240 76 V132&quot;/&gt;
-&lt;/svg&gt;
-:::</div>
-<div class="rdiff-skip">⋯ 14 unchanged blocks</div>
+  <details class="changes"><summary>What changed in r007 (vs r006)</summary><div class="rdiff"><div class="rdiff-skip">⋯ 26 unchanged blocks</div>
 <div class="rdiff-ctx">## Build order</div>
 <div class="rdiff-block codey">::: timeline
 1. **CLI core + design system + renderer + skill** [done] — Shipped 2026-07-05: `snapshot`/`list`/`diff`/`revert`/`render`, `theme.css` with three palettes, deterministic renderer (13 tests green), `/vellum-plan` skill. This page is its output.
-2. **Local viewer** [<del>next</del><ins>done</ins>] — <ins>Shipped 2026-07-05: `vellum serve &lt;dir&gt;` (</ins>Hono<del> daemon bound</del><ins>) — document index, revision picker in a fixed bottom bar, per-revision rendering with the evolution trimmed</ins> to <ins>that point in time, diff pages, SSE hot reload on file changes. Binds 127.0.0.1 by default or </ins>the Tailscale IP <del>only — never</del><ins>via `--tailscale`; refuses</ins> 0.0.0.0 <ins>outright. Live </ins>on nyx <ins>at port 4820 over Tailscale</ins>.<del> Watches `.history/`, SSE hot reload, revision picker, diff pane. If it's good, productize it.</del>
-3. **Anchored comments** [<del>later</del><ins>next</ins>] — Click a block in the viewer → comment lands in `meta.yml`; `vellum address` has the agent read open comments, revise, snapshot, resolve. The Antigravity loop<ins>, anchored by quote + context (W3C-annotation style) so comments survive revisions</ins>.
+2. **Local viewer** [done] — Shipped 2026-07-05: `vellum serve &lt;dir&gt;` (Hono) — document index, revision picker in a fixed bottom bar, per-revision rendering with the evolution trimmed to that point in time, diff pages, SSE hot reload on file changes. Binds 127.0.0.1 by default or the Tailscale IP via `--tailscale`; refuses 0.0.0.0 outright. Live on nyx at port 4820 over Tailscale.
+3. **Anchored comments** [<del>next</del><ins>done</ins>] — <del>Click a block</del><ins>Shipped 2026-07-05, the Antigravity loop closed: select text</ins> in the viewer → comment <del>lands in</del><ins>saved to</ins> `meta.yml` <ins>with quote + surrounding context (W3C-annotation style, survives revisions) and the nearest block anchor. Open comments render as a panel in every page with the quotes highlighted in place</ins>; <ins>resolve from the viewer or CLI. Agent side: </ins>`vellum address` <del>has the agent read</del><ins>lists</ins> open comments <ins>for action</ins>, <del>revise, snapshot,</del><ins>`vellum</ins> resolve <ins>&lt;id&gt; --rev rNNN` closes them against the revision that addressed them</ins>. <del>The Antigravity loop</del><ins>Inline `` notes are extracted to meta.yml at snapshot time</ins>, <del>anchored by quote + context (W3C-annotation style) so comments survive revisions</del><ins>per the original PRD</ins>.
 :::</div>
 <div class="rdiff-skip">⋯ 8 unchanged blocks</div></div></details>
+  <details class="comments" open><summary>1 open comment</summary><div class="vcomment" data-cid="c-2026-07-05-002"><a class="vc-anchor" href="#build">#build</a> <p>...</p><span class="vc-meta">lucas+claude · 2026-07-05</span></div></details>
 </header>
 
 <details class="toc" open>
@@ -442,7 +446,7 @@ footer.doc code { background: none; padding: 0; }
   <h2 id="build">Build order<a class="anch" href="#build" aria-label="Link to this section">#</a></h2>
 <ol class="timeline"><li><span class="ph">1</span><div><h3>CLI core + design system + renderer + skill <span class="pill done">done</span></h3><p>Shipped 2026-07-05: <code>snapshot</code>/<code>list</code>/<code>diff</code>/<code>revert</code>/<code>render</code>, <code>theme.css</code> with three palettes, deterministic renderer (13 tests green), <code>/vellum-plan</code> skill. This page is its output.</p></div></li>
 <li><span class="ph">2</span><div><h3>Local viewer <span class="pill done">done</span></h3><p>Shipped 2026-07-05: <code>vellum serve &lt;dir&gt;</code> (Hono) — document index, revision picker in a fixed bottom bar, per-revision rendering with the evolution trimmed to that point in time, diff pages, SSE hot reload on file changes. Binds 127.0.0.1 by default or the Tailscale IP via <code>--tailscale</code>; refuses 0.0.0.0 outright. Live on nyx at port 4820 over Tailscale.</p></div></li>
-<li><span class="ph">3</span><div><h3>Anchored comments <span class="pill">next</span></h3><p>Click a block in the viewer → comment lands in <code>meta.yml</code>; <code>vellum address</code> has the agent read open comments, revise, snapshot, resolve. The Antigravity loop, anchored by quote + context (W3C-annotation style) so comments survive revisions.</p></div></li></ol>
+<li><span class="ph">3</span><div><h3>Anchored comments <span class="pill done">done</span></h3><p>Shipped 2026-07-05, the Antigravity loop closed: select text in the viewer → comment saved to <code>meta.yml</code> with quote + surrounding context (W3C-annotation style, survives revisions) and the nearest block anchor. Open comments render as a panel in every page with the quotes highlighted in place; resolve from the viewer or CLI. Agent side: <code>vellum address</code> lists open comments for action, <code>vellum resolve &lt;id&gt; --rev rNNN</code> closes them against the revision that addressed them. Inline `` notes are extracted to meta.yml at snapshot time, per the original PRD.</p></div></li></ol>
 
 </section>
 
@@ -490,7 +494,7 @@ footer.doc code { background: none; padding: 0; }
 </main>
 
 <footer class="doc">
-  Source: <code>repos/vellum/PLAN.md</code> · history: <code>.history/PLAN/</code> (r006) · Rendered by <code>vellum render</code>.
+  Source: <code>repos/vellum/PLAN.md</code> · history: <code>.history/PLAN/</code> (r007) · Rendered by <code>vellum render</code>.
 </footer>
 </div>
 <script>

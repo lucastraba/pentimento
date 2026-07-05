@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { createTwoFilesPatch } from 'diff'
-import { loadDoc, readMeta, readRevision, revert, snapshot } from './core.js'
+import { addComment, loadDoc, readMeta, readRevision, resolveComment, revert, snapshot } from './core.js'
 import { renderDiffPage, renderToFile } from './render.js'
 import { findVellumDocs, verifyDoc } from './verify.js'
 import { serveViewer } from './viewer.js'
@@ -22,9 +22,16 @@ Usage:
   vellum render <doc> [-o out.html] [--artifact]
                                       (--artifact: fragment for claude.ai Artifact publishing;
                                        default: standalone HTML that works anywhere)
-  vellum serve [dir] [--port 4820] [--host 127.0.0.1 | --tailscale]
+  vellum serve [dir] [--port 4820] [--host 127.0.0.1 | --tailscale] [--author name]
                                       (live viewer: document index, revision picker, diffs,
-                                       hot reload; never binds 0.0.0.0)
+                                       hot reload, select-to-comment; never binds 0.0.0.0)
+  vellum comments <doc>               (list comments, open first)
+  vellum comment <doc> --text "..." [--anchor "#id"] [--quote "..."] [--author name]
+  vellum address <doc>                (open comments formatted for an agent to act on)
+  vellum resolve <doc> <comment-id> [--rev rNNN]
+
+Inline comments: leave %% @c: a note %% in the markdown — snapshot extracts them
+into meta.yml anchored to the nearest heading.
 `
 
 interface Args {
@@ -164,8 +171,58 @@ const main = (): void => {
       if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) fail(`not a directory: ${root}`)
       const port = Number(flags.port ?? 4820)
       const host = flags.tailscale === 'true' ? tailscaleIp() : (flags.host ?? '127.0.0.1')
-      serveViewer(root, { host, port })
+      serveViewer(root, { host, port, author: flags.author })
       console.log(`vellum viewer → http://${host}:${port}/  (watching ${root})`)
+      break
+    }
+    case 'comments': {
+      if (!doc) fail('comments needs a document path')
+      const meta = readMeta(loadDoc(doc).historyDir)
+      const open = meta.comments.filter((c) => c.status === 'open')
+      const resolved = meta.comments.length - open.length
+      if (!meta.comments.length) { console.log('no comments'); break }
+      for (const c of open) {
+        console.log(`[${c.id}] OPEN ${c.anchor || '(document)'} — ${c.author}, ${c.created_at.slice(0, 10)}`)
+        if (c.quote) console.log(`    > ${c.quote}`)
+        console.log(`    ${c.text}`)
+      }
+      if (resolved) console.log(`(+ ${resolved} resolved)`)
+      break
+    }
+    case 'comment': {
+      if (!doc) fail('comment needs a document path')
+      if (!flags.text) fail('comment needs --text "..."')
+      const entry = addComment(doc, {
+        text: flags.text,
+        anchor: flags.anchor,
+        quote: flags.quote,
+        author: flags.author,
+      })
+      console.log(entry.id)
+      break
+    }
+    case 'address': {
+      if (!doc) fail('address needs a document path')
+      const d = loadDoc(doc)
+      const meta = readMeta(d.historyDir)
+      const open = meta.comments.filter((c) => c.status === 'open')
+      if (!open.length) { console.log('no open comments — nothing to address'); break }
+      console.log(`${d.name} (${d.frontmatter['Current Revision'] ?? 'no revision'}) has ${open.length} open comment${open.length > 1 ? 's' : ''}:\n`)
+      for (const c of open) {
+        console.log(`[${c.id}] anchored at ${c.anchor || '(document)'} — ${c.author}, ${c.created_at.slice(0, 10)}`)
+        if (c.quote) console.log(`  quoted text: "${c.quote}"`)
+        if (c.prefix || c.suffix) console.log(`  context: …${c.prefix ?? ''}[quote]${c.suffix ?? ''}…`)
+        console.log(`  comment: ${c.text}\n`)
+      }
+      console.log('To address: revise the canonical markdown accordingly, then:')
+      console.log(`  vellum snapshot ${positional[0]} --summary "Address review comments" --why "..."`)
+      console.log(`  vellum resolve ${positional[0]} <comment-id> --rev <new revision>   # once per addressed comment`)
+      break
+    }
+    case 'resolve': {
+      if (!doc || !positional[1]) fail('resolve needs a document path and a comment id')
+      const c = resolveComment(doc, positional[1], flags.rev)
+      console.log(`${c.id} resolved${c.resolved_in ? ` in ${c.resolved_in}` : ''}`)
       break
     }
     default:

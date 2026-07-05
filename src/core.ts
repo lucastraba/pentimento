@@ -14,11 +14,24 @@ export interface RevisionEntry {
 export interface CommentEntry {
   id: string
   anchor: string
+  /** W3C-annotation-style anchoring: exact selected text plus surrounding context */
+  quote?: string
+  prefix?: string
+  suffix?: string
   text: string
   status: 'open' | 'resolved'
   created_at: string
   author: string
   resolved_in: string | null
+}
+
+export interface NewComment {
+  text: string
+  anchor?: string
+  quote?: string
+  prefix?: string
+  suffix?: string
+  author?: string
 }
 
 export interface Meta {
@@ -40,6 +53,29 @@ const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/
 export const splitRaw = (raw: string): { frontmatterRaw: string | null; body: string } => {
   const m = FRONTMATTER_RE.exec(raw)
   return m ? { frontmatterRaw: m[1], body: raw.slice(m[0].length) } : { frontmatterRaw: null, body: raw }
+}
+
+export const slugify = (s: string): string =>
+  s.toLowerCase().replace(/`/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+
+const INLINE_COMMENT_RE = /[ \t]*%%\s*@c:\s*([\s\S]*?)%%/g
+
+/** Pull `%% @c: ... %%` inline comments out of the source, anchored to the nearest preceding heading. */
+export const extractInlineComments = (raw: string): { cleaned: string; found: { text: string; anchor: string }[] } => {
+  const found: { text: string; anchor: string }[] = []
+  const headingFor = (index: number): string => {
+    const matches = [...raw.slice(0, index).matchAll(/^#{1,3}\s+(.+)$/gm)]
+    if (!matches.length) return ''
+    const title = matches[matches.length - 1][1]
+    const idm = /<!--[^>]*\bid:\s*([\w-]+)/.exec(title)
+    if (idm) return `#${idm[1]}`
+    return `#${slugify(title.replace(/<!--.*?-->/, '').trim())}`
+  }
+  const cleaned = raw.replace(INLINE_COMMENT_RE, (_m, text: string, offset: number) => {
+    found.push({ text: text.trim(), anchor: headingFor(offset) })
+    return ''
+  })
+  return { cleaned, found }
 }
 
 export const nowStamp = (): string => {
@@ -163,7 +199,8 @@ export const snapshot = (docPath: string, opts: SnapshotOptions): SnapshotResult
       .relative(path.dirname(doc.canonicalPath), doc.historyDir)
       .split(path.sep)
       .join('/')
-    const stamped = stampFrontmatter(doc.raw, {
+    const { cleaned, found } = extractInlineComments(doc.raw)
+    const stamped = stampFrontmatter(cleaned, {
       Vellum: true,
       'Current Revision': next,
       'History Folder': historyRel,
@@ -178,9 +215,54 @@ export const snapshot = (docPath: string, opts: SnapshotOptions): SnapshotResult
       ...(opts.why ? { why: opts.why } : {}),
       ...(opts.source ? { source: opts.source } : {}),
     })
+    for (const f of found) {
+      meta.comments.push(makeComment(meta, { text: f.text, anchor: f.anchor, author: opts.author }))
+    }
     writeMeta(doc.historyDir, meta)
     atomicWrite(doc.canonicalPath, stamped)
     return { rev: next, historyFile }
+  })
+}
+
+const makeComment = (meta: Meta, input: NewComment): CommentEntry => {
+  const stamp = nowStamp()
+  const date = stamp.slice(0, 10)
+  const seq = meta.comments.filter((c) => c.id.startsWith(`c-${date}`)).length + 1
+  return {
+    id: `c-${date}-${String(seq).padStart(3, '0')}`,
+    anchor: input.anchor ?? '',
+    ...(input.quote ? { quote: input.quote } : {}),
+    ...(input.prefix ? { prefix: input.prefix } : {}),
+    ...(input.suffix ? { suffix: input.suffix } : {}),
+    text: input.text,
+    status: 'open',
+    created_at: stamp,
+    author: input.author ?? 'reader',
+    resolved_in: null,
+  }
+}
+
+export const addComment = (docPath: string, input: NewComment): CommentEntry => {
+  const doc = loadDoc(docPath)
+  return withLock(doc.historyDir, () => {
+    const meta = readMeta(doc.historyDir)
+    const entry = makeComment(meta, input)
+    meta.comments.push(entry)
+    writeMeta(doc.historyDir, meta)
+    return entry
+  })
+}
+
+export const resolveComment = (docPath: string, id: string, rev?: string): CommentEntry => {
+  const doc = loadDoc(docPath)
+  return withLock(doc.historyDir, () => {
+    const meta = readMeta(doc.historyDir)
+    const c = meta.comments.find((x) => x.id === id)
+    if (!c) throw new Error(`no comment ${id} on ${doc.name}`)
+    c.status = 'resolved'
+    c.resolved_in = rev ?? null
+    writeMeta(doc.historyDir, meta)
+    return c
   })
 }
 

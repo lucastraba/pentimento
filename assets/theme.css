@@ -234,6 +234,35 @@ footer.doc code { background: none; padding: 0; }
 :root[data-theme="dark"][data-palette="iris"] { --bg:#151020; --raise:#1E1830; --ink:#EAE6F4; --soft:#A29AC0;
   --line:#332A4D; --accent:#A78BE0; --accent-deep:#BCA8EA; --wash:rgba(167,139,224,.12); --code-bg:#241D38; --design:#A78BE0; }
 
+/* comments */
+details.comments { margin: .75rem 0 0; }
+.vcomment { border: 1px solid var(--line); border-left: 3px solid var(--high); border-radius: 6px;
+  background: var(--raise); padding: .6rem .9rem; margin: .5rem 0; font-size: .9rem; }
+.vcomment blockquote { margin: .3rem 0; padding: .1rem .6rem; border-left: 2px solid var(--line);
+  color: var(--soft); font-style: italic; }
+.vcomment p { margin: .3rem 0; }
+.vc-anchor { font-family: var(--mono); font-size: .75rem; }
+.vc-meta { font-size: .72rem; color: var(--soft); }
+mark.vc-mark { background: color-mix(in srgb, var(--high) 22%, transparent); color: inherit;
+  border-bottom: 1px dotted var(--high); padding: 0 .05em; border-radius: 2px; }
+.vc-add { position: absolute; z-index: 30; font: 600 .78rem var(--sans); color: var(--bg); background: var(--accent);
+  border: none; border-radius: 999px; padding: .3rem .7rem; cursor: pointer; }
+.vc-form { position: fixed; bottom: 3.8rem; left: 50%; transform: translateX(-50%);
+  width: min(34rem, calc(100vw - 2rem)); background: var(--raise); border: 1px solid var(--line);
+  border-radius: 8px; padding: .8rem; z-index: 40; box-shadow: 0 6px 24px rgba(0, 0, 0, .18); }
+.vc-form blockquote { margin: 0 0 .5rem; padding: .1rem .6rem; border-left: 2px solid var(--accent);
+  color: var(--soft); font-size: .85rem; font-style: italic; max-height: 4.5rem; overflow: hidden; }
+.vc-form textarea { width: 100%; min-height: 4rem; font: inherit; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: .5rem; box-sizing: border-box; }
+.vc-form textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.vc-row { display: flex; gap: .5rem; justify-content: flex-end; margin-top: .5rem; }
+.vc-form button, .vc-resolve { font: 600 .78rem var(--sans); border-radius: 6px; padding: .3rem .8rem;
+  cursor: pointer; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+.vc-form .vc-save { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.vc-resolve { display: block; margin-top: .4rem; }
+.vc-form button:focus-visible, .vc-resolve:focus-visible, .vc-add:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px; }
+
 /* viewer chrome (vellum serve) */
 .vbar-pad { height: 3.2rem; }
 .vbar { position: fixed; bottom: 0; left: 0; right: 0; display: flex; align-items: center; gap: .8rem;

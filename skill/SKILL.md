@@ -38,6 +38,18 @@ A Vellum plan is one canonical markdown file with hidden revision history and a 
 7. If the user asks what changed between older revisions: `vellum diff <Name>.md rA rB --html -o changes.html` renders a readable word-level diff page you can publish alongside the plan.
 8. Periodically (or in CI): `vellum verify .` cross-checks every Vellum document's frontmatter, history files, and meta.yml.
 
+## Addressing review comments
+
+Readers leave comments by selecting text in the viewer (`vellum serve`); comments land in `meta.yml` with the quoted text and context. When the user says "I left comments" (or before any feedback round):
+
+1. `vellum address <Name>.md` — lists each open comment with its anchor, quoted text, and ask.
+2. Revise the markdown to address them — the quote + context tells you the exact spot even if the section moved.
+3. One snapshot for the round: `vellum snapshot <Name>.md --summary "Address review comments" --why "<what the comments asked>"`
+4. `vellum resolve <Name>.md <comment-id> --rev <new revision>` for each comment you addressed. Leave genuinely unresolved ones open and say why.
+5. Re-render and republish.
+
+You can also leave inline notes in the markdown as `%% @c: a note %%` — snapshot extracts them into meta.yml anchored to the nearest heading (useful for flagging open questions to the reader).
+
 ## Directive vocabulary
 
 Full syntax and examples: `references/directives.md`. Summary:
