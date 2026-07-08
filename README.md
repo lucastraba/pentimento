@@ -1,56 +1,93 @@
-# Vellum
+# Pentimento
 
-**Living documents for humans and agents.** One canonical markdown file, hidden revision history beside it, and a deterministic HTML render your agent can't make ugly.
+Living documents for humans and AI agents: one canonical markdown file, revision history in a hidden folder beside it, and a deterministic HTML render.
 
-Vellum exists because AI agents given free-form HTML produce slop, and plans that get revised three times become unreviewable. The fix for both is the same architecture:
+A pentimento is a trace of earlier brushwork visible under the surface of a painting.
 
-> **The agent gets a vocabulary, not a paint palette.** Agents write markdown plus a small directive set; a deterministic renderer and one fixed stylesheet own every pixel. Flexibility comes from choosing a plan archetype and its components — consistency comes from everything else being non-negotiable.
+## Why
 
-## What you get
+Two problems led here.
 
-- **One file, versioned in place.** `Plan.md` stays at a stable, searchable name. Meaningful versions snapshot into `.history/Plan/r001.md, r002.md…` with an append-only `meta.yml` recording *what changed and why* — a decision log, not just diffs.
-- **A rendered view that stays designed.** `vellum render` turns the markdown into a self-contained, responsive HTML page: header ribbon with archetype badge, collapsible table of contents, the decision log as an evolution strip, and three switchable palettes (Iris, Verdigris, Mist) with light/dark variants. No CDNs, no external requests — one portable file.
-- **"What changed" built in.** Every render embeds a collapsible word-level diff of the latest revision, with unchanged sections collapsed — a reader never has to ask the agent what it just modified. `vellum diff <doc> rA rB --html` renders the same view for any revision pair.
-- **A consistency checker.** `vellum verify <dir>` cross-checks canonical frontmatter, history files, and meta entries — run it in CI and version drift becomes impossible to miss.
-- **Agent-native by contract.** The CLI is the whole API. A skill definition (`skill/`) teaches any coding agent the loop: write markdown against an archetype skeleton → `snapshot` → `render` → publish. Works with Claude Code out of the box; portable to anything that can run a command.
+Plans that get revised stop being reviewable. By the third revision nobody remembers what changed or why, so the reader either re-reads the whole document or asks the author.
+
+And agents asked to produce HTML directly produce visual noise. Every page comes out different, none of them look owned, and the iterations can't be diffed.
+
+Pentimento treats both as the same problem. The author, human or agent, writes markdown plus a small set of directives. A renderer with one fixed stylesheet decides how everything looks. Meaningful versions are snapshotted into numbered revisions with a note about what changed and why, and each render embeds a word-level diff against the previous revision, so the reader sees exactly what moved.
+
+## Install
+
+```bash
+npm install -g pentimento
+```
+
+Node 20.13+ (the viewer's recursive file watch needs it). Rendered pages make no external requests.
 
 ## Quickstart
 
 ```bash
-git clone <this repo> && cd vellum
-npm install && npm run build && npm link
-
-# in any project:
-vellum snapshot Plan.md --summary "Initial draft" --author you
-vellum render Plan.md            # → plan.html, open it anywhere
+pentimento snapshot Plan.md --summary "Initial draft"
+pentimento render Plan.md          # → plan.html, open it anywhere
 # ...revise Plan.md...
-vellum snapshot Plan.md --summary "Tightened scope after review" --why "Feedback round 1"
-vellum render Plan.md            # same page, now with a "What changed" panel
-vellum diff Plan.md              # terminal diff of the latest two revisions
-vellum verify .                  # check every Vellum doc in the repo
+pentimento snapshot Plan.md --summary "Tightened scope" --why "Feedback round 1"
+pentimento render Plan.md          # same page, now with a "What changed in r002" panel
+pentimento diff Plan.md            # terminal diff of the latest two revisions
+pentimento serve .                 # local viewer: revision picker, diffs, comments
+pentimento verify .                # consistency check, exits nonzero for CI
 ```
+
+`--author` defaults to your git `user.name`.
+
+## How it works
+
+Your file, say `Plan.md`, keeps its name and location. `pentimento snapshot` copies the current state to `.history/Plan/r001.md`, `r002.md` and so on, and appends an entry (summary, why, author, timestamp) to an append-only `.history/Plan/meta.yml`. Everything is a plain text file. You can grep the history, sync it, commit it, or hand it to an agent. Nothing about it requires git, and nothing about it conflicts with git.
+
+`pentimento render` produces a single self-contained HTML page: table of contents, the revision log as an evolution strip, an archetype badge, light and dark themes, three switchable palettes. The "What changed" panel appears from the second revision on, with unchanged sections collapsed. `pentimento diff <doc> rA rB --html` renders the same word-level view for any two revisions.
+
+`pentimento verify <dir>` cross-checks every document's frontmatter against its history files and meta entries, and fails loudly when they drift.
+
+## Comments and the review loop
+
+Run `pentimento serve .` and open a document. Select any text and a comment button appears; the comment is saved to `meta.yml` with the quoted text and surrounding context, so it stays attached even after the section moves. Open comments render as a panel on the page with the quotes highlighted in place.
+
+For the other side of the loop:
+
+```bash
+pentimento comments Plan.md               # list comments
+pentimento address Plan.md                # print open comments, formatted for an agent to act on
+pentimento resolve Plan.md c-2026-07-08-001 --rev r003   # close a comment against the revision that fixed it
+```
+
+You can also comment without the viewer (`pentimento comment Plan.md --text "..." --quote "..."`) or leave inline `%% @c: a note %%` markers in the markdown, which snapshot extracts into `meta.yml`.
 
 ## Writing documents
 
-A Vellum document is plain markdown with frontmatter:
+A Pentimento document is markdown with two optional frontmatter keys:
 
 ```yaml
 ---
 Archetype: implementation   # implementation | brainstorm | audit | design-doc
-Palette: iris               # optional: iris | verdigris | mist
+Palette: iris               # iris | verdigris | mist
 ---
 ```
 
-Rich elements come from directives — see [`skill/references/directives.md`](skill/references/directives.md) for the full vocabulary (callouts, verdict banners, severity-graded findings, phase timelines, side-by-side diffs, constrained SVG figures) and [`skill/references/archetypes.md`](skill/references/archetypes.md) for the section skeletons per document type.
+Rich elements come from `:::` directives: callouts, verdict banners, severity-graded findings, phase timelines, side-by-side diffs, constrained SVG figures. The full vocabulary is in [`skill/references/directives.md`](skill/references/directives.md), and [`skill/references/archetypes.md`](skill/references/archetypes.md) has a section skeleton per document type.
 
-The hard rules that keep output consistent: no custom CSS, no inline styles, no scripts, no hand-written HTML output. If a document needs something the vocabulary can't say, the vocabulary grows — per tool release, not per document.
+The rules that keep output consistent: no custom CSS, no inline styles, no scripts, no hand-written HTML. If a document needs something the vocabulary can't say, the vocabulary grows in a tool release, not in a document.
+
+## For writers
+
+The same mechanics work for anything you revise seriously: song lyrics, essays, long-lived notes. The file stays where your other files are (Obsidian vaults work well, and `.history/` stays hidden there), every draft you cared enough to name is preserved, and `meta.yml` remembers why you changed the chorus.
+
+## For agents
+
+Point your agent at [`skill/SKILL.md`](skill/SKILL.md); for Claude Code, drop it in `.claude/skills/`. The contract: write markdown against an archetype skeleton, snapshot with a reader-facing summary, render, publish. On feedback, revise and snapshot again; the render shows the reviewer what moved. Comments left in the viewer come back through `pentimento address`.
 
 ## Design lineage
 
-Markdown-source/HTML-view synthesis after Thariq Shihipar's *Unreasonable Effectiveness of HTML* and its critics; anchored-comment review loop (planned) after Google Antigravity's artifact comments; `:::` directives are Pandoc/Quarto-style fenced divs on purpose. Vellum's own plan is maintained with Vellum — see [`PLAN.md`](PLAN.md) and its `.history/`.
+The markdown-source, HTML-view split is a response to Thariq Shihipar's *Unreasonable Effectiveness of HTML* and its critics. The anchored-comment loop follows Google Antigravity's artifact comments. The `:::` directives are Pandoc/Quarto-style fenced divs on purpose. Pentimento's own plan is maintained with Pentimento; see [`PLAN.md`](PLAN.md) and its `.history/`.
 
 ## Status
 
-Personal tooling hardening toward a public release. Known limits: directives don't nest; the sanitizer strips active content from figures but rendering *hostile* markdown is not a supported use case yet; Windows is untested. Roadmap: local viewer daemon (hot reload, revision picker), then anchored comments (`vellum address`).
+v0.3. Young project, released tooling. Known limits: directives don't nest, Windows is untested, and while the renderer strips active content from figures, rendering hostile markdown is not a supported use case. Documents created under this tool's earlier name (`Vellum: true` frontmatter) are read as-is and migrated on their next snapshot.
 
 MIT © Lucas Traba

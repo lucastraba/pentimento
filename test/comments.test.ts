@@ -10,7 +10,7 @@ let dir: string
 let p: string
 
 beforeEach(() => {
-  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vellum-comments-'))
+  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pentimento-comments-'))
   p = path.join(dir, 'Plan.md')
   fs.writeFileSync(p, '# T\n\n## Section One <!-- id: one -->\n\nSome body text that is long enough.\n')
   snapshot(p, { summary: 'first', author: 'test' })
@@ -75,6 +75,15 @@ describe('comments in render and viewer', () => {
     expect(html).not.toContain('open comment')
   })
 
+  it('escapes hostile comment text instead of rendering it as HTML', () => {
+    addComment(p, { text: '<a/onclick=alert(1)>x</a> [y](javascript:alert(1)) <img src=x onerror=alert(1)>' })
+    const html = render(p)
+    expect(html).not.toContain('<a/onclick')
+    expect(html).not.toContain('<img')
+    expect(html).not.toMatch(/href\s*=\s*"?javascript:/i)
+    expect(html).toContain('&lt;a/onclick')
+  })
+
   it('accepts comments over POST /api/comment and resolves over /api/resolve', async () => {
     const { app } = createApp(dir, { author: 'lucas' })
     const res = await app.request('/api/comment', {
@@ -86,7 +95,7 @@ describe('comments in render and viewer', () => {
     const entry = await res.json()
     expect(entry.author).toBe('lucas')
     const page = await (await app.request('/doc/Plan.md')).text()
-    expect(page).toContain('window.__vellum')
+    expect(page).toContain('window.__pentimento')
     expect(page).toContain('from the viewer')
     const resolveRes = await app.request('/api/resolve', {
       method: 'POST',

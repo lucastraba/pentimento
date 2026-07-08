@@ -122,14 +122,15 @@ export const loadDoc = (docPath: string): Doc => {
 }
 
 /** Rewrite one scalar frontmatter key, preserving all other formatting (audit H3). */
-export const stampFrontmatter = (raw: string, updates: Record<string, string | boolean>): string => {
+export const stampFrontmatter = (raw: string, updates: Record<string, string | boolean | null>): string => {
   const m = FRONTMATTER_RE.exec(raw)
   if (m) {
     const doc = parseDocument(m[1])
-    for (const [k, v] of Object.entries(updates)) doc.set(k, v)
+    for (const [k, v] of Object.entries(updates)) v === null ? doc.delete(k) : doc.set(k, v)
     return `---\n${String(doc).replace(/\n$/, '')}\n---\n${raw.slice(m[0].length)}`
   }
-  const fmDoc = stringifyYaml(updates).replace(/\n$/, '')
+  const kept = Object.fromEntries(Object.entries(updates).filter(([, v]) => v !== null))
+  const fmDoc = stringifyYaml(kept).replace(/\n$/, '')
   return `---\n${fmDoc}\n---\n\n${raw}`
 }
 
@@ -155,7 +156,7 @@ const withLock = <T>(historyDir: string, fn: () => T): T => {
     fs.mkdirSync(lockDir)
   } catch {
     const age = Date.now() - fs.statSync(lockDir).mtimeMs
-    if (age < 10 * 60 * 1000) throw new Error(`Another vellum operation holds the lock: ${lockDir}`)
+    if (age < 10 * 60 * 1000) throw new Error(`Another pentimento operation holds the lock: ${lockDir}`)
     fs.rmdirSync(lockDir)
     fs.mkdirSync(lockDir)
   }
@@ -186,8 +187,9 @@ export interface SnapshotResult {
 export const snapshot = (docPath: string, opts: SnapshotOptions): SnapshotResult => {
   const doc = loadDoc(docPath)
   return withLock(doc.historyDir, () => {
-    const isVellum = doc.frontmatter['Vellum'] === true
-    const current = isVellum && doc.frontmatter['Current Revision'] !== undefined
+    // 'Vellum: true' is the pre-rename marker — keep reading it so old docs snapshot cleanly
+    const isPentimento = doc.frontmatter['Pentimento'] === true || doc.frontmatter['Vellum'] === true
+    const current = isPentimento && doc.frontmatter['Current Revision'] !== undefined
       ? parseRevId(doc.frontmatter['Current Revision'])
       : 0
     const next = revId(current + 1)
@@ -201,7 +203,8 @@ export const snapshot = (docPath: string, opts: SnapshotOptions): SnapshotResult
       .join('/')
     const { cleaned, found } = extractInlineComments(doc.raw)
     const stamped = stampFrontmatter(cleaned, {
-      Vellum: true,
+      Pentimento: true,
+      Vellum: null, // migrate pre-rename docs: drop the legacy marker on first snapshot
       'Current Revision': next,
       'History Folder': historyRel,
     })
@@ -284,7 +287,7 @@ export const revert = (docPath: string, rev: string, author?: string): SnapshotR
   atomicWrite(doc.canonicalPath, restored)
   return snapshot(docPath, {
     summary: `Restored content of ${rev}`,
-    why: `vellum revert ${rev}`,
+    why: `pentimento revert ${rev}`,
     author,
   })
 }

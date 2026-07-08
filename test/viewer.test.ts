@@ -3,13 +3,13 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { snapshot } from '../src/core.js'
-import { createApp } from '../src/viewer.js'
+import { createApp, serveViewer } from '../src/viewer.js'
 
 let dir: string
 let app: ReturnType<typeof createApp>['app']
 
 beforeEach(() => {
-  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vellum-viewer-'))
+  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pentimento-viewer-'))
   const p = path.join(dir, 'My Plan.md')
   fs.writeFileSync(p, '---\nArchetype: brainstorm\n---\n# My Plan\n\n## Ideas\n\nfirst version of the idea\n')
   snapshot(p, { summary: 'first draft', author: 'test' })
@@ -23,6 +23,12 @@ afterEach(() => {
 })
 
 describe('viewer', () => {
+  it('refuses to bind all interfaces, including via an empty host', () => {
+    for (const host of ['', '  ', '0.0.0.0', '::', '*']) {
+      expect(() => serveViewer(dir, { host, port: 0 })).toThrow(/all interfaces/)
+    }
+  })
+
   it('lists documents on the index with badge and revision', async () => {
     const res = await app.request('/')
     const html = await res.text()
@@ -61,8 +67,8 @@ describe('viewer', () => {
   })
 
   it('blocks path traversal', async () => {
-    fs.writeFileSync(path.join(os.tmpdir(), 'vellum-outside.md'), '# outside\n')
-    const res = await app.request('/doc/..%2Fvellum-outside.md')
+    fs.writeFileSync(path.join(os.tmpdir(), 'pentimento-outside.md'), '# outside\n')
+    const res = await app.request('/doc/..%2Fpentimento-outside.md')
     expect(res.status).toBe(404)
   })
 

@@ -5,7 +5,7 @@ import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { addComment, loadDoc, readMeta, resolveComment, type Meta } from './core.js'
 import { render, renderDiffPage, renderRevisionHtml } from './render.js'
-import { findVellumDocs } from './verify.js'
+import { findPentimentoDocs } from './verify.js'
 
 const ASSETS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../assets')
 
@@ -46,7 +46,7 @@ ${SSE_SNIPPET}`
 
 const indexPage = (root: string): string => {
   const css = fs.readFileSync(path.join(ASSETS, 'theme.css'), 'utf8')
-  const cards = findVellumDocs(root)
+  const cards = findPentimentoDocs(root)
     .map((p) => {
       const doc = loadDoc(p)
       let meta: Meta = { revisions: [], comments: [] }
@@ -80,19 +80,19 @@ const indexPage = (root: string): string => {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Vellum — living documents</title>
+<title>Pentimento — living documents</title>
 <style>
 ${css}</style>
 </head>
 <body>
 <div class="wrap">
 <header class="doc">
-  <div class="meta-row"><span class="badge">Vellum viewer</span><span class="chip">${escapeHtml(root)}</span></div>
+  <div class="meta-row"><span class="badge">Pentimento viewer</span><span class="chip">${escapeHtml(root)}</span></div>
   <h1>Living documents</h1>
 </header>
 <main>
 <div class="vcards">
-${cards || '<p>No Vellum documents found under this directory.</p>'}
+${cards || '<p>No Pentimento documents found under this directory.</p>'}
 </div>
 </main>
 </div>
@@ -147,7 +147,7 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
         .filter((cm) => cm.status === 'open')
         .map((cm) => ({ id: cm.id, quote: cm.quote ?? null, text: cm.text })),
     }
-    const cfgScript = `<script>window.__vellum=${JSON.stringify(cfg).replace(/</g, '\\u003c')}</script>\n<script>\n${viewerJs}</script>`
+    const cfgScript = `<script>window.__pentimento=${JSON.stringify(cfg).replace(/</g, '\\u003c')}</script>\n<script>\n${viewerJs}</script>`
     return c.html(html.replace('</body>', `${viewerBar(rel, meta, rev)}\n${cfgScript}\n</body>`))
   })
 
@@ -230,7 +230,7 @@ export interface ServeOptions {
 }
 
 export const serveViewer = (root: string, { host, port, author }: ServeOptions): void => {
-  if (host === '0.0.0.0' || host === '::' || host === '*') {
+  if (!host.trim() || host === '0.0.0.0' || host === '::' || host === '*') {
     throw new Error('refusing to bind all interfaces — use 127.0.0.1 or a Tailscale IP (--tailscale)')
   }
   const absRoot = path.resolve(root)

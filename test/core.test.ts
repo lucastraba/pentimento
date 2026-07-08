@@ -7,7 +7,7 @@ import { loadDoc, readMeta, revert, snapshot, stampFrontmatter } from '../src/co
 let dir: string
 
 beforeEach(() => {
-  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vellum-test-'))
+  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pentimento-test-'))
 })
 
 afterEach(() => {
@@ -26,7 +26,7 @@ describe('snapshot', () => {
     const res = snapshot(p, { summary: 'first', author: 'test' })
     expect(res.rev).toBe('r001')
     const doc = loadDoc(p)
-    expect(doc.frontmatter['Vellum']).toBe(true)
+    expect(doc.frontmatter['Pentimento']).toBe(true)
     expect(doc.frontmatter['Current Revision']).toBe('r001')
     expect(doc.frontmatter['History Folder']).toBe('.history/Plan')
     expect(fs.readFileSync(res.historyFile, 'utf8')).toBe(doc.raw)
@@ -53,8 +53,18 @@ describe('snapshot', () => {
     expect(() => snapshot(p, { summary: 'again' })).toThrow(/refusing to overwrite/)
   })
 
+  it('migrates a legacy Vellum-marked doc: reads its revision, swaps the marker', () => {
+    const p = write('Plan.md', '---\nVellum: true\nCurrent Revision: r002\nHistory Folder: .history/Plan\n---\n# Plan\n\nv3\n')
+    const res = snapshot(p, { summary: 'first after rename' })
+    expect(res.rev).toBe('r003')
+    const doc = loadDoc(p)
+    expect(doc.frontmatter['Pentimento']).toBe(true)
+    expect(doc.frontmatter['Vellum']).toBeUndefined()
+    expect(doc.frontmatter['Current Revision']).toBe('r003')
+  })
+
   it('errors loudly on a malformed Current Revision (audit M5)', () => {
-    const p = write('Plan.md', '---\nVellum: true\nCurrent Revision: rev 2026 draft\n---\n# Plan\n')
+    const p = write('Plan.md', '---\nPentimento: true\nCurrent Revision: rev 2026 draft\n---\n# Plan\n')
     expect(() => snapshot(p, { summary: 'x' })).toThrow(/Invalid Current Revision/)
   })
 
@@ -91,9 +101,9 @@ describe('revert', () => {
 
 describe('stampFrontmatter', () => {
   it('adds frontmatter to a bare document', () => {
-    const out = stampFrontmatter('# Hi\n', { Vellum: true, 'Current Revision': 'r001' })
+    const out = stampFrontmatter('# Hi\n', { Pentimento: true, 'Current Revision': 'r001' })
     expect(out).toMatch(/^---\n/)
-    expect(out).toContain('Vellum: true')
+    expect(out).toContain('Pentimento: true')
     expect(out).toContain('# Hi')
   })
 })

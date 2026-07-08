@@ -8,7 +8,7 @@ import { render } from '../src/render.js'
 let dir: string
 
 beforeEach(() => {
-  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vellum-render-'))
+  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pentimento-render-'))
 })
 
 afterEach(() => {
@@ -35,7 +35,7 @@ describe('render', () => {
     expect(html).toContain('<span class="eyebrow">Intro</span>')
     expect(html).toContain('<h2 id="first">First<a class="anch" href="#first"')
     expect(html).toContain('<h2 id="second">')
-    expect(html).toContain('Rendered by <code>vellum render</code>')
+    expect(html).toContain('Rendered by <code>pentimento render</code>')
   })
 
   it('renders callouts, verdicts, findings, timeline', () => {

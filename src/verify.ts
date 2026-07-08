@@ -9,7 +9,7 @@ export interface Issue {
 
 const SKIP_DIRS = new Set(['.git', 'node_modules', '.history', 'dist', '.obsidian'])
 
-export const findVellumDocs = (root: string): string[] => {
+export const findPentimentoDocs = (root: string): string[] => {
   const out: string[] = []
   const walk = (dir: string): void => {
     let entries
@@ -27,9 +27,9 @@ export const findVellumDocs = (root: string): string[] => {
       const p = path.join(dir, entry.name)
       try {
         const head = fs.readFileSync(p, 'utf8').slice(0, 2000)
-        if (/^Vellum:\s*true$/m.test(head)) out.push(p)
+        if (/^(?:Pentimento|Vellum):\s*true$/m.test(head)) out.push(p)
       } catch {
-        // broken symlink or unreadable file — not a Vellum doc
+        // broken symlink or unreadable file — not a Pentimento doc
       }
     }
   }
@@ -51,8 +51,8 @@ export const verifyDoc = (docPath: string): Issue[] => {
     err(e instanceof Error ? e.message : String(e))
     return issues
   }
-  if (doc.frontmatter['Vellum'] !== true) {
-    info('not a Vellum document (no `Vellum: true` frontmatter) — nothing to verify')
+  if (doc.frontmatter['Pentimento'] !== true && doc.frontmatter['Vellum'] !== true) {
+    info('not a Pentimento document (no `Pentimento: true` frontmatter) — nothing to verify')
     return issues
   }
   if (doc.historyDir.includes('{{')) {

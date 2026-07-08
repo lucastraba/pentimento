@@ -9,6 +9,9 @@ import { renderDiffHtml } from './semdiff.js'
 const ASSETS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../assets')
 
 const md: MarkdownIt = new MarkdownIt({ html: true, linkify: false, typographer: false })
+// reader comments are untrusted (they arrive over HTTP via the viewer) — html:false makes
+// markdown-it escape raw HTML and reject javascript: links, unlike the regex sanitize()
+const mdUntrusted: MarkdownIt = new MarkdownIt({ html: false, linkify: false, typographer: false })
 
 // every table scrolls inside its own container; the page never scrolls sideways
 md.renderer.rules.table_open = () => '<div class="tablewrap"><table>\n'
@@ -218,7 +221,7 @@ const prepare = (body: string): Prepared => {
           rest = rest.slice(vm[0].length)
         }
         blocks.push(HANDLERS[open[1]](contentLines.join('\n').trim(), parseAttrs(rest), variant))
-        out.push('', `<!--VELLUM-BLOCK-${blocks.length - 1}-->`, '')
+        out.push('', `<!--PENTIMENTO-BLOCK-${blocks.length - 1}-->`, '')
         continue
       }
       const h = /^(#{2,3})\s+(.+)$/.exec(line)
@@ -234,7 +237,7 @@ const prepare = (body: string): Prepared => {
           eyebrow: meta.eyebrow,
         }
         headings.push(info)
-        out.push(`<!--VELLUM-H-${headings.length - 1}-->`)
+        out.push(`<!--PENTIMENTO-H-${headings.length - 1}-->`)
         i++
         continue
       }
@@ -248,7 +251,7 @@ const prepare = (body: string): Prepared => {
   const preamble: string[] = []
   let bucket = preamble
   for (const line of out) {
-    const hm = /^<!--VELLUM-H-(\d+)-->$/.exec(line)
+    const hm = /^<!--PENTIMENTO-H-(\d+)-->$/.exec(line)
     if (hm && headings[Number(hm[1])].level === 2) {
       sections.push({ heading: headings[Number(hm[1])], bodyLines: [] })
       bucket = sections[sections.length - 1].bodyLines
@@ -264,11 +267,11 @@ const anchor = (id: string): string =>
 
 const renderSectionBody = (prepared: Prepared, bodyLines: string[]): string => {
   let html = md.render(bodyLines.join('\n'))
-  html = html.replace(/<!--VELLUM-H-(\d+)-->/g, (_, n) => {
+  html = html.replace(/<!--PENTIMENTO-H-(\d+)-->/g, (_, n) => {
     const h = prepared.headings[Number(n)]
     return `<h3 id="${h.id}">${md.renderInline(h.title)}${anchor(h.id)}</h3>`
   })
-  html = html.replace(/<!--VELLUM-BLOCK-(\d+)-->/g, (_, n) => prepared.blocks[Number(n)])
+  html = html.replace(/<!--PENTIMENTO-BLOCK-(\d+)-->/g, (_, n) => prepared.blocks[Number(n)])
   return sanitize(html)
 }
 
@@ -323,7 +326,7 @@ const chrome = (doc: Doc, meta: Meta, prepared: Prepared, opts: RenderOptions): 
         `<div class="vcomment" data-cid="${escapeHtml(c.id)}">` +
         `${c.anchor ? `<a class="vc-anchor" href="${escapeHtml(c.anchor)}">${escapeHtml(c.anchor)}</a> ` : ''}` +
         `${c.quote ? `<blockquote>${escapeHtml(c.quote)}</blockquote>` : ''}` +
-        `<p>${sanitize(md.renderInline(c.text))}</p>` +
+        `<p>${mdUntrusted.renderInline(c.text)}</p>` +
         `<span class="vc-meta">${escapeHtml(c.author)} · ${escapeHtml(String(c.created_at).slice(0, 10))}</span></div>`).join('')}</details>`
     : ''
 
@@ -355,7 +358,7 @@ const chrome = (doc: Doc, meta: Meta, prepared: Prepared, opts: RenderOptions): 
 
   const title = escapeHtml(plainText(prepared.title))
   // set the palette before first paint; localStorage (user's explicit pick) wins over the doc default
-  const paletteInit = `<script>(()=>{let p=null;try{p=localStorage.getItem('vellum-palette')}catch(e){}p=p||'${defaultPalette}';if(p!=='verdigris')document.documentElement.dataset.palette=p})()</script>`
+  const paletteInit = `<script>(()=>{let p=null;try{p=localStorage.getItem('pentimento-palette')}catch(e){}p=p||'${defaultPalette}';if(p!=='verdigris')document.documentElement.dataset.palette=p})()</script>`
 
   const body = `${paletteInit}
 
@@ -389,7 +392,7 @@ ${sections}
 </main>
 
 <footer class="doc">
-  Source: <code>${escapeHtml(pathLabel)}</code> · history: <code>${escapeHtml(historyRel)}/</code> (${escapeHtml(rev)}) · Rendered by <code>vellum render</code>.
+  Source: <code>${escapeHtml(pathLabel)}</code> · history: <code>${escapeHtml(historyRel)}/</code> (${escapeHtml(rev)}) · Rendered by <code>pentimento render</code>.
 </footer>
 </div>
 <script>
@@ -480,7 +483,7 @@ ${css}</style>
 <main>
 <div class="rdiff" style="margin-top:2rem">${rdiff}</div>
 </main>
-<footer class="doc">Rendered by <code>vellum diff --html</code>.</footer>
+<footer class="doc">Rendered by <code>pentimento diff --html</code>.</footer>
 </div>
 </body>
 </html>

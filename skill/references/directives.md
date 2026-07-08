@@ -1,4 +1,4 @@
-# Vellum directive reference
+# Pentimento directive reference
 
 Directives are fenced with `:::` on their own lines. A leading bare word is the variant; the rest is `key="value"` attrs. Content inside is markdown unless noted.
 
@@ -70,13 +70,13 @@ Write a plain unified diff (` ` context, `-` removed, `+` added) inside a `txt` 
 Inline SVG only, composed from `theme.css` classes: `nodebox` (plain node), `accentbox` (highlighted node), `flow` (arrow path; add `marker-end="url(#arr)"` and define the `arr` marker in `<defs>`), `lbl` (small caption text). Colors come from CSS variables — never hardcode fills beyond those classes. Always set `aria`.
 
 ```markdown
-::: figure aria="PLAN.md flows through the vellum CLI to plan.html"
+::: figure aria="PLAN.md flows through the pentimento CLI to plan.html"
 <svg viewBox="0 0 640 120" xmlns="http://www.w3.org/2000/svg">
   <defs><marker id="arr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--soft)"/></marker></defs>
   <rect class="nodebox" x="8" y="40" width="110" height="36" rx="5"/>
   <text x="63" y="62" text-anchor="middle">PLAN.md</text>
   <rect class="accentbox" x="180" y="40" width="120" height="36" rx="5"/>
-  <text x="240" y="62" text-anchor="middle">vellum CLI</text>
+  <text x="240" y="62" text-anchor="middle">pentimento CLI</text>
   <path class="flow" d="M118 58 H176"/>
 </svg>
 :::
@@ -104,4 +104,4 @@ Generated — never write them. The header reads `Archetype` and `Current Revisi
 Archetype: implementation | brainstorm | audit | design-doc   # badge + accent
 Palette: iris | verdigris | mist                              # default palette (reader's own pick wins)
 ```
-`Vellum`, `Current Revision`, and `History Folder` are managed by the CLI — never hand-edit them.
+`Pentimento`, `Current Revision`, and `History Folder` are managed by the CLI — never hand-edit them.

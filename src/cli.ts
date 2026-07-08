@@ -6,29 +6,29 @@ import path from 'node:path'
 import { createTwoFilesPatch } from 'diff'
 import { addComment, loadDoc, readMeta, readRevision, resolveComment, revert, snapshot } from './core.js'
 import { renderDiffPage, renderToFile } from './render.js'
-import { findVellumDocs, verifyDoc } from './verify.js'
+import { findPentimentoDocs, verifyDoc } from './verify.js'
 import { serveViewer } from './viewer.js'
 
-const USAGE = `vellum — living documents
+const USAGE = `pentimento — living documents
 
 Usage:
-  vellum snapshot <doc> --summary "..." [--why "..."] [--source "..."] [--author name]
-  vellum list <doc>
-  vellum diff <doc> [revA] [revB] [--html [-o out.html]]
+  pentimento snapshot <doc> --summary "..." [--why "..."] [--source "..."] [--author name]
+  pentimento list <doc>
+  pentimento diff <doc> [revA] [revB] [--html [-o out.html]]
                                       (defaults: latest two; one arg diffs it against the canonical;
                                        --html renders a readable word-level diff page)
-  vellum verify <doc-or-directory>    (check canonical/history/meta consistency)
-  vellum revert <doc> <rev> [--author name]
-  vellum render <doc> [-o out.html] [--artifact]
+  pentimento verify <doc-or-directory>    (check canonical/history/meta consistency)
+  pentimento revert <doc> <rev> [--author name]
+  pentimento render <doc> [-o out.html] [--artifact]
                                       (--artifact: fragment for claude.ai Artifact publishing;
                                        default: standalone HTML that works anywhere)
-  vellum serve [dir] [--port 4820] [--host 127.0.0.1 | --tailscale] [--author name]
+  pentimento serve [dir] [--port 4820] [--host 127.0.0.1 | --tailscale] [--author name]
                                       (live viewer: document index, revision picker, diffs,
                                        hot reload, select-to-comment; never binds 0.0.0.0)
-  vellum comments <doc>               (list comments, open first)
-  vellum comment <doc> --text "..." [--anchor "#id"] [--quote "..."] [--author name]
-  vellum address <doc>                (open comments formatted for an agent to act on)
-  vellum resolve <doc> <comment-id> [--rev rNNN]
+  pentimento comments <doc>               (list open comments, plus a resolved count)
+  pentimento comment <doc> --text "..." [--anchor "#id"] [--quote "..."] [--author name]
+  pentimento address <doc>                (open comments formatted for an agent to act on)
+  pentimento resolve <doc> <comment-id> [--rev rNNN]
 
 Inline comments: leave %% @c: a note %% in the markdown — snapshot extracts them
 into meta.yml anchored to the nearest heading.
@@ -56,7 +56,7 @@ const parseArgs = (argv: string[]): Args => {
 }
 
 const fail = (msg: string): never => {
-  console.error(`vellum: ${msg}`)
+  console.error(`pentimento: ${msg}`)
   process.exit(1)
 }
 
@@ -74,6 +74,16 @@ const tailscaleIp = (): string => {
   return fail('could not determine a Tailscale IP (is tailscale up?)')
 }
 
+const defaultAuthor = (): string | undefined => {
+  try {
+    const name = execSync('git config user.name', { encoding: 'utf8', timeout: 3000 }).trim()
+    if (name) return name
+  } catch {
+    // not in a git repo or git missing — fall through
+  }
+  return process.env.USER || process.env.USERNAME || undefined
+}
+
 const main = (): void => {
   const [cmd, ...rest] = process.argv.slice(2)
   const { positional, flags } = parseArgs(rest)
@@ -87,7 +97,7 @@ const main = (): void => {
         summary: flags.summary,
         why: flags.why,
         source: flags.source,
-        author: flags.author,
+        author: flags.author ?? defaultAuthor(),
       })
       console.log(`${res.rev} → ${res.historyFile}`)
       break
@@ -138,8 +148,8 @@ const main = (): void => {
     }
     case 'verify': {
       if (!doc) fail('verify needs a document path or a directory')
-      const targets = fs.statSync(doc).isDirectory() ? findVellumDocs(doc) : [doc]
-      if (!targets.length) { console.log('no Vellum documents found'); break }
+      const targets = fs.statSync(doc).isDirectory() ? findPentimentoDocs(doc) : [doc]
+      if (!targets.length) { console.log('no Pentimento documents found'); break }
       let errors = 0
       for (const t of targets) {
         const issues = verifyDoc(t)
@@ -156,7 +166,7 @@ const main = (): void => {
     }
     case 'revert': {
       if (!doc || !positional[1]) fail('revert needs a document path and a revision (e.g. r002)')
-      const res = revert(doc, positional[1], flags.author)
+      const res = revert(doc, positional[1], flags.author ?? defaultAuthor())
       console.log(`canonical restored from ${positional[1]}; recorded as ${res.rev}`)
       break
     }
@@ -170,9 +180,9 @@ const main = (): void => {
       const root = path.resolve(doc ?? '.')
       if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) fail(`not a directory: ${root}`)
       const port = Number(flags.port ?? 4820)
-      const host = flags.tailscale === 'true' ? tailscaleIp() : (flags.host ?? '127.0.0.1')
-      serveViewer(root, { host, port, author: flags.author })
-      console.log(`vellum viewer → http://${host}:${port}/  (watching ${root})`)
+      const host = flags.tailscale === 'true' ? tailscaleIp() : (flags.host?.trim() || '127.0.0.1')
+      serveViewer(root, { host, port, author: flags.author ?? defaultAuthor() })
+      console.log(`pentimento viewer → http://${host}:${port}/  (watching ${root})`)
       break
     }
     case 'comments': {
@@ -196,7 +206,7 @@ const main = (): void => {
         text: flags.text,
         anchor: flags.anchor,
         quote: flags.quote,
-        author: flags.author,
+        author: flags.author ?? defaultAuthor(),
       })
       console.log(entry.id)
       break
@@ -215,8 +225,8 @@ const main = (): void => {
         console.log(`  comment: ${c.text}\n`)
       }
       console.log('To address: revise the canonical markdown accordingly, then:')
-      console.log(`  vellum snapshot ${positional[0]} --summary "Address review comments" --why "..."`)
-      console.log(`  vellum resolve ${positional[0]} <comment-id> --rev <new revision>   # once per addressed comment`)
+      console.log(`  pentimento snapshot ${positional[0]} --summary "Address review comments" --why "..."`)
+      console.log(`  pentimento resolve ${positional[0]} <comment-id> --rev <new revision>   # once per addressed comment`)
       break
     }
     case 'resolve': {
@@ -225,9 +235,11 @@ const main = (): void => {
       console.log(`${c.id} resolved${c.resolved_in ? ` in ${c.resolved_in}` : ''}`)
       break
     }
-    default:
+    default: {
+      const wantsHelp = !cmd || cmd === 'help' || cmd === '--help' || cmd === '-h'
       console.log(USAGE)
-      process.exit(cmd ? 1 : 0)
+      process.exit(wantsHelp ? 0 : 1)
+    }
   }
 }
 

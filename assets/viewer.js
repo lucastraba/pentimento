@@ -1,5 +1,5 @@
 (() => {
-  const cfg = window.__vellum
+  const cfg = window.__pentimento
   if (!cfg) return
   const main = document.querySelector('main')
   const post = (url, body) =>

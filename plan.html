@@ -1,6 +1,11 @@
-<title>Vellum v1 — Living Plans</title>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pentimento — Living Documents</title>
 <style>
-/* vellum.css — the entire visual surface of a rendered plan.
+/* pentimento.css — the entire visual surface of a rendered plan.
    Agents never write CSS; they compose markdown + directives against this file. */
 
 :root {
@@ -265,7 +270,7 @@ mark.vc-mark { background: color-mix(in srgb, var(--high) 22%, transparent); col
 .vc-form button:focus-visible, .vc-resolve:focus-visible, .vc-add:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* viewer chrome (vellum serve) */
+/* viewer chrome (pentimento serve) */
 .vbar-pad { height: 3.2rem; }
 .vbar { position: fixed; bottom: 0; left: 0; right: 0; display: flex; align-items: center; gap: .8rem;
   padding: .5rem 1rem; background: var(--raise); border-top: 1px solid var(--line);
@@ -287,50 +292,37 @@ mark.vc-mark { background: color-mix(in srgb, var(--high) 22%, transparent); col
   * { animation: none !important; transition: none !important; }
 }
 </style>
-
-<script>(()=>{let p=null;try{p=localStorage.getItem('vellum-palette')}catch(e){}p=p||'iris';if(p!=='verdigris')document.documentElement.dataset.palette=p})()</script>
+</head>
+<body>
+<script>(()=>{let p=null;try{p=localStorage.getItem('pentimento-palette')}catch(e){}p=p||'iris';if(p!=='verdigris')document.documentElement.dataset.palette=p})()</script>
 
 <div class="wrap">
 <header class="doc">
   <div class="meta-row">
     <span class="badge badge-design-doc">Design doc · PRD</span>
-    <span class="chip">r007</span>
-    <span class="chip">2026-07-05</span>
-    <span class="chip">repos/vellum/PLAN.md</span>
+    <span class="chip">r001</span>
+    <span class="chip">2026-07-07</span>
+    <span class="chip">Personal/vellum/PLAN.md</span>
     <div class="palettes" role="group" aria-label="Color theme">
       <button class="pbtn" type="button" data-p="verdigris" aria-pressed="false"><span class="dot dot-verdigris"></span>Verdigris</button>
       <button class="pbtn" type="button" data-p="mist" aria-pressed="false"><span class="dot dot-mist"></span>Mist</button>
       <button class="pbtn" type="button" data-p="iris" aria-pressed="true"><span class="dot dot-iris"></span>Iris</button>
     </div>
   </div>
-  <h1>Vellum v1 — Living Plans</h1>
-  <p class="standfirst">Plans are markdown, versioned in place, rendered to constrained HTML. The agent writes content; the system owns the pixels.</p>
-  <div class="evolution"><span class="rev">r007</span><span class="what"><strong>Phase 3 shipped: anchored comments — select-to-comment in the viewer, quote+context anchoring, comments panel with in-place highlights, vellum comments/comment/address/resolve, inline %% @c %% extraction</strong> — Lucas approved the viewer service and Phase 3; the full Antigravity-style review loop now closes</span></div>
-  <div class="evolution"><span class="rev">r006</span><span class="what"><strong>Phase 2 shipped: vellum serve viewer (index, revision picker, diff pages, SSE hot reload, Tailscale-only binding); Hermes skill updated to CLI v2</strong> — Lucas approved moving to Phase 2 after the hardening pass</span></div>
-  <div class="evolution"><span class="rev">r005</span><span class="what"><strong>Hardening for sharing: What-changed diff panel in every render, vellum diff --html, vellum verify fsck, HTML/SVG sanitization, README/LICENSE/CI, scoped npm package</strong> — Lucas could not tell what the agent changed across 3 revisions of a real plan; plus the production-review gap list</span></div>
-  <div class="evolution"><span class="rev">r004</span><span class="what"><strong>Iris is the default palette; renderer emits standalone HTML by default with --artifact for claude.ai; Palette: frontmatter override</strong> — Lucas fell for Iris; production review found the fragment-only output was claude.ai-shaped rather than self-contained</span></div>
-  <details class="changes"><summary>What changed in r007 (vs r006)</summary><div class="rdiff"><div class="rdiff-skip">⋯ 26 unchanged blocks</div>
-<div class="rdiff-ctx">## Build order</div>
-<div class="rdiff-block codey">::: timeline
-1. **CLI core + design system + renderer + skill** [done] — Shipped 2026-07-05: `snapshot`/`list`/`diff`/`revert`/`render`, `theme.css` with three palettes, deterministic renderer (13 tests green), `/vellum-plan` skill. This page is its output.
-2. **Local viewer** [done] — Shipped 2026-07-05: `vellum serve &lt;dir&gt;` (Hono) — document index, revision picker in a fixed bottom bar, per-revision rendering with the evolution trimmed to that point in time, diff pages, SSE hot reload on file changes. Binds 127.0.0.1 by default or the Tailscale IP via `--tailscale`; refuses 0.0.0.0 outright. Live on nyx at port 4820 over Tailscale.
-3. **Anchored comments** [<del>next</del><ins>done</ins>] — <del>Click a block</del><ins>Shipped 2026-07-05, the Antigravity loop closed: select text</ins> in the viewer → comment <del>lands in</del><ins>saved to</ins> `meta.yml` <ins>with quote + surrounding context (W3C-annotation style, survives revisions) and the nearest block anchor. Open comments render as a panel in every page with the quotes highlighted in place</ins>; <ins>resolve from the viewer or CLI. Agent side: </ins>`vellum address` <del>has the agent read</del><ins>lists</ins> open comments <ins>for action</ins>, <del>revise, snapshot,</del><ins>`vellum</ins> resolve <ins>&lt;id&gt; --rev rNNN` closes them against the revision that addressed them</ins>. <del>The Antigravity loop</del><ins>Inline `` notes are extracted to meta.yml at snapshot time</ins>, <del>anchored by quote + context (W3C-annotation style) so comments survive revisions</del><ins>per the original PRD</ins>.
-:::</div>
-<div class="rdiff-skip">⋯ 8 unchanged blocks</div></div></details>
-  <details class="comments" open><summary>1 open comment</summary><div class="vcomment" data-cid="c-2026-07-05-002"><a class="vc-anchor" href="#build">#build</a> <p>...</p><span class="vc-meta">lucas+claude · 2026-07-05</span></div></details>
+  <h1>Pentimento — Living Documents</h1>
+  <p class="standfirst">One canonical markdown file, hidden revision history, deterministic rendering. The author writes content; the system owns the pixels.</p>
+  <div class="evolution"><span class="rev">r001</span><span class="what"><strong>Public release baseline: renamed to Pentimento, history restarted clean</strong> — Prior plan history contained private environment details</span></div>
 </header>
 
 <details class="toc" open>
   <summary>Contents</summary>
   <nav aria-label="Contents">
     <ol>
-      <li><a href="#why"><span class="n">01</span>Why past HTML plans failed</a></li>
+      <li><a href="#why"><span class="n">01</span>Why</a></li>
       <li><a href="#decisions"><span class="n">02</span>Decisions</a></li>
-      <li><a href="#architecture"><span class="n">03</span>Architecture</a></li>
-      <li><a href="#archetypes"><span class="n">04</span>Archetypes</a></li>
-      <li><a href="#build"><span class="n">05</span>Build order</a></li>
-      <li><a href="#audit"><span class="n">06</span>What the audit found</a></li>
-      <li><a href="#open"><span class="n">07</span>Open questions</a></li>
+      <li><a href="#shipped"><span class="n">03</span>Shipped</a></li>
+      <li><a href="#release"><span class="n">04</span>Release roadmap</a></li>
+      <li><a href="#open"><span class="n">05</span>Open questions</a></li>
     </ol>
   </nav>
 </details>
@@ -339,144 +331,41 @@ mark.vc-mark { background: color-mix(in srgb, var(--high) 22%, transparent); col
 
 <section>
   <span class="eyebrow">Diagnosis</span>
-  <h2 id="why">Why past HTML plans failed<a class="anch" href="#why" aria-label="Link to this section">#</a></h2>
-<p>Every prior failure — slop UI, wasted medium, inconsistency across plan types — is one disease: the agent was handed a <em>paint palette</em>. Vellum inverts it. A deterministic renderer, a fixed design system, and a small directive vocabulary. Any agent produces markdown plus directives; the toolchain produces the view.</p>
-<p>This is Chunks 4+5 of the existing Vellum PRD (2026-05-14), fused with Claude Code plan mode and informed by the 2026-07-05 audit of Vellum Lite in Pandora.</p>
+  <h2 id="why">Why<a class="anch" href="#why" aria-label="Link to this section">#</a></h2>
+<p>Agent-generated HTML is slop because the agent is handed a <em>paint palette</em>. Plans revised three times are unreviewable because nothing records what moved, or why. Pentimento inverts both: a deterministic renderer, a fixed design system, a small directive vocabulary, and numbered snapshots with an append-only decision log. Any agent — or any human — produces markdown plus directives; the toolchain produces the view and the history.</p>
 
 </section>
 
 <section>
-  <span class="eyebrow">Locked · 2026-07-05</span>
+  <span class="eyebrow">Locked</span>
   <h2 id="decisions">Decisions<a class="anch" href="#decisions" aria-label="Link to this section">#</a></h2>
-<div class="callout decision" id="d-source-of-truth"><span class="label">Decision</span><p><strong>Markdown is the source of truth.</strong> HTML is a build product. Plan mode approves the markdown; the render is how Lucas reads it. This keeps plan mode's powers — research with writes blocked, explicit approval — fully intact.</p>
+<div class="callout decision" id="d-source-of-truth"><span class="label">Decision</span><p><strong>Markdown is the source of truth.</strong> HTML is a build product. Reviews approve the markdown; the render is how readers read it.</p>
 </div>
-<div class="callout decision" id="d-dual-delivery"><span class="label">Decision</span><p><strong>Dual delivery.</strong> Every render writes a self-contained HTML file next to the plan (agent-portable). Claude additionally publishes it as a claude.ai Artifact. The Phase-2 local viewer serves the same files — if it works well, it becomes a publishable product.</p>
+<div class="callout decision" id="d-vocabulary"><span class="label">Decision</span><p><strong>Vocabulary, not palette.</strong> Agents never write CSS, inline styles, or scripts. Rich elements come from <code>:::</code> directives; if the vocabulary can't say it, the vocabulary grows per release, not per document.</p>
 </div>
-<div class="callout decision" id="d-comment-ready"><span class="label">Decision</span><p><strong>Read-only v1, comment-ready architecture.</strong> Anchored comments (the Antigravity-style review loop) are Phase 3 — but every rendered block gets a stable anchor id from day one, and <code>meta.yml</code> reserves the <code>comments:</code> schema. Retrofitting anchors would break old revisions. Hover any heading here: the <code>#</code> is the substrate.</p>
+<div class="callout decision" id="d-plain-files"><span class="label">Decision</span><p><strong>History is plain files.</strong> <code>.history/&lt;doc&gt;/rNNN.md</code> + <code>meta.yml</code>, readable by grep, git, agents, and humans — no database, no proprietary blob.</p>
 </div>
-<div class="callout decision" id="d-versioning"><span class="label">Decision</span><p><strong>Versioning is Vellum Lite, in-repo.</strong> <code>PLAN.md</code> + <code>.history/PLAN/rNNN.md</code> + <code>meta.yml</code> decision log. Pure filesystem, same convention as Pandora — one mental model. The CLI is rewritten, not reused: the audit found the convention ports cleanly; the current implementation does not.</p>
+<div class="callout decision" id="d-name"><span class="label">Decision</span><p><strong>Renamed from Vellum to Pentimento.</strong> The Vellum namespace is crowded (a funded AI platform, a book-formatting tool, and a since-rebranded artifact host all share it). Legacy <code>Vellum: true</code> docs are read transparently and migrated on their next snapshot.</p>
 </div>
 
 </section>
 
 <section>
-  <span class="eyebrow">System</span>
-  <h2 id="architecture">Architecture<a class="anch" href="#architecture" aria-label="Link to this section">#</a></h2>
-<div class="diagram" role="img" aria-label="Flow: PLAN.md through the vellum CLI to plan.html, delivered to the claude.ai Artifact and the local viewer; the CLI also writes revision history and meta.yml"><svg viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg">
-  <defs><marker id="arr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--soft)"/></marker></defs>
-  <rect class="nodebox" x="8" y="40" width="110" height="36" rx="5"/>
-  <text x="63" y="62" text-anchor="middle">PLAN.md</text>
-  <rect class="accentbox" x="180" y="40" width="120" height="36" rx="5"/>
-  <text x="240" y="62" text-anchor="middle">vellum CLI</text>
-  <text class="lbl" x="240" y="94" text-anchor="middle">snapshot · diff · render</text>
-  <rect class="nodebox" x="360" y="40" width="110" height="36" rx="5"/>
-  <text x="415" y="62" text-anchor="middle">plan.html</text>
-  <rect class="nodebox" x="522" y="10" width="110" height="36" rx="5"/>
-  <text x="577" y="32" text-anchor="middle">Artifact</text>
-  <rect class="nodebox" x="522" y="70" width="110" height="36" rx="5"/>
-  <text x="577" y="92" text-anchor="middle">viewer</text>
-  <text class="lbl" x="577" y="120" text-anchor="middle">Tailscale-only · :4820</text>
-  <rect class="nodebox" x="180" y="136" width="220" height="36" rx="5"/>
-  <text x="290" y="158" text-anchor="middle">.history/ rNNN.md + meta.yml</text>
-  <path class="flow" d="M118 58 H176"/>
-  <path class="flow" d="M300 58 H356"/>
-  <path class="flow" d="M470 52 C 495 45, 500 35, 518 30"/>
-  <path class="flow" d="M470 64 C 495 71, 500 81, 518 86"/>
-  <path class="flow" d="M240 76 V132"/>
-</svg></div>
-<h3 id="cli">vellum CLI v2 — TypeScript/Node<a class="anch" href="#cli" aria-label="Link to this section">#</a></h3>
-<p>Commands: <code>snapshot</code>, <code>list</code>, <code>diff</code> (terminal patch or <code>--html</code> word-level diff page), <code>verify</code> (consistency fsck across a whole repo or vault — CI-able), <code>revert</code>, <code>render</code> — shipped at <code>repos/vellum</code>, on PATH via <code>npm link</code> (the legacy Obsidian-CDP helper is retired to <code>vellum-obsidian-legacy</code>). Fixes every audit finding by construction: snapshots bump <code>Current Revision</code> and refuse to overwrite existing revisions; frontmatter and <code>meta.yml</code> go through a real YAML parser (no lossy round-trips, no injection); <code>History Folder</code> is canonical-relative — the single path contract; timestamps use the actual local timezone; writes are temp-file-then-rename with a per-document lock.</p>
-<p>The fix for the worst bug found in the audit (C1 — <code>snapshot</code> never bumps the revision, so the next run silently overwrites history) is also the diff-view demo:</p>
-<div class="diff"><div class="diff-head">~/.local/bin/vellum · cmd_snapshot() — the C1 fix, as implemented in core.ts</div><div class="diff-cols"><div class="diff-pane"><div class="pane-label">Before</div><pre><span>def cmd_snapshot(args):</span><span>    content = cli_read(args.path)</span><span>    next_num = current_rev(content) + 1</span><span class="del">    write_hidden_revision(</span><span class="del">        args.path, next_num, content)</span><span class="del">    # canonical untouched — next run</span><span class="del">    # recomputes the same next_num</span></pre></div><div class="diff-pane"><div class="pane-label">After</div><pre><span>def cmd_snapshot(args):</span><span>    content = cli_read(args.path)</span><span>    next_num = current_rev(content) + 1</span><span class="add">    write_hidden_revision(</span><span class="add">        args.path, next_num, content,</span><span class="add">        must_not_exist=True)</span><span class="add">    stamped = set_frontmatter(</span><span class="add">        content, rev=f&quot;r{next_num:03d}&quot;)</span><span class="add">    atomic_write(args.path, stamped)</span></pre></div></div></div>
-<h3 id="design-system">Design system — vellum.css<a class="anch" href="#design-system" aria-label="Link to this section">#</a></h3>
-<ul>
-<li>One stylesheet shipped by the toolchain (<code>assets/theme.css</code>). Both themes, token-level. Responsive by construction (desktop / iPad / iPhone).</li>
-<li>Three palettes, switchable in the page chrome: <strong>Iris</strong> (violet, the default), <strong>Verdigris</strong> (serif-forward teal), <strong>Mist</strong> (Apple/Vercel neutrals + blue, sans headings). Per-doc override via <code>Palette:</code> frontmatter; the reader's own pick (localStorage) wins over both. Palettes are token sets; agents can't define colors.</li>
-<li>Standard chrome components: collapsible table of contents, evolution strip (from <code>meta.yml</code>), block anchors rendered as <code>#</code> (hover-revealed).</li>
-<li>Archetypes share every component; each archetype sets an accent hue + badge so the plan's <em>kind</em> is legible at a glance.</li>
-<li>Hard rules: agents never write CSS, <code>style=&quot;&quot;</code>, or JS. Interactivity is a fixed snippet (<code>assets/chrome.js</code>).</li>
-</ul>
-<h3 id="renderer">Renderer — deterministic markdown → HTML<a class="anch" href="#renderer" aria-label="Link to this section">#</a></h3>
-<p><code>markdown-it</code> plus container directives — the agent's entire expressive surface: <code>::: callout</code>, <code>::: verdict</code>, <code>::: findings</code>, <code>::: timeline</code>, <code>::: diff</code>, <code>::: figure</code>, plus plain tables (auto-wrapped, scrollable) and <code>{dot:...}</code> swatches. Diffs are written as unified diffs and rendered side-by-side on wide screens, unified on narrow — no client-side diff library, which also satisfies the Artifact CSP. Every heading gets a stable anchor id (the comment substrate). Output is a standalone HTML document by default (doctype, viewport — works served raw on any device); <code>--artifact</code> emits the fragment form claude.ai wraps itself. Agent-supplied HTML/SVG is stripped of active content (scripts, event handlers, javascript: URLs) at render time. Every render embeds a collapsible <strong>What changed in rNNN</strong> panel — a block-aware, word-level diff against the previous snapshot with unchanged runs collapsed — so a reader never has to ask the agent what a revision touched. This page is rendered by <code>vellum render PLAN.md</code> — the toolchain eating its own dogfood.</p>
-<h3 id="skill">The skill<a class="anch" href="#skill" aria-label="Link to this section">#</a></h3>
-<p><code>/vellum-plan</code>, symlinked from <code>repos/vellum/skill/</code> into <code>~/.claude/skills/</code>. It teaches any agent the loop: research (in plan mode) → pick an archetype and write the markdown against its skeleton (<code>references/archetypes.md</code>) → <code>vellum snapshot</code> with a reader-facing summary → <code>vellum render</code> → publish (Artifact for Claude, viewer for others). On feedback: revise, snapshot, re-render — same URL, history accretes. The CLI contract is what makes it portable to other agents.</p>
+  <span class="eyebrow">Done</span>
+  <h2 id="shipped">Shipped<a class="anch" href="#shipped" aria-label="Link to this section">#</a></h2>
+<ol class="timeline"><li><span class="ph">1</span><div><h3>CLI core + design system + renderer + skill <span class="pill done">done</span></h3><p><code>snapshot</code>/<code>list</code>/<code>diff</code>/<code>revert</code>/<code>render</code>/<code>verify</code>, one stylesheet with three palettes, deterministic markdown→HTML with embedded &quot;what changed&quot; word-diffs.</p></div></li>
+<li><span class="ph">2</span><div><h3>Local viewer <span class="pill done">done</span></h3><p><code>pentimento serve</code>: document index, revision picker, per-revision rendering, diff pages, SSE hot reload. Binds 127.0.0.1 by default; refuses 0.0.0.0.</p></div></li>
+<li><span class="ph">3</span><div><h3>Anchored comments <span class="pill done">done</span></h3><p>select text in the viewer → comment saved to <code>meta.yml</code> with quote + context (survives revisions). <code>pentimento address</code> / <code>resolve</code> close the loop for agents.</p></div></li>
+<li><span class="ph">4</span><div><h3>Public release prep <span class="pill done">done</span></h3><p>renamed to Pentimento, <code>npm i -g</code> install story, author defaults from git config, legacy-marker migration.</p></div></li></ol>
 
 </section>
 
 <section>
-  <span class="eyebrow">Vocabulary, not palette</span>
-  <h2 id="archetypes">Archetypes<a class="anch" href="#archetypes" aria-label="Link to this section">#</a></h2>
-<p>Flexibility is choosing the archetype and which sanctioned components to use. Consistency is everything else being fixed.</p>
-<div class="tablewrap"><table>
-<thead>
-<tr>
-<th>Archetype</th>
-<th>Job</th>
-<th>Signature components</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><span class="dot dot-impl"></span>Implementation plan</td>
-<td>Approve and execute</td>
-<td>phase timeline, file-touch table, diff views, risk callouts</td>
-</tr>
-<tr>
-<td><span class="dot dot-brain"></span>Brainstorm / exploration</td>
-<td>Compare directions</td>
-<td>option cards, decision matrix, open questions</td>
-</tr>
-<tr>
-<td><span class="dot dot-audit"></span>Audit / review</td>
-<td>Report findings</td>
-<td>verdict banner, severity-grouped findings, evidence links</td>
-</tr>
-<tr>
-<td><span class="dot dot-design"></span>Design doc / PRD</td>
-<td>Record a vision</td>
-<td>architecture diagrams, decision log, compare tables</td>
-</tr>
-</tbody>
-</table></div>
-
-</section>
-
-<section>
-  <span class="eyebrow">Sequence</span>
-  <h2 id="build">Build order<a class="anch" href="#build" aria-label="Link to this section">#</a></h2>
-<ol class="timeline"><li><span class="ph">1</span><div><h3>CLI core + design system + renderer + skill <span class="pill done">done</span></h3><p>Shipped 2026-07-05: <code>snapshot</code>/<code>list</code>/<code>diff</code>/<code>revert</code>/<code>render</code>, <code>theme.css</code> with three palettes, deterministic renderer (13 tests green), <code>/vellum-plan</code> skill. This page is its output.</p></div></li>
-<li><span class="ph">2</span><div><h3>Local viewer <span class="pill done">done</span></h3><p>Shipped 2026-07-05: <code>vellum serve &lt;dir&gt;</code> (Hono) — document index, revision picker in a fixed bottom bar, per-revision rendering with the evolution trimmed to that point in time, diff pages, SSE hot reload on file changes. Binds 127.0.0.1 by default or the Tailscale IP via <code>--tailscale</code>; refuses 0.0.0.0 outright. Live on nyx at port 4820 over Tailscale.</p></div></li>
-<li><span class="ph">3</span><div><h3>Anchored comments <span class="pill done">done</span></h3><p>Shipped 2026-07-05, the Antigravity loop closed: select text in the viewer → comment saved to <code>meta.yml</code> with quote + surrounding context (W3C-annotation style, survives revisions) and the nearest block anchor. Open comments render as a panel in every page with the quotes highlighted in place; resolve from the viewer or CLI. Agent side: <code>vellum address</code> lists open comments for action, <code>vellum resolve &lt;id&gt; --rev rNNN</code> closes them against the revision that addressed them. Inline `` notes are extracted to meta.yml at snapshot time, per the original PRD.</p></div></li></ol>
-
-</section>
-
-<section>
-  <span class="eyebrow">Audit · Vellum Lite in Pandora · 2026-07-05</span>
-  <h2 id="audit">What the audit found<a class="anch" href="#audit" aria-label="Link to this section">#</a></h2>
-<div class="verdict"><div><span class="q">Works correctly?</span><span class="a">Partially</span></div><div><span class="q">Efficient?</span><span class="a">Convention yes, tooling no</span></div><div><span class="q">Portable?</span><span class="a">Yes — easily</span></div></div>
-<p>The convention is sound. The implementation shelled every file operation through a headless Electron Obsidian (~350 MB resident, permanently) — coupling that is 100% incidental. Three of the six real documents were internally inconsistent, and all three were maintained by hand: the documented manual workflow doesn't self-enforce.</p>
-<div><div class="finding"><span class="sev c">CRIT</span><div><code>snapshot</code> never bumps <code>Current Revision</code> — the next run silently overwrites history and duplicates the meta entry.</div></div>
-<div class="finding"><span class="sev c">CRIT</span><div><code>create</code> always clobbers: <code>overwrite=args.overwrite or True</code> is always true. One wrong command destroys current and archived state.</div></div>
-<div class="finding"><span class="sev c">CRIT</span><div><code>History Folder</code> contract mismatch: docs say note-relative, CLI resolves vault-root-relative — three real docs would split their history across two locations.</div></div>
-<div class="finding"><span class="sev h">HIGH</span><div>3 of 6 real docs inconsistent: a phantom r002 with no file, frontmatter ahead of history, and one &quot;snapshot&quot; that is a 198-byte stub — the real initial version was never preserved.</div></div>
-<div class="finding"><span class="sev h">HIGH</span><div><code>meta.yml</code> is wholesale-replaced if it doesn't start with <code>revisions:</code> — a leading comment erases the audit trail.</div></div>
-<div class="finding"><span class="sev h">HIGH</span><div>Frontmatter round-trip is lossy: multi-line lists flattened to <code>&quot;&quot;</code>, and quote-stripping left invalid YAML in two live notes.</div></div></div><details><summary>Medium and low findings (10)</summary><div class="finding"><span class="sev m">MED</span><div>Hardcoded UTC+2 — wrong by an hour all winter; two timestamp formats coexist in meta files.</div></div>
-<div class="finding"><span class="sev m">MED</span><div>60s subprocess timeout vs a wrapper that can poll for minutes — unhandled traceback when Obsidian is down.</div></div>
-<div class="finding"><span class="sev m">MED</span><div>No atomicity or locking: a crash mid-update leaves meta claiming a revision the canonical doesn't reflect.</div></div>
-<div class="finding"><span class="sev m">MED</span><div>YAML injection via <code>--author</code> and id fields — interpolated raw into meta.yml.</div></div>
-<div class="finding"><span class="sev m">MED</span><div>Revision parsing grabs the first digit run anywhere in the value; hand-edited values yield absurd next revisions.</div></div>
-<div class="finding"><span class="sev m">LOW</span><div>Obsidian hides <code>.history</code> by default (good) — but that means history is unreachable from inside Obsidian; terminal only.</div></div>
-<div class="finding"><span class="sev m">LOW</span><div>Syncthing syncs <code>.history</code> (good), but the vault shows heavy conflict history; conflict copies inside <code>.history/</code> would corrupt the rNNN invariant.</div></div>
-<div class="finding"><span class="sev m">LOW</span><div><code>~/jdhkc-p67vw</code> was a stale May orphan of the vault from a Syncthing folder-ID share — archived and removed 2026-07-05.</div></div>
-<div class="finding"><span class="sev m">LOW</span><div>Adoption was thin: 6 real docs, while 11+ evolving docs created since the convention landed don't use it. Legacy <code>v2</code>/<code>v3</code> siblings still sit unmigrated.</div></div>
-<div class="finding"><span class="sev m">LOW</span><div>The Syncthing <code>path=&quot;~&quot;</code> entry is the stock <code>&lt;defaults&gt;</code> template, shared with no device — a false alarm, and the explanation for where the orphan folder came from.</div></div></details>
-<h3 id="remediation">Pandora remediation — approved and executed 2026-07-05<a class="anch" href="#remediation" aria-label="Link to this section">#</a></h3>
-<ul>
-<li>Repaired the 3 inconsistent documents (backup at <code>backups/pandora-vellum-repair-20260705/</code>): Large Dataset's phantom r002 reconstructed; Zomboid frontmatter reset to r001; Ritual Route given an honest repair-snapshot r002; Vellum Operating Notes stamped r002; invalid <code>Type:</code> YAML fixed in two notes.</li>
-<li>Replaced <code>~/.local/bin/vellum</code> with CLI v2 (legacy kept as <code>vellum-obsidian-legacy</code>); the headless-Obsidian dependency is no longer needed for file writes.</li>
-<li>Archived and removed the <code>~/jdhkc-p67vw</code> orphan (tar.gz in <code>backups/</code>).</li>
-<li>Still pending, needs explicit approval: migrating legacy <code>v2</code>/<code>v3</code> siblings (Amity PRD ×4, Nyx/Anima ×5).</li>
-</ul>
+  <span class="eyebrow">Next</span>
+  <h2 id="release">Release roadmap<a class="anch" href="#release" aria-label="Link to this section">#</a></h2>
+<ol class="timeline"><li><span class="ph">1</span><div><h3>Publish <span class="pill">next</span></h3><p>npm publish, GitHub repo public, CI green on macOS + Linux (+ Windows leg).</p></div></li>
+<li><span class="ph">2</span><div><h3>Demo surface <span class="pill">next</span></h3><p>GitHub Pages rendering this plan; a 30-second snapshot→render→what-changed GIF in the README.</p></div></li>
+<li><span class="ph">3</span><div><h3>Distribution <span class="pill later">later</span></h3><p>Claude Code plugin packaging for the skill; Show HN framed against free-form agent HTML; Obsidian community post for the writer audience.</p></div></li></ol>
 
 </section>
 
@@ -484,17 +373,16 @@ mark.vc-mark { background: color-mix(in srgb, var(--high) 22%, transparent); col
   <span class="eyebrow">Unresolved</span>
   <h2 id="open">Open questions<a class="anch" href="#open" aria-label="Link to this section">#</a></h2>
 <ul>
-<li>Final public name: <code>vellum</code> on npm is likely blocked by the Vellum AI trademark orbit; the package is scoped <code>@lucastraba/vellum</code> for now (PRD candidate <code>palimpsest</code> remains available). CLI surface stays <code>vellum</code>.</li>
-<li>Comment transport for Phase 3: how anchored comments travel from a published Artifact back to the agent (the local viewer has an obvious path; the Artifact doesn't).</li>
-<li>Whether Pandora's evolving notes should adopt <code>vellum render</code> for reading, or stay markdown-only inside Obsidian.</li>
-<li>Mermaid: deferred — v1 diagrams are constrained inline SVG via <code>::: figure</code>; revisit if hand-composed SVG becomes the bottleneck.</li>
+<li>Comment transport from <em>published</em> pages (the local viewer has an obvious path; a static page doesn't).</li>
+<li>Whether directive nesting is worth the renderer complexity it invites.</li>
+<li>Mermaid: deferred — diagrams are constrained inline SVG via <code>::: figure</code>; revisit if hand-composed SVG becomes the bottleneck.</li>
 </ul>
 
 </section>
 </main>
 
 <footer class="doc">
-  Source: <code>repos/vellum/PLAN.md</code> · history: <code>.history/PLAN/</code> (r007) · Rendered by <code>vellum render</code>.
+  Source: <code>Personal/vellum/PLAN.md</code> · history: <code>.history/PLAN/</code> (r001) · Rendered by <code>pentimento render</code>.
 </footer>
 </div>
 <script>
@@ -508,10 +396,12 @@ mark.vc-mark { background: color-mix(in srgb, var(--high) 22%, transparent); col
   const apply = (p) => {
     if (p === 'verdigris') delete root.dataset.palette
     else root.dataset.palette = p
-    try { localStorage.setItem('vellum-palette', p) } catch (e) {}
+    try { localStorage.setItem('pentimento-palette', p) } catch (e) {}
     sync()
   }
   sync()
   btns.forEach((b) => b.addEventListener('click', () => apply(b.dataset.p)))
 })()
 </script>
+</body>
+</html>

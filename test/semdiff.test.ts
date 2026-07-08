@@ -49,7 +49,7 @@ describe('renderDiffHtml', () => {
 
 describe('what-changed integration', () => {
   let dir: string
-  beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vellum-wc-')) })
+  beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pentimento-wc-')) })
   afterEach(() => { fs.rmSync(dir, { recursive: true, force: true }) })
 
   it('embeds a collapsible diff of the latest revision in the render', () => {
@@ -81,7 +81,7 @@ describe('what-changed integration', () => {
 
 describe('verify', () => {
   let dir: string
-  beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vellum-verify-')) })
+  beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pentimento-verify-')) })
   afterEach(() => { fs.rmSync(dir, { recursive: true, force: true }) })
 
   it('passes a healthy document', () => {

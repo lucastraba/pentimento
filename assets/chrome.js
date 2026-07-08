@@ -8,7 +8,7 @@
   const apply = (p) => {
     if (p === 'verdigris') delete root.dataset.palette
     else root.dataset.palette = p
-    try { localStorage.setItem('vellum-palette', p) } catch (e) {}
+    try { localStorage.setItem('pentimento-palette', p) } catch (e) {}
     sync()
   }
   sync()
