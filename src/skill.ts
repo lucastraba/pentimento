@@ -12,6 +12,7 @@ const GUIDE_TOPICS: Record<string, string> = {
   guide: 'references/guide.md',
   directives: 'references/directives.md',
   archetypes: 'references/archetypes.md',
+  style: 'references/style.md',
 }
 
 export const guideTopics = (): string[] => Object.keys(GUIDE_TOPICS).filter((t) => t !== 'guide')

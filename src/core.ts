@@ -11,6 +11,12 @@ export interface RevisionEntry {
   source?: string
 }
 
+export interface ReplyEntry {
+  author: string
+  text: string
+  created_at: string
+}
+
 export interface CommentEntry {
   id: string
   anchor: string
@@ -23,6 +29,7 @@ export interface CommentEntry {
   created_at: string
   author: string
   resolved_in: string | null
+  replies?: ReplyEntry[]
 }
 
 export interface NewComment {
@@ -264,6 +271,44 @@ export const resolveComment = (docPath: string, id: string, rev?: string): Comme
     if (!c) throw new Error(`no comment ${id} on ${doc.name}`)
     c.status = 'resolved'
     c.resolved_in = rev ?? null
+    writeMeta(doc.historyDir, meta)
+    return c
+  })
+}
+
+
+export const reopenComment = (docPath: string, id: string): CommentEntry => {
+  const doc = loadDoc(docPath)
+  return withLock(doc.historyDir, () => {
+    const meta = readMeta(doc.historyDir)
+    const c = meta.comments.find((x) => x.id === id)
+    if (!c) throw new Error(`no comment ${id} on ${doc.name}`)
+    c.status = 'open'
+    c.resolved_in = null
+    writeMeta(doc.historyDir, meta)
+    return c
+  })
+}
+
+export const deleteComment = (docPath: string, id: string): CommentEntry => {
+  const doc = loadDoc(docPath)
+  return withLock(doc.historyDir, () => {
+    const meta = readMeta(doc.historyDir)
+    const idx = meta.comments.findIndex((x) => x.id === id)
+    if (idx < 0) throw new Error(`no comment ${id} on ${doc.name}`)
+    const [removed] = meta.comments.splice(idx, 1)
+    writeMeta(doc.historyDir, meta)
+    return removed
+  })
+}
+
+export const addReply = (docPath: string, id: string, input: { text: string; author?: string }): CommentEntry => {
+  const doc = loadDoc(docPath)
+  return withLock(doc.historyDir, () => {
+    const meta = readMeta(doc.historyDir)
+    const c = meta.comments.find((x) => x.id === id)
+    if (!c) throw new Error(`no comment ${id} on ${doc.name}`)
+    c.replies = [...(c.replies ?? []), { author: input.author ?? 'reader', text: input.text, created_at: nowStamp() }]
     writeMeta(doc.historyDir, meta)
     return c
   })

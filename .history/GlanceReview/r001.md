@@ -1,0 +1,66 @@
+---
+Archetype: audit
+Palette: iris
+Pentimento: true
+Current Revision: r001
+History Folder: .history/GlanceReview
+---
+
+# Reading plans at a glance
+
+> Three questions about Pentimento's reading experience: prose quality, plan structure, and unused HTML. Reviewed 2026-07-09 with a second pass by Codex.
+
+## Verdict <!-- id: verdict; eyebrow: Summary -->
+
+::: verdict
+- Prose enforcement :: Shipped
+- Glance-first layout :: Shipped
+- HTML affordances :: 8 adopted
+:::
+
+The guide's writing rules were advisory, so agents ignored them and em-dashes piled up. There is now a `pentimento lint` that catches the register tells mechanically, and snapshot prints the count so a slip never ships quietly. The archetypes buried the recommendation under the evidence; all four now open with a verdict banner. The renderer left several cheap, high-value browser features unused; the safe ones are in, and the rest are listed below with a reason to wait.
+
+## Findings <!-- id: findings; eyebrow: What the review found -->
+
+::: findings
+- HIGH :: The guide taught the prose register but nothing enforced it, so em-dashes and promotional words survived repeated passes. A lint on the review-loop plan counted 45 em-dashes in 2,800 words.
+- HIGH :: Archetypes ordered sections for the author, not the reader. Only `audit` led with a verdict; `implementation`, `brainstorm`, and `design-doc` made the reader reconstruct the recommendation from the body.
+- MED :: The renderer already parsed finding severities and timeline pills but threw the counts away, so the reader got no at-a-glance tally of how bad or how far along.
+- MED :: Several zero-effort browser features went unused: sticky navigation, print rules, target highlighting, sticky table headers.
+@collapse Lower-severity gaps
+- LOW :: Diagrams rendered as a bare `div`, losing the caption and the `figure` semantics a screen reader and a printout both want.
+- LOW :: Dark palettes existed but native controls (selects, scrollbars) stayed light, because `color-scheme` was never set.
+:::
+
+## Remediation <!-- id: remediation; eyebrow: What shipped -->
+
+Everything below is in this release. The timeline shows how far the work got.
+
+::: timeline
+1. **Lint the register** [done] — `pentimento lint <doc>` flags banned words, false contrast, engagement hooks, bold-lead bullets, and em-dash density (`src/lint.ts`). Snapshot prints the warning count; `--strict` exits nonzero for CI. The guide now names em-dashes as the loudest tell, capped at one per paragraph.
+2. **Lead with the answer** [done] — Every archetype opens with a `::: verdict` banner (`skill/references/archetypes.md`). The reader gets the recommendation in the first screen, then the evidence.
+3. **Compute the glance** [done] — Findings render a severity strip (`1 CRIT · 2 HIGH`), timelines render a progress meter (`2 done · 1 next · 1 later`), both from data the parser already had. No new author syntax.
+4. **Zero-effort polish** [done] — A wide-viewport table of contents rail, a print stylesheet, target-section highlighting, sticky table headers, `text-wrap: pretty`, `color-scheme` for native controls, semantic `figure`/`figcaption` and `time`, and a favicon.
+5. **Deferred by choice** [later] — View transitions, scroll-driven progress bars, `content-visibility`, and anchor positioning. Each adds code or visual noise out of proportion to the gain at current document sizes.
+:::
+
+## Unused HTML, ranked <!-- id: html; eyebrow: The open question -->
+
+The question was whether the renderer uses everything the browser offers. It did not. This table is the full survey, adopted first, then the deferred set with the reason.
+
+| Feature | Buys the reader | Status |
+|---|---|---|
+| {dot:design} Sticky TOC rail | Orientation while scanning, on wide screens | Adopted |
+| {dot:design} Computed summaries | Severity and progress before the detail | Adopted |
+| {dot:design} `:target` highlight | Shows where a jump landed | Adopted |
+| {dot:design} Print stylesheet | A clean printout of a static render | Adopted |
+| {dot:design} Sticky table headers | Column names stay put in long tables | Adopted |
+| {dot:design} `color-scheme` | Native controls match dark mode | Adopted |
+| {dot:iris} View transitions | Smooth revision and morph swaps | Deferred |
+| {dot:iris} Scroll progress bar | Reading position | Deferred: noise over signal |
+| {dot:iris} `content-visibility` | Faster paint on long docs | Deferred: docs are small |
+| {dot:iris} Anchor positioning | Nicer comment popovers | Deferred: Safari 26 only |
+
+## Scope <!-- id: scope; eyebrow: Coverage -->
+
+The review read `src/render.ts`, `assets/theme.css`, the four archetype skeletons, and the authoring guide. It did not benchmark render time, test Windows, or check the print output on a physical printer (only Chrome's print preview). The lint word lists are deliberately short; they will grow as real plans surface new tells, on the same principle as the directive vocabulary: the list grows in a release, never in a document.

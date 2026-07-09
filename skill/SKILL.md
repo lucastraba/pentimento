@@ -2,7 +2,7 @@
 name: pentimento-plan
 description: Produce a plan as a living document — markdown source, versioned history, rendered to a constrained HTML artifact. Use when the user asks for a plan, design doc, brainstorm, audit report, or invokes /pentimento-plan. Also for revising an existing Pentimento plan after feedback.
 metadata:
-  pentimento_skill_revision: "1"
+  pentimento_skill_revision: "3"
 ---
 
 # Pentimento plans
@@ -27,6 +27,7 @@ Check with `command -v pentimento`. Prefer an existing install — it's faster a
 - Rich elements come only from the directive vocabulary in `pentimento guide` — nothing else.
 - One inline-SVG figure is allowed per `::: figure` block, composed only of `theme.css` classes (`nodebox`, `accentbox`, `flow`, `lbl`).
 - The markdown plan is what the user approves; the HTML is how they read it.
+- The Prose rules in `pentimento guide` bind like the rules above: plain words, no false contrast, no engagement hooks, bullets that carry full claims.
 
 ## Authoring
 
@@ -34,5 +35,6 @@ Run `pentimento guide` and follow it — it is the source of truth for the insta
 
 - `pentimento guide directives` — full directive syntax and examples.
 - `pentimento guide archetypes` — section skeletons per archetype.
+- `pentimento guide style` — the prose register, shown by before/after example.
 
 If this file drifts from the installed CLI, `pentimento skill check` reports it and `pentimento skill install` refreshes it.

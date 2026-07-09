@@ -1,0 +1,31 @@
+revisions:
+  - id: r001
+    created_at: 2026-07-09T12:06:37+02:00
+    author: Claude (investigation)
+    summary: "Investigation of the review-loop UX: comment interface breakdowns and
+      prose-quality gaps, with a phased fix"
+    why: Comments feel like they vanish on save and agent prose carries AI tells;
+      catalog the causes from code and propose directions
+  - id: r002
+    created_at: 2026-07-09T12:13:38+02:00
+    author: Claude (investigation)
+    summary: "Add the third gap: one measure for the layout"
+    why: Review feedback — the page alternates between a 68ch prose rag, 90ch
+      blocks, and a 150ch diff breakout; propose one prose measure with
+      deliberate centered breakouts
+  - id: r003
+    created_at: 2026-07-09T12:22:08+02:00
+    author: Claude (investigation)
+    summary: "Lock the review decisions: Highlight API only, prose rules before
+      lint, replies kept minimal"
+    why: First review round answered the open questions — personal local use for
+      now, so identity stays trivial, the static panel stands, and fallbacks are
+      out
+  - id: r004
+    created_at: 2026-07-09T12:48:41+02:00
+    author: Claude (implementation)
+    summary: All six phases implemented and verified end to end
+    why: "One measure, prose guide + style page, trusted save, in-place updates,
+      drawer, replies — exercised in a real browser: save states, undo, deferred
+      morph, session-scoped delete"
+comments: []

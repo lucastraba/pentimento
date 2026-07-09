@@ -1,0 +1,9 @@
+revisions:
+  - id: r001
+    created_at: 2026-07-09T14:53:56+02:00
+    author: Claude (audit)
+    summary: "Audit of glance-readability: prose lint, BLUF archetypes, HTML
+      affordances"
+    why: Answering the three review questions with a second pass by Codex; records
+      what shipped and what was deferred
+comments: []

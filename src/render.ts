@@ -25,6 +25,20 @@ md.renderer.rules.fence = (tokens, idx, options, env, self) => {
 const escapeHtml = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
+// A bright stroke over the faded stroke beneath it — the pentimento. Inline data URI
+// so static renders stay self-contained.
+export const FAVICON = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">' +
+  '<rect width="64" height="64" rx="14" fill="#241E33"/>' +
+  '<path d="M14 46 C24 32 34 28 50 27" stroke="#4A3F66" stroke-width="7" fill="none" stroke-linecap="round"/>' +
+  '<path d="M14 41 C26 41 38 33 50 17" stroke="#A78BE0" stroke-width="7" fill="none" stroke-linecap="round"/>' +
+  '</svg>')}`
+
+export const FAVICON_TAG = `<link rel="icon" type="image/svg+xml" href="${FAVICON}">`
+
+/** Re-apply the reader's stored palette/scheme before first paint on pages without doc frontmatter (index, diff). */
+export const RESTORE_SNIPPET = `<script>(()=>{let p=null,t=null;try{p=localStorage.getItem('pentimento-palette');t=localStorage.getItem('pentimento-theme')}catch(e){}if(p&&p!=='verdigris')document.documentElement.dataset.palette=p;if(t==='dark'||t==='light')document.documentElement.dataset.theme=t})()</script>`
+
 /** Strip active content from agent-supplied HTML/SVG (defense in depth; not a full sanitizer). */
 const sanitize = (html: string): string =>
   html
@@ -74,6 +88,7 @@ const renderFindings: Handler = (content) => {
   const open: string[] = []
   const collapsed: string[] = []
   let collapseLabel: string | null = null
+  const counts: Record<string, number> = { CRIT: 0, HIGH: 0, MED: 0, LOW: 0 }
   for (const line of content.split('\n')) {
     const t = line.trim()
     if (!t) continue
@@ -81,13 +96,25 @@ const renderFindings: Handler = (content) => {
     if (c) { collapseLabel = c[1]; continue }
     const m = /^-\s+(CRIT|HIGH|MED|LOW)\s+::\s+(.+)$/.exec(t)
     if (!m) continue
+    counts[m[1]]++
     const html = `<div class="finding"><span class="sev ${SEV_CLASS[m[1]]}">${m[1]}</span><div>${md.renderInline(m[2])}</div></div>`
     ;(collapseLabel ? collapsed : open).push(html)
   }
-  const details = collapseLabel
-    ? `<details><summary>${escapeHtml(collapseLabel)}</summary>${collapsed.join('\n')}</details>`
+  // computed severity strip — the reader sees the shape before reading a single finding
+  const total = counts.CRIT + counts.HIGH + counts.MED + counts.LOW
+  const tally = (['CRIT', 'HIGH', 'MED', 'LOW'] as const)
+    .filter((k) => counts[k])
+    .map((k) => `<span class="tally ${SEV_CLASS[k]}"><b>${counts[k]}</b> ${k}</span>`)
+    .join('')
+  const summary = total ? `<div class="finding-summary">${tally}</div>` : ''
+  // auto-label the collapsed group with its count when the agent didn't
+  const label = collapseLabel
+    ? (/\(\d+\)/.test(collapseLabel) ? collapseLabel : `${collapseLabel} (${collapsed.length})`)
+    : null
+  const details = label
+    ? `<details><summary>${escapeHtml(label)}</summary>${collapsed.join('\n')}</details>`
     : ''
-  return `<div>${open.join('\n')}</div>${details}`
+  return `${summary}<div>${open.join('\n')}</div>${details}`
 }
 
 const renderTimeline: Handler = (content) => {
@@ -98,14 +125,25 @@ const renderTimeline: Handler = (content) => {
     if (line.trim()) current.push(line.trim().replace(/^\d+\.\s+/, ''))
   }
   if (current.length) items.push(current.join(' '))
+  const counts = { done: 0, next: 0, later: 0 }
   const lis = items.map((item, i) => {
     const m = /^\*\*(.+?)\*\*(?:\s+\[(next|later|done)\])?(?:\s+—\s+([\s\S]+))?$/.exec(item)
+    const status = m?.[2]
+    if (status && status in counts) counts[status as keyof typeof counts]++
     const title = m ? md.renderInline(m[1]) : md.renderInline(item)
-    const pill = m?.[2] ? ` <span class="pill${m[2] === 'next' ? '' : ` ${m[2]}`}">${m[2]}</span>` : ''
+    const pill = status ? ` <span class="pill${status === 'next' ? '' : ` ${status}`}">${status}</span>` : ''
     const desc = m?.[3] ? `<p>${md.renderInline(m[3])}</p>` : ''
-    return `<li><span class="ph">${i + 1}</span><div><h3>${title}${pill}</h3>${desc}</div></li>`
+    const phCls = status === 'done' ? 'ph ph-done' : 'ph'
+    return `<li><span class="${phCls}">${i + 1}</span><div><h3>${title}${pill}</h3>${desc}</div></li>`
   })
-  return `<ol class="timeline">${lis.join('\n')}</ol>`
+  // computed progress strip — done/total at a glance, with a native meter
+  const total = items.length
+  const parts = (['done', 'next', 'later'] as const).filter((k) => counts[k]).map((k) => `${counts[k]} ${k}`)
+  const progress = total && (counts.done || counts.next || counts.later)
+    ? `<div class="timeline-progress"><meter value="${counts.done}" min="0" max="${total}" aria-label="Phases done"></meter>` +
+      `<span>${parts.join(' · ')} · ${total} total</span></div>`
+    : ''
+  return `${progress}<ol class="timeline">${lis.join('\n')}</ol>`
 }
 
 /** Content is a unified diff (optionally fenced); rendered as responsive side-by-side panes. */
@@ -132,7 +170,8 @@ const renderDiff: Handler = (content, attrs) => {
 
 const renderFigure: Handler = (content, attrs) => {
   const aria = attrs.aria ? ` role="img" aria-label="${escapeHtml(attrs.aria)}"` : ''
-  return `<div class="diagram"${aria}>${sanitize(content)}</div>`
+  const caption = attrs.aria ? `<figcaption>${escapeHtml(attrs.aria)}</figcaption>` : ''
+  return `<figure class="diagram"${aria}>${sanitize(content)}${caption}</figure>`
 }
 
 const HANDLERS: Record<string, Handler> = {
@@ -293,6 +332,8 @@ const DEFAULT_PALETTE = 'iris'
 export interface RenderOptions {
   /** Emit a claude.ai-Artifact-compatible fragment (no doctype/html/head/body — the platform wraps it). */
   artifact?: boolean
+  /** Skip the header comments panel (the live viewer shows comments in its drawer instead). */
+  omitCommentsPanel?: boolean
 }
 
 const chrome = (doc: Doc, meta: Meta, prepared: Prepared, opts: RenderOptions): string => {
@@ -318,6 +359,7 @@ const chrome = (doc: Doc, meta: Meta, prepared: Prepared, opts: RenderOptions): 
   const paletteBtns = PALETTES.map(([key, label]) =>
     `<button class="pbtn" type="button" data-p="${key}" aria-pressed="${key === defaultPalette}">` +
     `<span class="dot dot-${key}"></span>${label}</button>`).join('\n      ')
+  const themeBtn = `<button class="tbtn" type="button" aria-label="Color scheme">◐ Auto</button>`
 
   const inline = (s: string): string => sanitize(md.renderInline(s))
 
@@ -326,7 +368,7 @@ const chrome = (doc: Doc, meta: Meta, prepared: Prepared, opts: RenderOptions): 
     `<span class="what"><strong>${inline(r.summary)}</strong>` +
     `${r.why ? ` — ${inline(r.why)}` : ''}</span></div>`).join('\n  ')
 
-  const openComments = meta.comments.filter((c) => c.status === 'open')
+  const openComments = opts.omitCommentsPanel ? [] : meta.comments.filter((c) => c.status === 'open')
   const commentsPanel = openComments.length
     ? `\n  <details class="comments" open><summary>${openComments.length} open comment${openComments.length > 1 ? 's' : ''}</summary>${openComments.map((c) =>
         `<div class="vcomment" data-cid="${escapeHtml(c.id)}">` +
@@ -363,8 +405,8 @@ const chrome = (doc: Doc, meta: Meta, prepared: Prepared, opts: RenderOptions): 
     : ''
 
   const title = escapeHtml(plainText(prepared.title))
-  // set the palette before first paint; localStorage (user's explicit pick) wins over the doc default
-  const paletteInit = `<script>(()=>{let p=null;try{p=localStorage.getItem('pentimento-palette')}catch(e){}p=p||'${defaultPalette}';if(p!=='verdigris')document.documentElement.dataset.palette=p})()</script>`
+  // set palette and scheme before first paint; localStorage (user's explicit picks) wins over doc defaults
+  const paletteInit = `<script>(()=>{let p=null,t=null;try{p=localStorage.getItem('pentimento-palette');t=localStorage.getItem('pentimento-theme')}catch(e){}p=p||'${defaultPalette}';if(p!=='verdigris')document.documentElement.dataset.palette=p;if(t==='dark'||t==='light')document.documentElement.dataset.theme=t})()</script>`
 
   const body = `${paletteInit}
 
@@ -373,9 +415,10 @@ const chrome = (doc: Doc, meta: Meta, prepared: Prepared, opts: RenderOptions): 
   <div class="meta-row">
     <span class="badge badge-${escapeHtml(archetype)}">${escapeHtml(badge)}</span>
     <span class="chip">${escapeHtml(rev)}</span>
-    ${date ? `<span class="chip">${escapeHtml(date)}</span>\n    ` : ''}<span class="chip">${escapeHtml(pathLabel)}</span>
+    ${date ? `<time class="chip" datetime="${escapeHtml(date)}">${escapeHtml(date)}</time>\n    ` : ''}<span class="chip">${escapeHtml(pathLabel)}</span>
     <div class="palettes" role="group" aria-label="Color theme">
       ${paletteBtns}
+      ${themeBtn}
     </div>
   </div>
   <h1>${inline(prepared.title)}</h1>
@@ -413,6 +456,7 @@ ${js}</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
+${FAVICON_TAG}
 <style>
 ${css}</style>
 </head>
@@ -472,10 +516,12 @@ export const renderDiffPage = (docPath: string, a: string, b: string): string =>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)}</title>
+${FAVICON_TAG}
 <style>
 ${css}</style>
 </head>
 <body>
+${RESTORE_SNIPPET}
 <div class="wrap">
 <header class="doc">
   <div class="meta-row">

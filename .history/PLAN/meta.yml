@@ -4,4 +4,9 @@ revisions:
     author: Lucas Traba
     summary: "Public release baseline: renamed to Pentimento, history restarted clean"
     why: Prior plan history contained private environment details
+  - id: r002
+    created_at: 2026-07-09T14:56:47+02:00
+    author: Claude
+    summary: Clean prose to pass the new lint (em-dashes to periods and colons)
+    why: Dogfooding pentimento lint on the project's own plan
 comments: []

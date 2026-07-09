@@ -3,8 +3,10 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
-import { addComment, loadDoc, readMeta, resolveComment, type Meta } from './core.js'
-import { render, renderDiffPage, renderRevisionHtml } from './render.js'
+import {
+  addComment, addReply, deleteComment, loadDoc, readMeta, reopenComment, resolveComment, type Meta,
+} from './core.js'
+import { FAVICON_TAG, render, renderDiffPage, renderRevisionHtml, RESTORE_SNIPPET } from './render.js'
 import { findPentimentoDocs } from './verify.js'
 
 const ASSETS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../assets')
@@ -12,6 +14,8 @@ const ASSETS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../as
 const escapeHtml = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
+// Index and diff pages reload on any change; document pages get viewer.js, which
+// listens to the same stream and patches or morphs instead of reloading.
 const SSE_SNIPPET = `<script>new EventSource('/__events').onmessage = () => location.reload()</script>`
 
 const viewerBar = (rel: string, meta: Meta, current: string | null): string => {
@@ -28,20 +32,19 @@ const viewerBar = (rel: string, meta: Meta, current: string | null): string => {
   const diffLink = prev
     ? `<a href="/diff/${encodeURI(rel)}?a=${prev}&amp;b=${diffTo}">diff vs ${prev}</a>`
     : ''
+  const openCount = meta.comments.filter((c) => c.status === 'open').length
+  const note = current
+    ? `<span class="vbar-note">read-only revision — comments attach to the current version</span>`
+    : ''
   return `<div class="vbar-pad"></div>
 <nav class="vbar">
   <a href="/">◂ documents</a>
   <span class="vbar-name">${escapeHtml(rel)}${latest ? ` · ${latest}` : ''}</span>
   <select id="vrev" aria-label="Revision">${options}</select>
   ${diffLink}
-</nav>
-<script>
-document.getElementById('vrev').addEventListener('change', (e) => {
-  const v = e.target.value
-  location.href = v === 'canonical' ? location.pathname : location.pathname + '?rev=' + v
-})
-</script>
-${SSE_SNIPPET}`
+  ${note}
+  <button id="vc-toggle" class="vc-toggle" type="button" aria-expanded="false" aria-label="Comments">💬 <span id="vc-count">${openCount}</span></button>
+</nav>`
 }
 
 const indexPage = (root: string): string => {
@@ -61,6 +64,7 @@ const indexPage = (root: string): string => {
         rev: String(doc.frontmatter['Current Revision'] ?? '—'),
         summary: latest?.summary ?? '',
         date: latest?.created_at?.slice(0, 10) ?? '',
+        open: meta.comments.filter((c) => c.status === 'open').length,
       }
     })
     .sort((a, b) => b.date.localeCompare(a.date))
@@ -70,6 +74,7 @@ const indexPage = (root: string): string => {
     <span class="badge badge-${escapeHtml(d.archetype)}">${escapeHtml(d.archetype)}</span>
     <span class="chip">${escapeHtml(d.rev)}</span>
     ${d.date ? `<span class="chip">${escapeHtml(d.date)}</span>` : ''}
+    ${d.open ? `<span class="chip chip-comments">💬 ${d.open}</span>` : ''}
   </div>
   <h3>${escapeHtml(d.name)}</h3>
   ${d.summary ? `<p>${escapeHtml(d.summary)}</p>` : ''}
@@ -81,10 +86,12 @@ const indexPage = (root: string): string => {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pentimento — living documents</title>
+${FAVICON_TAG}
 <style>
 ${css}</style>
 </head>
 <body>
+${RESTORE_SNIPPET}
 <div class="wrap">
 <header class="doc">
   <div class="meta-row"><span class="badge">Pentimento viewer</span><span class="chip">${escapeHtml(root)}</span></div>
@@ -104,7 +111,7 @@ ${SSE_SNIPPET}
 
 export interface ViewerApp {
   app: Hono
-  broadcast: () => void
+  broadcast: (payload: { docs: string[]; metas: string[] }) => void
 }
 
 export interface ViewerOptions {
@@ -116,14 +123,27 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
   const absRoot = path.resolve(root)
   const viewerJs = fs.readFileSync(path.join(ASSETS, 'viewer.js'), 'utf8')
   const app = new Hono()
-  const clients = new Set<() => void>()
-  const broadcast = () => clients.forEach((send) => send())
+  const clients = new Set<(data: string) => void>()
+  const broadcast = (payload: { docs: string[]; metas: string[] }) => {
+    const data = JSON.stringify(payload)
+    clients.forEach((send) => send(data))
+  }
+  // which browser session created which comment — scopes undo/delete; dies with the server
+  const owners = new Map<string, string>()
 
   const resolveDoc = (rel: string): string | null => {
     const abs = path.resolve(absRoot, rel)
     if (!abs.startsWith(absRoot + path.sep) && abs !== absRoot) return null
     if (!abs.endsWith('.md') || !fs.existsSync(abs)) return null
     return abs
+  }
+
+  const commentsPayload = (abs: string) => {
+    const meta = readMeta(loadDoc(abs).historyDir)
+    return {
+      comments: meta.comments,
+      revisions: meta.revisions.map((r) => r.id),
+    }
   }
 
   app.get('/', (c) => c.html(indexPage(absRoot)))
@@ -135,20 +155,30 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
     const rev = c.req.query('rev') ?? null
     let html: string
     try {
-      html = rev ? renderRevisionHtml(abs, rev) : render(abs)
+      // the viewer replaces the static header panel with its drawer
+      html = rev
+        ? renderRevisionHtml(abs, rev, { omitCommentsPanel: true })
+        : render(abs, { omitCommentsPanel: true })
     } catch (e) {
       return c.text(e instanceof Error ? e.message : String(e), 500)
     }
     const meta = readMeta(loadDoc(abs).historyDir)
     const cfg = {
       rel,
+      rev,
       canComment: !rev,
-      comments: meta.comments
-        .filter((cm) => cm.status === 'open')
-        .map((cm) => ({ id: cm.id, quote: cm.quote ?? null, text: cm.text })),
+      author: viewerOpts.author ?? 'reader',
+      comments: meta.comments,
+      revisions: meta.revisions.map((r) => r.id),
     }
     const cfgScript = `<script>window.__pentimento=${JSON.stringify(cfg).replace(/</g, '\\u003c')}</script>\n<script>\n${viewerJs}</script>`
     return c.html(html.replace('</body>', `${viewerBar(rel, meta, rev)}\n${cfgScript}\n</body>`))
+  })
+
+  app.get('/api/comments', (c) => {
+    const abs = resolveDoc(c.req.query('rel') ?? '')
+    if (!abs) return c.notFound()
+    return c.json(commentsPayload(abs))
   })
 
   app.post('/api/comment', async (c) => {
@@ -166,7 +196,27 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
       suffix: typeof b.suffix === 'string' && b.suffix ? b.suffix : undefined,
       author: viewerOpts.author ?? 'reader',
     })
+    if (typeof b.session === 'string' && b.session) owners.set(entry.id, b.session)
     return c.json(entry)
+  })
+
+  app.post('/api/uncomment', async (c) => {
+    const b = await c.req.json().catch(() => null)
+    if (!b) return c.text('bad json', 400)
+    const abs = resolveDoc(String(b.rel ?? ''))
+    if (!abs) return c.notFound()
+    const id = String(b.id ?? '')
+    const session = String(b.session ?? '')
+    if (!session || owners.get(id) !== session) {
+      return c.text('only comments made in this session can be deleted', 403)
+    }
+    try {
+      const removed = deleteComment(abs, id)
+      owners.delete(id)
+      return c.json(removed)
+    } catch (e) {
+      return c.text(e instanceof Error ? e.message : String(e), 404)
+    }
   })
 
   app.post('/api/resolve', async (c) => {
@@ -176,6 +226,32 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
     if (!abs) return c.notFound()
     try {
       return c.json(resolveComment(abs, String(b.id ?? '')))
+    } catch (e) {
+      return c.text(e instanceof Error ? e.message : String(e), 404)
+    }
+  })
+
+  app.post('/api/reopen', async (c) => {
+    const b = await c.req.json().catch(() => null)
+    if (!b) return c.text('bad json', 400)
+    const abs = resolveDoc(String(b.rel ?? ''))
+    if (!abs) return c.notFound()
+    try {
+      return c.json(reopenComment(abs, String(b.id ?? '')))
+    } catch (e) {
+      return c.text(e instanceof Error ? e.message : String(e), 404)
+    }
+  })
+
+  app.post('/api/reply', async (c) => {
+    const b = await c.req.json().catch(() => null)
+    if (!b) return c.text('bad json', 400)
+    const abs = resolveDoc(String(b.rel ?? ''))
+    if (!abs) return c.notFound()
+    const text = String(b.text ?? '').trim()
+    if (!text) return c.text('missing text', 400)
+    try {
+      return c.json(addReply(abs, String(b.id ?? ''), { text, author: viewerOpts.author ?? 'reader' }))
     } catch (e) {
       return c.text(e instanceof Error ? e.message : String(e), 404)
     }
@@ -197,12 +273,12 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
   })
 
   app.get('/__events', () => {
-    let send: () => void
+    let send: (data: string) => void
     const stream = new ReadableStream({
       start(controller) {
         const encoder = new TextEncoder()
-        send = () => {
-          try { controller.enqueue(encoder.encode('data: reload\n\n')) } catch { clients.delete(send) }
+        send = (data: string) => {
+          try { controller.enqueue(encoder.encode(`data: ${data}\n\n`)) } catch { clients.delete(send) }
         }
         clients.add(send)
         controller.enqueue(encoder.encode(': connected\n\n'))
@@ -236,14 +312,24 @@ export const serveViewer = (root: string, { host, port, author }: ServeOptions):
   const absRoot = path.resolve(root)
   const { app, broadcast } = createApp(absRoot, { author })
 
+  // Batch watcher hits into one typed event: .md paths morph the affected document
+  // page, .yml paths make every page re-fetch its comments.
   let timer: NodeJS.Timeout | null = null
+  const docs = new Set<string>()
+  const metas = new Set<string>()
   fs.watch(absRoot, { recursive: true }, (_event, fname) => {
     if (!fname) return
-    const f = String(fname)
+    const f = String(fname).split(path.sep).join('/')
     if (f.includes('node_modules') || f.includes('.git/')) return
-    if (!/\.(md|yml)$/.test(f)) return
+    if (/\.md$/.test(f)) docs.add(f)
+    else if (/\.yml$/.test(f)) metas.add(f)
+    else return
     if (timer) clearTimeout(timer)
-    timer = setTimeout(broadcast, 200)
+    timer = setTimeout(() => {
+      broadcast({ docs: [...docs], metas: [...metas] })
+      docs.clear()
+      metas.clear()
+    }, 200)
   })
 
   serve({ fetch: app.fetch, hostname: host, port })

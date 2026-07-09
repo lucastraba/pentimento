@@ -19,6 +19,14 @@ describe('guide', () => {
     expect(readGuide()).toContain('Pentimento authoring guide')
     expect(readGuide('directives')).toContain('directive')
     expect(readGuide('archetypes')).toContain('archetype')
+    expect(readGuide('style')).toContain('before/after')
+  })
+
+  it('teaches the prose register in the main guide', () => {
+    const guide = readGuide()
+    expect(guide).toContain('## Prose')
+    expect(guide).toContain('No false contrast')
+    expect(guide).toContain('pentimento guide style')
   })
 
   it('rejects unknown topics with the available list', () => {

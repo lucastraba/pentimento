@@ -32,11 +32,15 @@ Severity is one of `CRIT`, `HIGH`, `MED`, `LOW`. Everything after `@collapse <la
 ::: findings
 - CRIT :: `snapshot` silently overwrites history.
 - HIGH :: 3 of 6 real docs are inconsistent.
-@collapse Medium and low findings (2)
+@collapse Medium and low findings
 - MED :: Hardcoded UTC+2 timezone.
 - LOW :: History invisible inside Obsidian.
 :::
 ```
+
+The render adds a severity count strip above the list (`1 CRIT · 1 HIGH · …`) computed
+from the lines, and appends the collapsed count to the `@collapse` label, so you don't
+write either by hand.
 
 ## Timeline (phases)
 
@@ -49,6 +53,10 @@ Numbered items; bold title, optional `[next]`/`[later]`/`[done]` pill, `—` the
 3. **Anchored comments** [later] — The Antigravity loop.
 :::
 ```
+
+The render adds a progress strip above the phases (a `<meter>` plus `1 done · 1 next · 1
+later · 3 total`) computed from the pills, so the reader sees how far along the plan is
+at a glance.
 
 ## Diff (proposed file changes)
 

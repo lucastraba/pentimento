@@ -30,7 +30,7 @@ Your agent writes the plan; Pentimento owns the look and the diff between drafts
 
 2. Ask for a plan: *"Write an implementation plan for X as a Pentimento document."* The agent picks an archetype, writes the markdown, snapshots it, and renders the HTML.
 
-3. Read the render. It opens anywhere. For a live viewer with the revision picker and inline comments, run `pentimento serve .`.
+3. View it: run `pentimento serve .` and open the printed URL. The viewer has the revision picker, diffs, and select-to-comment. For a static file to email or upload instead, `pentimento render Plan.md` writes standalone HTML.
 
 4. Give feedback: select text in the viewer to leave a comment, then tell the agent *"I left comments."* It revises, snapshots again, and the new render shows a "what changed" panel so you see what moved.
 
@@ -62,17 +62,20 @@ Palette: iris               # iris | verdigris | mist
 ---
 ```
 
-Rich elements come from `:::` directives: callouts, verdict banners, severity-graded findings, phase timelines, side-by-side diffs, constrained SVG figures. Run `pentimento guide directives` for the full syntax and `pentimento guide archetypes` for a section skeleton per document type (also on disk at [`skill/references/`](skill/references/)).
+Rich elements come from `:::` directives: callouts, verdict banners, severity-graded findings, phase timelines, side-by-side diffs, constrained SVG figures. Run `pentimento guide directives` for the full syntax, `pentimento guide archetypes` for a section skeleton per document type, and `pentimento guide style` for the prose register (also on disk at [`skill/references/`](skill/references/)).
+
+Each archetype leads with a verdict banner so a reader gets the recommendation before the evidence. The renderer computes the glance-level summaries: a severity tally above `::: findings`, a progress meter above `::: timeline`. On wide screens the table of contents becomes a fixed side rail; a print stylesheet, sticky table headers, and a light/dark toggle come with every render.
 
 Four rules keep the output consistent: no custom CSS, no inline styles, no scripts, no hand-written HTML. When a document needs something the vocabulary can't say, the vocabulary grows in a tool release rather than in the document.
 
 ## The review loop
 
-Run `pentimento serve .` and open a document. Select any text and a comment button appears; the comment saves to `meta.yml` with the quoted text and surrounding context, so it stays attached even after the section moves. Open comments show as a panel on the page with the quotes highlighted in place.
+Run `pentimento serve .` and open a document. Select any text and a comment button appears; the form opens next to your selection, the quote highlights the moment you save, and a toast confirms the save with an Undo. The comment lands in `meta.yml` with the quoted text and surrounding context, so it stays attached even after the section moves — highlights find their text again even across bold, links, or paragraph breaks. A drawer (💬 in the bottom bar) lists open and resolved comments with jump-to-text, resolve/reopen, one level of replies, and delete for comments you made this session. When the agent revises the file, the page updates in place — no reload, and a half-typed comment survives. Static renders show open comments as a panel in the header instead.
 
 ```bash
 pentimento comments Plan.md               # list comments
 pentimento address Plan.md                # open comments, formatted for an agent to act on
+pentimento reply Plan.md c-2026-07-08-001 --text "..."   # answer without revising
 pentimento resolve Plan.md c-2026-07-08-001 --rev r003   # close one against the revision that fixed it
 ```
 
@@ -81,6 +84,8 @@ You can also comment without the viewer (`pentimento comment Plan.md --text "...
 ## Checking consistency
 
 `pentimento verify <file-or-dir>` cross-checks every document's frontmatter against its history files and meta entries and exits nonzero when they drift, so it fits in CI.
+
+`pentimento lint <doc>` flags AI-register writing tells: promotional words, false contrast, engagement hooks, bold-lead bullets, and em-dash density. Snapshot prints the warning count so a slip is visible before it ships; `pentimento lint --strict` exits nonzero for CI. The rules back the prose section of `pentimento guide`.
 
 ## Design lineage
 

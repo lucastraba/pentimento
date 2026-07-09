@@ -2,6 +2,9 @@
    Agents never write CSS; they compose markdown + directives against this file. */
 
 :root {
+  /* one measure: every element inherits the column width from .wrap; the only
+     sanctioned exception is the centered breakout, sized by --breakout */
+  --measure: 78ch; --breakout: 150ch;
   --bg: #F7F8F6; --raise: #FFFFFF; --ink: #1E2529; --soft: #5A6670;
   --line: #DDE3E0; --accent: #2E7D6E; --accent-deep: #1F5F54;
   --wash: rgba(46,125,110,.08); --code-bg: #EEF1EF;
@@ -39,22 +42,36 @@
   --impl: #7AA5D6; --brain: #A98FD6; --audit: #D9A24A; --design: #4FB3A0;
 }
 
-body { background: var(--bg); color: var(--ink); font: 16px/1.65 var(--sans); margin: 0; }
-.wrap { max-width: 74ch; margin: 0 auto; padding: 2.5rem 1.25rem 5rem; }
+/* fluid type: the root size grows with the viewport (16px → 20px), and the ch-based
+   measure grows with it, so wide displays get a wider, larger column instead of a
+   fixed narrow band in whitespace */
+html { font-size: clamp(16px, 12.5px + 0.3vw, 20px); }
+/* native controls (selects, scrollbars, form fields) follow the active scheme */
+:root { color-scheme: light dark; }
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+body { background: var(--bg); color: var(--ink); font: 1rem/1.65 var(--sans); margin: 0; }
+.wrap { max-width: var(--measure); margin: 0 auto; padding: 2.5rem 1.25rem 5rem; }
 main section { margin-top: 3rem; }
 
 h1, h2, h3 { font-family: var(--serif); line-height: 1.2; text-wrap: balance; margin: 0; }
 h1 { font-size: clamp(1.9rem, 5vw, 2.6rem); font-weight: 600; letter-spacing: -.01em; }
-h2 { font-size: 1.45rem; font-weight: 600; margin-bottom: 1rem; position: relative; }
-h3 { font-size: 1.1rem; font-weight: 600; margin: 1.75rem 0 .5rem; }
-p { margin: .75rem 0; max-width: 68ch; }
+h2 { font-size: 1.45rem; font-weight: 600; margin-bottom: 1rem; position: relative; scroll-margin-top: 1.5rem; }
+h3 { font-size: 1.1rem; font-weight: 600; margin: 1.75rem 0 .5rem; scroll-margin-top: 1.5rem; }
+/* clicking a TOC entry or anchor marks where you landed, then fades */
+section:target h2, h3:target { animation: target-flash 2s ease-out; }
+@keyframes target-flash {
+  0%, 30% { background: var(--wash); box-shadow: -.6rem 0 0 var(--wash), .6rem 0 0 var(--wash); }
+  100% { background: transparent; box-shadow: none; }
+}
+p { margin: .75rem 0; text-wrap: pretty; }
 a { color: var(--accent-deep); }
 code { font-family: var(--mono); font-size: .86em; background: var(--code-bg); padding: .1em .35em; border-radius: 3px; }
 pre.block { background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px;
   padding: .8rem 1rem; overflow-x: auto; font: .82rem/1.55 var(--mono); }
 pre.block code { background: none; padding: 0; }
 ul, ol.plain { padding-left: 1.2rem; margin: .75rem 0; }
-li { margin: .35rem 0; max-width: 66ch; }
+li { margin: .35rem 0; }
 li::marker { color: var(--accent); }
 hr { border: none; border-top: 1px solid var(--line); margin: 2rem 0; }
 strong { font-weight: 650; }
@@ -74,7 +91,7 @@ header.doc { border-bottom: 1px solid var(--line); padding-bottom: 1.5rem; }
 .chip { font-family: var(--mono); font-size: .75rem; padding: .2rem .55rem; border: 1px solid var(--line);
   border-radius: 999px; color: var(--soft); background: var(--raise); }
 .standfirst { font-family: var(--serif); font-size: 1.15rem; font-style: italic; color: var(--soft);
-  margin-top: .75rem; max-width: 58ch; }
+  margin-top: .75rem; }
 
 /* evolution strip */
 .evolution { display: flex; gap: .9rem; align-items: baseline; background: var(--wash);
@@ -104,7 +121,8 @@ h2:focus-within .anch, h3:focus-within .anch { opacity: 1; }
 table { border-collapse: collapse; width: 100%; font-size: .92rem; background: var(--raise);
   border: 1px solid var(--line); border-radius: 6px; }
 th { font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--soft);
-  text-align: left; padding: .6rem .8rem; border-bottom: 1px solid var(--line); }
+  text-align: left; padding: .6rem .8rem; border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; background: var(--raise); z-index: 1; }
 td { padding: .6rem .8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
 tr:last-child td { border-bottom: none; }
 .dot { display: inline-block; width: .65em; height: .65em; border-radius: 50%; margin-right: .45em; vertical-align: baseline; }
@@ -114,8 +132,11 @@ tr:last-child td { border-bottom: none; }
 
 /* figures / diagrams */
 .diagram { background: var(--raise); border: 1px solid var(--line); border-radius: 6px;
-  padding: 1rem; margin: 1rem 0; overflow-x: auto; }
-.diagram svg { display: block; min-width: 560px; width: 100%; height: auto; }
+  padding: 1rem; overflow-x: auto;
+  /* breakout, same pattern and token as .diff */
+  width: min(var(--breakout), calc(100vw - 3rem)); margin: 1rem 0 1rem 50%; transform: translateX(-50%); }
+.diagram svg { display: block; min-width: 560px; width: 100%; max-width: 60rem; height: auto; margin: 0 auto; }
+.diagram figcaption { margin-top: .6rem; font-size: .78rem; color: var(--soft); text-align: center; }
 .diagram text { font-family: var(--mono); font-size: 12px; fill: var(--ink); }
 .diagram .nodebox { fill: var(--bg); stroke: var(--line); }
 .diagram .accentbox { fill: var(--wash); stroke: var(--accent); }
@@ -123,7 +144,10 @@ tr:last-child td { border-bottom: none; }
 .diagram .lbl { fill: var(--soft); font-size: 10.5px; }
 
 /* diff */
-.diff { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; margin: 1rem 0; background: var(--raise); }
+.diff { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--raise); container-type: inline-size;
+  /* The sanctioned breakout: wider than the column so side-by-side code has room,
+     centred so it reads as deliberate. Any future wide component uses the same token and pattern. */
+  width: min(var(--breakout), calc(100vw - 3rem)); margin: 1rem 0 1rem 50%; transform: translateX(-50%); }
 .diff-head { font-family: var(--mono); font-size: .78rem; color: var(--soft); padding: .5rem .9rem;
   border-bottom: 1px solid var(--line); background: var(--code-bg); }
 .diff-cols { display: grid; grid-template-columns: 1fr 1fr; }
@@ -135,7 +159,10 @@ tr:last-child td { border-bottom: none; }
 .diff pre span { display: block; padding: 0 .9rem; white-space: pre; }
 .diff .add { background: var(--add-bg); color: var(--add-ink); }
 .diff .del { background: var(--del-bg); color: var(--del-ink); }
-@media (max-width: 700px) {
+/* Stack before/after unless the block is wide enough for comfortable panes.
+   Keyed to the block's own width, so a narrow artifact column on a wide screen
+   stacks too. Below this, one full-width column reads long code without clipping. */
+@container (max-width: 1330px) {
   .diff-cols { grid-template-columns: 1fr; }
   .diff-pane + .diff-pane { border-left: none; border-top: 1px solid var(--line); }
 }
@@ -143,7 +170,7 @@ tr:last-child td { border-bottom: none; }
 /* timeline */
 .timeline { list-style: none; padding: 0; margin: 1rem 0; }
 .timeline li { display: grid; grid-template-columns: 2.2rem 1fr; gap: .9rem; padding: .9rem 0;
-  border-bottom: 1px solid var(--line); margin: 0; max-width: none; }
+  border-bottom: 1px solid var(--line); margin: 0; }
 .timeline li:last-child { border-bottom: none; }
 .ph { font-family: var(--serif); font-size: 1.3rem; font-weight: 600; color: var(--accent-deep);
   font-variant-numeric: tabular-nums; }
@@ -163,9 +190,22 @@ tr:last-child td { border-bottom: none; }
 .finding { display: grid; grid-template-columns: 3.4rem 1fr; gap: .8rem; padding: .55rem 0;
   border-bottom: 1px solid var(--line); font-size: .93rem; }
 .finding:last-child { border-bottom: none; }
-.finding > div { max-width: none; }
 .sev { font-family: var(--mono); font-size: .7rem; font-weight: 700; letter-spacing: .05em; padding-top: .15rem; }
 .sev.c { color: var(--crit); } .sev.h { color: var(--high); } .sev.m { color: var(--med); }
+/* computed severity strip above the findings */
+.finding-summary { display: flex; flex-wrap: wrap; gap: .4rem; margin: .5rem 0 .75rem; }
+.tally { font: .72rem/1 var(--mono); letter-spacing: .04em; border: 1px solid var(--line);
+  border-radius: 999px; padding: .3rem .6rem; color: var(--soft); background: var(--raise); }
+.tally b { font-weight: 700; color: var(--ink); }
+.tally.c { border-color: color-mix(in srgb, var(--crit) 45%, var(--line)); }
+.tally.c b { color: var(--crit); }
+.tally.h { border-color: color-mix(in srgb, var(--high) 45%, var(--line)); }
+.tally.h b { color: var(--high); }
+/* computed progress strip above the timeline */
+.timeline-progress { display: flex; align-items: center; gap: .7rem; margin: .5rem 0 .75rem;
+  font: .78rem var(--mono); color: var(--soft); }
+.timeline-progress meter { width: 8rem; height: .55rem; }
+.ph-done { color: var(--accent); }
 details { margin: .75rem 0; }
 summary { cursor: pointer; font-size: .85rem; color: var(--accent-deep); }
 summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -192,21 +232,30 @@ footer.doc code { background: none; padding: 0; }
   color: var(--accent-deep); cursor: pointer; }
 .toc summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .toc ol { list-style: none; padding: .4rem 0 .3rem; margin: 0; columns: 2; column-gap: 2rem; }
-.toc li { margin: .3rem 0; break-inside: avoid; max-width: none; }
+.toc li { margin: .3rem 0; break-inside: avoid; }
 .toc a { text-decoration: none; font-size: .92rem; }
 .toc a:hover { text-decoration: underline; }
 .toc .n { font-family: var(--mono); font-size: .75em; color: var(--soft); margin-right: .5em;
   font-variant-numeric: tabular-nums; }
 @media (max-width: 700px) { .toc ol { columns: 1; } }
+/* On wide screens the TOC leaves the flow and rides the left margin as a rail, so the
+   reader keeps their place in the document while scanning the structure. */
+@media (min-width: 1500px) {
+  .toc { position: fixed; top: 2rem; left: 1.5rem; width: 13.5rem; margin: 0; z-index: 5;
+    max-height: calc(100vh - 4rem); overflow-y: auto; }
+  .toc[open] summary { margin-bottom: .3rem; }
+  .toc ol { columns: 1; }
+  .toc li { margin: .45rem 0; }
+}
 
-/* palette switcher — fixed chrome, not agent-writable */
+/* palette + scheme switchers — fixed chrome, not agent-writable */
 .palettes { display: flex; gap: .4rem; margin-left: auto; }
-.pbtn { font: 600 .75rem var(--sans); color: var(--soft); background: var(--raise);
+.pbtn, .tbtn { font: 600 .75rem var(--sans); color: var(--soft); background: var(--raise);
   border: 1px solid var(--line); border-radius: 999px; padding: .2rem .6rem; cursor: pointer;
   display: inline-flex; align-items: center; gap: .35em; }
 .pbtn .dot { margin: 0; }
 .pbtn[aria-pressed="true"] { border-color: var(--accent); color: var(--ink); }
-.pbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pbtn:focus-visible, .tbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* palettes: Mist (apple/vercel) and Iris (violet); Verdigris is the default token set above */
 :root[data-palette="mist"] { --bg:#FAFAFA; --raise:#FFFFFF; --ink:#171717; --soft:#666666; --line:#E4E4E7;
@@ -243,25 +292,71 @@ details.comments { margin: .75rem 0 0; }
 .vcomment p { margin: .3rem 0; }
 .vc-anchor { font-family: var(--mono); font-size: .75rem; }
 .vc-meta { font-size: .72rem; color: var(--soft); }
-mark.vc-mark { background: color-mix(in srgb, var(--high) 22%, transparent); color: inherit;
-  border-bottom: 1px dotted var(--high); padding: 0 .05em; border-radius: 2px; }
+
+/* live viewer: quote highlights (CSS Custom Highlight API) */
+::highlight(vc-open) { background-color: color-mix(in srgb, var(--high) 25%, transparent);
+  text-decoration: underline dotted var(--high); }
+::highlight(vc-flash) { background-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+
+/* live viewer: selection button + comment form */
 .vc-add { position: absolute; z-index: 30; font: 600 .78rem var(--sans); color: var(--bg); background: var(--accent);
   border: none; border-radius: 999px; padding: .3rem .7rem; cursor: pointer; }
-.vc-form { position: fixed; bottom: 3.8rem; left: 50%; transform: translateX(-50%);
-  width: min(34rem, calc(100vw - 2rem)); background: var(--raise); border: 1px solid var(--line);
-  border-radius: 8px; padding: .8rem; z-index: 40; box-shadow: 0 6px 24px rgba(0, 0, 0, .18); }
+.vc-hint { position: absolute; z-index: 30; font: 600 .75rem var(--sans); color: var(--soft);
+  background: var(--raise); border: 1px solid var(--line); border-radius: 999px; padding: .3rem .7rem; }
+.vc-form { position: absolute; width: min(34rem, calc(100vw - 2rem)); background: var(--raise);
+  border: 1px solid var(--line); border-radius: 8px; padding: .8rem; z-index: 40;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .18); box-sizing: border-box; }
+.vc-form-fallback { position: fixed; top: auto; bottom: 3.8rem; left: 50%; transform: translateX(-50%); }
 .vc-form blockquote { margin: 0 0 .5rem; padding: .1rem .6rem; border-left: 2px solid var(--accent);
   color: var(--soft); font-size: .85rem; font-style: italic; max-height: 4.5rem; overflow: hidden; }
 .vc-form textarea { width: 100%; min-height: 4rem; font: inherit; color: var(--ink); background: var(--bg);
   border: 1px solid var(--line); border-radius: 6px; padding: .5rem; box-sizing: border-box; }
 .vc-form textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .vc-row { display: flex; gap: .5rem; justify-content: flex-end; margin-top: .5rem; }
-.vc-form button, .vc-resolve { font: 600 .78rem var(--sans); border-radius: 6px; padding: .3rem .8rem;
+.vc-form button, .vc-act { font: 600 .78rem var(--sans); border-radius: 6px; padding: .3rem .8rem;
   cursor: pointer; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
 .vc-form .vc-save { background: var(--accent); border-color: var(--accent); color: var(--bg); }
-.vc-resolve { display: block; margin-top: .4rem; }
-.vc-form button:focus-visible, .vc-resolve:focus-visible, .vc-add:focus-visible {
+.vc-form button:disabled { opacity: .6; cursor: default; }
+.vc-err { margin: .4rem 0 0; font-size: .8rem; color: var(--crit); }
+.vc-note { margin: .3rem 0 0; font-size: .75rem; color: var(--soft); }
+.vc-form button:focus-visible, .vc-act:focus-visible, .vc-add:focus-visible, .vc-toggle:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* live viewer: save/undo toast */
+.vc-toast { position: fixed; bottom: 4.2rem; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: .6rem; background: var(--raise); border: 1px solid var(--line);
+  border-radius: 8px; padding: .5rem .9rem; font-size: .85rem; z-index: 50;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .18); }
+.vc-toast.anchored { position: absolute; bottom: auto; left: auto; transform: none; }
+
+/* live viewer: comments drawer */
+.vc-drawer { position: fixed; top: 0; right: 0; bottom: 3.2rem; width: min(23rem, 92vw);
+  background: var(--raise); border-left: 1px solid var(--line); z-index: 20; overflow-y: auto;
+  padding: .9rem 1rem; box-sizing: border-box; }
+.vc-drawer-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem; }
+.vc-h { font: 600 .72rem var(--sans); letter-spacing: .12em; text-transform: uppercase;
+  color: var(--soft); margin: 1rem 0 .4rem; }
+.vc-empty { font-size: .85rem; color: var(--soft); }
+.vc-card { border: 1px solid var(--line); border-left: 3px solid var(--high); border-radius: 6px;
+  background: var(--bg); padding: .6rem .8rem; margin: .5rem 0; font-size: .88rem; }
+.vc-card[data-status="resolved"] { border-left-color: var(--line); opacity: .85; }
+.vc-card.vc-focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--wash); }
+.vc-card blockquote { margin: 0 0 .4rem; padding: .05rem .55rem; border-left: 2px solid var(--line);
+  color: var(--soft); font-style: italic; display: -webkit-box; -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical; overflow: hidden; }
+.vc-card .vc-text { margin: .3rem 0; }
+.vc-card .vc-meta { display: block; margin-top: .2rem; }
+.vc-reply { margin: .35rem 0 0 .6rem; padding-left: .5rem; border-left: 2px solid var(--accent); font-size: .84rem; }
+.vc-replybox { margin-top: .5rem; display: flex; gap: .4rem; align-items: flex-end; }
+.vc-replybox textarea { flex: 1; min-height: 2.6rem; font: inherit; font-size: .85rem; color: var(--ink);
+  background: var(--raise); border: 1px solid var(--line); border-radius: 6px; padding: .4rem; box-sizing: border-box; }
+.vc-resolved { display: inline-block; margin-top: .3rem; font-size: .78rem; color: var(--accent-deep); }
+.vc-actions { display: flex; gap: .4rem; margin-top: .5rem; flex-wrap: wrap; }
+.vc-toggle { margin-left: auto; font: 600 .78rem var(--sans); border: 1px solid var(--line);
+  background: var(--bg); color: var(--ink); border-radius: 999px; padding: .25rem .7rem; cursor: pointer; }
+.vc-toggle[aria-expanded="true"] { border-color: var(--accent); }
+.vbar-note { font-size: .72rem; color: var(--soft); }
+.chip-comments { border-color: var(--accent); color: var(--accent-deep); }
 
 /* viewer chrome (pentimento serve) */
 .vbar-pad { height: 3.2rem; }
@@ -283,4 +378,20 @@ mark.vc-mark { background: color-mix(in srgb, var(--high) 22%, transparent); col
 
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
+}
+
+/* Print: drop the interactive chrome, open every fold, keep sections whole. Static
+   renders are meant to open (and print) anywhere. */
+@media print {
+  :root { --bg: #fff; --raise: #fff; --ink: #000; --soft: #333; --line: #bbb; }
+  .palettes, .vbar, .vbar-pad, .vc-drawer, .vc-toggle, .vc-add, .vc-form, .vc-toast,
+  .vc-hint, .anch { display: none !important; }
+  .wrap { max-width: none; }
+  .toc { position: static; width: auto; max-height: none; }
+  details { break-inside: avoid; }
+  details > summary { list-style: none; }
+  section, .finding, .timeline li, .callout, .diff, .diagram { break-inside: avoid; }
+  h1, h2, h3 { break-after: avoid; }
+  a { color: inherit; text-decoration: underline; }
+  a[href^="http"]::after { content: " (" attr(href) ")"; font-size: .8em; color: #555; word-break: break-all; }
 }

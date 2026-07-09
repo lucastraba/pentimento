@@ -4,8 +4,9 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { createTwoFilesPatch } from 'diff'
-import { addComment, loadDoc, readMeta, readRevision, resolveComment, revert, snapshot } from './core.js'
+import { addComment, addReply, loadDoc, readMeta, readRevision, resolveComment, revert, snapshot } from './core.js'
 import { renderDiffPage, renderToFile } from './render.js'
+import { lintDoc } from './lint.js'
 import { bundledShim, checkShim, installShim, readGuide } from './skill.js'
 import { findPentimentoDocs, verifyDoc } from './verify.js'
 import { serveViewer } from './viewer.js'
@@ -29,8 +30,12 @@ Usage:
   pentimento comments <doc>               (list open comments, plus a resolved count)
   pentimento comment <doc> --text "..." [--anchor "#id"] [--quote "..."] [--author name]
   pentimento address <doc>                (open comments formatted for an agent to act on)
-  pentimento resolve <doc> <comment-id> [--rev rNNN]
-  pentimento guide [directives|archetypes]  (version-matched authoring instructions)
+  pentimento reply <doc> <comment-id> --text "..." [--author name]
+  pentimento resolve <doc> <comment-id> [--rev rNNN] [--note "..."]
+                                      (--note records a closing reply on the comment)
+  pentimento lint <doc> [--strict]        (flag AI-register tells: banned words, false contrast,
+                                       em-dash density; --strict exits nonzero for CI)
+  pentimento guide [directives|archetypes|style]  (version-matched authoring instructions)
   pentimento skill install [dir]          (write the skill shim into dir; default .claude/skills)
   pentimento skill check [dir]            (warn if the installed skill shim is out of date)
   pentimento skill print                  (print the skill shim to stdout)
@@ -50,7 +55,7 @@ interface Args {
 const parseArgs = (argv: string[]): Args => {
   const positional: string[] = []
   const flags: Record<string, string> = {}
-  const boolean = new Set(['artifact', 'html', 'tailscale'])
+  const boolean = new Set(['artifact', 'html', 'tailscale', 'strict'])
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a.startsWith('--') && boolean.has(a.slice(2))) flags[a.slice(2)] = 'true'
@@ -108,6 +113,17 @@ const main = (): void => {
         author: flags.author ?? defaultAuthor(),
       })
       console.log(`${res.rev} → ${res.historyFile}`)
+      const style = lintDoc(loadDoc(doc).raw)
+      if (style.length) console.log(`${style.length} style warning(s) — run: pentimento lint ${positional[0]}`)
+      break
+    }
+    case 'lint': {
+      if (!doc) fail('lint needs a document path')
+      const findings = lintDoc(loadDoc(doc).raw)
+      if (!findings.length) { console.log('no style warnings'); break }
+      for (const f of findings) console.log(`  L${String(f.line).padStart(3)} [${f.rule}] ${f.message}`)
+      console.log(`${findings.length} style warning(s)`)
+      if (flags.strict === 'true') process.exit(1)
       break
     }
     case 'list': {
@@ -203,6 +219,7 @@ const main = (): void => {
         console.log(`[${c.id}] OPEN ${c.anchor || '(document)'} — ${c.author}, ${c.created_at.slice(0, 10)}`)
         if (c.quote) console.log(`    > ${c.quote}`)
         console.log(`    ${c.text}`)
+        for (const r of c.replies ?? []) console.log(`    ↳ ${r.author}: ${r.text}`)
       }
       if (resolved) console.log(`(+ ${resolved} resolved)`)
       break
@@ -230,15 +247,26 @@ const main = (): void => {
         console.log(`[${c.id}] anchored at ${c.anchor || '(document)'} — ${c.author}, ${c.created_at.slice(0, 10)}`)
         if (c.quote) console.log(`  quoted text: "${c.quote}"`)
         if (c.prefix || c.suffix) console.log(`  context: …${c.prefix ?? ''}[quote]${c.suffix ?? ''}…`)
-        console.log(`  comment: ${c.text}\n`)
+        console.log(`  comment: ${c.text}`)
+        for (const r of c.replies ?? []) console.log(`  reply (${r.author}): ${r.text}`)
+        console.log('')
       }
       console.log('To address: revise the canonical markdown accordingly, then:')
       console.log(`  pentimento snapshot ${positional[0]} --summary "Address review comments" --why "..."`)
       console.log(`  pentimento resolve ${positional[0]} <comment-id> --rev <new revision>   # once per addressed comment`)
+      console.log(`  pentimento reply ${positional[0]} <comment-id> --text "..."             # when the answer is an explanation, not a revision`)
+      break
+    }
+    case 'reply': {
+      if (!doc || !positional[1]) fail('reply needs a document path and a comment id')
+      if (!flags.text) fail('reply needs --text "..."')
+      const c = addReply(doc, positional[1], { text: flags.text, author: flags.author ?? defaultAuthor() })
+      console.log(`${c.id} now has ${c.replies?.length ?? 0} repl${(c.replies?.length ?? 0) === 1 ? 'y' : 'ies'}`)
       break
     }
     case 'resolve': {
       if (!doc || !positional[1]) fail('resolve needs a document path and a comment id')
+      if (flags.note) addReply(doc, positional[1], { text: flags.note, author: flags.author ?? defaultAuthor() })
       const c = resolveComment(doc, positional[1], flags.rev)
       console.log(`${c.id} resolved${c.resolved_in ? ` in ${c.resolved_in}` : ''}`)
       break

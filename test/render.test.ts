@@ -75,6 +75,32 @@ describe('render', () => {
     expect(html).toContain('<span class="pill later">later</span>')
   })
 
+  it('computes a severity strip and auto-counts the collapsed group', () => {
+    const p = doc('# T\n\n## S\n\n::: findings\n- CRIT :: a\n- HIGH :: b\n- HIGH :: c\n@collapse Lower severity\n- MED :: d\n- LOW :: e\n:::\n')
+    const html = render(p)
+    expect(html).toContain('<div class="finding-summary">')
+    expect(html).toContain('<span class="tally c"><b>1</b> CRIT</span>')
+    expect(html).toContain('<span class="tally h"><b>2</b> HIGH</span>')
+    // agent omitted the count; renderer appends it
+    expect(html).toContain('<summary>Lower severity (2)</summary>')
+  })
+
+  it('computes a timeline progress strip with a meter', () => {
+    const p = doc('# T\n\n## S\n\n::: timeline\n1. **One** [done] — a\n2. **Two** [done] — b\n3. **Three** [next] — c\n4. **Four** [later] — d\n:::\n')
+    const html = render(p)
+    expect(html).toContain('<div class="timeline-progress">')
+    expect(html).toContain('<meter value="2" min="0" max="4"')
+    expect(html).toContain('2 done · 1 next · 1 later · 4 total')
+    expect(html).toContain('<span class="ph ph-done">1</span>')
+  })
+
+  it('renders figure aria as a figcaption and uses a time element for the date', () => {
+    const p = doc('# T\n\n## S\n\n::: figure aria="the flow"\n<svg viewBox="0 0 10 10"><rect class="nodebox" width="10" height="10"/></svg>\n:::\n')
+    const html = render(p)
+    expect(html).toContain('<figcaption>the flow</figcaption>')
+    expect(html).toMatch(/<time class="chip" datetime="\d{4}-\d{2}-\d{2}">/)
+  })
+
   it('renders a unified diff as side-by-side panes', () => {
     const p = doc('# T\n\n## S\n\n::: diff head="file.py · fix"\n```txt\n def f():\n-    old()\n+    new()\n+    more()\n```\n:::\n')
     const html = render(p)
@@ -121,7 +147,7 @@ describe('render', () => {
   it('passes figures through with aria labels', () => {
     const p = doc('# T\n\n## S\n\n::: figure aria="a diagram"\n<svg viewBox="0 0 10 10"><rect class="nodebox" width="10" height="10"/></svg>\n:::\n')
     const html = render(p)
-    expect(html).toContain('<div class="diagram" role="img" aria-label="a diagram">')
+    expect(html).toContain('<figure class="diagram" role="img" aria-label="a diagram">')
     expect(html).toContain('<rect class="nodebox"')
   })
 })

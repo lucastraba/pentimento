@@ -2,14 +2,16 @@
 
 This is the version-matched source of truth for producing a Pentimento document. It is
 printed by `pentimento guide`, so it always matches the installed CLI — follow it over any
-cached instructions. Deep topics have their own pages: `pentimento guide directives` and
-`pentimento guide archetypes`.
+cached instructions. Deep topics have their own pages: `pentimento guide directives`,
+`pentimento guide archetypes`, and `pentimento guide style`.
 
 ## The loop
 
 1. Research and think as normal (in plan mode if active). Decide the archetype:
    `implementation` | `brainstorm` | `audit` | `design-doc` (section skeletons:
-   `pentimento guide archetypes`).
+   `pentimento guide archetypes`). Lead every document with the answer: the first
+   section is a `::: verdict` banner (Recommendation / Verdict / Summary) the reader can
+   act on without scrolling, then the evidence below it.
 2. Write `<Name>.md` with frontmatter:
    ```yaml
    ---
@@ -22,26 +24,68 @@ cached instructions. Deep topics have their own pages: `pentimento guide directi
    neither is set, the default is `iris`. Readers can still switch palette in the viewer.
    Structure: `# Title`, then a `> standfirst` blockquote, then `##` sections. Add
    `<!-- id: short-id; eyebrow: Section Label -->` at the end of `##` heading lines.
-3. Snapshot — this drafts the decision log the reader sees at the top:
+3. Lint, then snapshot — the snapshot note drafts the decision log the reader sees at
+   the top:
    ```bash
+   pentimento lint <Name>.md        # fix the style warnings it prints, then:
    pentimento snapshot <Name>.md --summary "what changed" --why "why" --author <who>
    ```
-4. Render: `pentimento render <Name>.md -o <name>.html` — standalone HTML, works anywhere.
-   For claude.ai Artifact publishing add `--artifact` (the platform wraps the fragment
-   itself; a full document would nest invalidly).
-5. Publish: Claude Code renders with `--artifact` and publishes via the Artifact tool
-   (favicon 📜, same file path every round so the URL is stable). Alternatively (or
-   additionally), `pentimento serve <dir> [--tailscale]` runs the live viewer: document
-   index, revision picker, diff pages, hot reload — no per-round publishing needed.
-6. Feedback round: revise the markdown → `snapshot` → `render` → republish. The rendered
-   page automatically shows a collapsible "What changed in rNNN" diff, so write snapshot
-   summaries for the reader. Never edit history files; `pentimento list` / `pentimento diff`
-   / `pentimento revert` manage them.
+4. Serve the plan (default): run `pentimento serve .` in the background and give the user
+   the printed URL. The viewer is interactive and agent-agnostic: document index, revision
+   picker, diff pages, select-to-comment with a comments drawer, and in-place live updates
+   (edits appear without a reload). Add `--tailscale` to share it beyond localhost. Prefer
+   this over publishing a static file.
+5. Static HTML (optional): `pentimento render <Name>.md -o <name>.html` produces a
+   standalone page that opens anywhere. Use it only when you can't keep a server running or
+   the user wants a file to email or upload. For claude.ai Artifact publishing, add
+   `--artifact` and publish the fragment with the Artifact tool (favicon 📜, same file path
+   each round for a stable URL). That path is Claude-specific, so default to `serve`.
+6. Feedback round: revise the markdown, then `snapshot`. If you are serving, the viewer
+   hot-reloads and shows the collapsible "What changed in rNNN" diff on its own; if you used
+   the static path, re-run `render` (and re-publish the artifact). Write snapshot summaries
+   for the reader. Never edit history files; `pentimento list` / `pentimento diff` /
+   `pentimento revert` manage them.
 7. If the user asks what changed between older revisions:
    `pentimento diff <Name>.md rA rB --html -o changes.html` renders a readable word-level
    diff page you can publish alongside the plan.
 8. Periodically (or in CI): `pentimento verify .` cross-checks every Pentimento document's
    frontmatter, history files, and meta.yml.
+
+## Prose
+
+Pentimento owns the look; these rules own the register. They bind exactly like the
+no-CSS rule — a document that reads like a launch post is as broken as one with inline
+styles. The register is a senior engineer's memo. Before/after examples per surface:
+`pentimento guide style`.
+
+1. Plain words. Use, reliable, smooth, important — never leverage, robust, seamless,
+   crucial, delve, streamline, showcase, foster, empower, comprehensive, utilize.
+2. "Is" and "has", not "serves as", "features", "boasts". Cut filler: "in order to"
+   → "to", "due to the fact that" → "because".
+3. Em-dashes are the loudest AI tell. At most one per paragraph, never two in one
+   sentence. Default to a period, colon, comma, or parentheses; reread every "—" you
+   type and replace it unless it is doing irreplaceable work. (The timeline directive's
+   `—` separator is syntax and doesn't count.)
+4. No false contrast. Never "it isn't just X — it's Y", nor the split form ("The point
+   isn't speed. It's trust."). State the claim directly.
+5. No engagement hooks: no "Here's the thing", "The catch?", no rhetorical-question
+   openers, no "So what does this mean?"
+6. Bullets are full claims with verbs and specifics. Bold-lead fragments
+   ("**Speed:** improved") are banned. When prose can carry it, prefer prose.
+7. Specific over vague: name the file, cite the line, give the number. No "from X to Y"
+   false ranges, no "-ing" tack-ons ("…showcasing the design").
+8. One hedge per claim. "Probably" and "might" in the same sentence means you haven't
+   decided what you think. Decide.
+9. Vary sentence length. Uniform 20-word sentences read as generated; a short one lands.
+10. No throat-clearing or self-labeling: cut "It's worth noting", "Interestingly",
+    "Moreover", "In today's landscape".
+11. No closers. End when the content ends; "the future looks bright" and its cousins
+    never appear.
+
+These apply everywhere the reader sees text: body prose, callouts, findings, timeline
+descriptions, and snapshot `--summary`/`--why` notes. They are checked mechanically:
+run `pentimento lint <Name>.md` before every snapshot and fix what it flags; snapshot
+itself prints the warning count so a slip never ships silently.
 
 ## Addressing review comments
 
@@ -56,7 +100,10 @@ before any feedback round):
 3. One snapshot for the round:
    `pentimento snapshot <Name>.md --summary "Address review comments" --why "<what the comments asked>"`
 4. `pentimento resolve <Name>.md <comment-id> --rev <new revision>` for each comment you
-   addressed. Leave genuinely unresolved ones open and say why.
+   addressed. When the answer is an explanation rather than a revision, reply instead:
+   `pentimento reply <Name>.md <comment-id> --text "..."` (or close with a note via
+   `resolve --note "..."`). Replies show on the reader's comment card in the viewer.
+   Leave genuinely unresolved ones open and say why.
 5. Re-render and republish.
 
 You can also leave inline notes in the markdown as `%% @c: a note %%` — snapshot extracts

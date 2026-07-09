@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { addComment, extractInlineComments, loadDoc, readMeta, resolveComment, snapshot } from '../src/core.js'
+import { addComment, addReply, deleteComment, extractInlineComments, loadDoc, readMeta, reopenComment, resolveComment, snapshot } from '../src/core.js'
 import { render } from '../src/render.js'
 import { createApp } from '../src/viewer.js'
 
@@ -36,6 +36,34 @@ describe('comments core', () => {
 
   it('throws on unknown comment ids', () => {
     expect(() => resolveComment(p, 'c-nope')).toThrow(/no comment/)
+  })
+
+  it('reopens a resolved comment', () => {
+    const c = addComment(p, { text: 'note' })
+    resolveComment(p, c.id, 'r002')
+    const reopened = reopenComment(p, c.id)
+    expect(reopened.status).toBe('open')
+    expect(reopened.resolved_in).toBeNull()
+  })
+
+  it('deletes a comment and renumbers nothing', () => {
+    const a = addComment(p, { text: 'keep' })
+    const b = addComment(p, { text: 'drop' })
+    const removed = deleteComment(p, b.id)
+    expect(removed.id).toBe(b.id)
+    const meta = readMeta(loadDoc(p).historyDir)
+    expect(meta.comments.map((c) => c.id)).toEqual([a.id])
+    expect(() => deleteComment(p, b.id)).toThrow(/no comment/)
+  })
+
+  it('threads one level of replies', () => {
+    const c = addComment(p, { text: 'why this?' })
+    addReply(p, c.id, { text: 'deliberate — see d-1', author: 'agent' })
+    const again = addReply(p, c.id, { text: 'ok, resolved then', author: 'lucas' })
+    expect(again.replies).toHaveLength(2)
+    expect(again.replies?.[0]).toMatchObject({ author: 'agent', text: 'deliberate — see d-1' })
+    const meta = readMeta(loadDoc(p).historyDir)
+    expect(meta.comments[0].replies).toHaveLength(2)
   })
 })
 
@@ -126,5 +154,62 @@ describe('comments in render and viewer', () => {
     const { app } = createApp(dir)
     const page = await (await app.request('/doc/Plan.md?rev=r001')).text()
     expect(page).toContain('"canComment":false')
+    expect(page).toContain('read-only revision')
+  })
+
+  it('replaces the header panel with drawer data in the live viewer', async () => {
+    addComment(p, { text: 'panel or drawer', quote: 'body text' })
+    const { app } = createApp(dir)
+    const page = await (await app.request('/doc/Plan.md')).text()
+    expect(page).not.toContain('open comment</summary>')
+    expect(page).toContain('id="vc-toggle"')
+    expect(page).toContain('<span id="vc-count">1</span>')
+    expect(page).toContain('"revisions":["r001"]')
+    // the static render keeps the panel
+    expect(render(p)).toContain('1 open comment')
+  })
+
+  it('serves the comment list over GET /api/comments', async () => {
+    const c = addComment(p, { text: 'listed', quote: 'body text' })
+    const { app } = createApp(dir)
+    const res = await app.request('/api/comments?rel=Plan.md')
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(data.comments.map((x: { id: string }) => x.id)).toEqual([c.id])
+    expect(data.revisions).toEqual(['r001'])
+    expect((await app.request('/api/comments?rel=../outside.md')).status).toBe(404)
+  })
+
+  it('scopes uncomment to the creating session', async () => {
+    const { app } = createApp(dir)
+    const post = (url: string, body: unknown) => app.request(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    const entry = await (await post('/api/comment', { rel: 'Plan.md', text: 'mine', session: 's-1' })).json()
+    expect((await post('/api/uncomment', { rel: 'Plan.md', id: entry.id, session: 's-2' })).status).toBe(403)
+    expect((await post('/api/uncomment', { rel: 'Plan.md', id: entry.id })).status).toBe(403)
+    const ok = await post('/api/uncomment', { rel: 'Plan.md', id: entry.id, session: 's-1' })
+    expect(ok.status).toBe(200)
+    expect(readMeta(loadDoc(p).historyDir).comments).toHaveLength(0)
+  })
+
+  it('reopens and replies over the API', async () => {
+    const c = addComment(p, { text: 'roundtrip', quote: 'body text' })
+    resolveComment(p, c.id, 'r001')
+    const { app } = createApp(dir, { author: 'lucas' })
+    const post = (url: string, body: unknown) => app.request(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    expect((await post('/api/reopen', { rel: 'Plan.md', id: c.id })).status).toBe(200)
+    expect(readMeta(loadDoc(p).historyDir).comments[0].status).toBe('open')
+    const replied = await (await post('/api/reply', { rel: 'Plan.md', id: c.id, text: 'answer' })).json()
+    expect(replied.replies).toHaveLength(1)
+    expect(replied.replies[0]).toMatchObject({ author: 'lucas', text: 'answer' })
+    expect((await post('/api/reply', { rel: 'Plan.md', id: c.id, text: '  ' })).status).toBe(400)
+    expect((await post('/api/reopen', { rel: 'Plan.md', id: 'c-nope' })).status).toBe(404)
   })
 })
