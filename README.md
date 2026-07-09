@@ -1,67 +1,59 @@
 # Pentimento
 
-Living documents for humans and AI agents: one canonical markdown file, revision history in a hidden folder beside it, and a deterministic HTML render.
+Pentimento keeps a document as plain markdown, saves a hidden history of the versions you choose to keep, and renders it to one HTML page whose look you don't control. A pentimento is a trace of earlier brushwork visible under the surface of a painting.
 
-A pentimento is a trace of earlier brushwork visible under the surface of a painting.
+That one mechanism covers two jobs, and you can use either without the other:
 
-## Why
+- Plans your agent writes: a coding agent produces a reviewable HTML plan, design doc, or audit, and Pentimento fixes how it looks and tracks what changed between drafts.
+- Version history for documents you revise: snapshot, diff, and revert any markdown you edit over time, like Obsidian notes, essays, or lyrics.
 
-Two problems led here.
+## What it is
 
-Plans that get revised stop being reviewable. By the third revision nobody remembers what changed or why, so the reader either re-reads the whole document or asks the author.
+A Pentimento document is one markdown file that keeps its name and place. `pentimento snapshot` copies the current state into a numbered revision (`r001`, `r002`, …) under a hidden `.history/` folder beside it, with a note on what changed and why. `pentimento render` turns the file into a self-contained HTML page (table of contents, revision log, light and dark themes), and from the second revision on it adds a panel showing a word-level diff against the previous one.
 
-And agents asked to produce HTML directly produce visual noise. Every page comes out different, none of them look owned, and the iterations can't be diffed.
+The author, human or agent, writes markdown plus a small set of `:::` directives. A single fixed stylesheet decides every pixel, so two documents built months apart look like the same tool made them, and every draft can be diffed against the last. Everything on disk is plain text: grep it, sync it, commit it, hand it to an agent. Nothing needs git, and nothing conflicts with git.
 
-Pentimento treats both as the same problem. The author, human or agent, writes markdown plus a small set of directives. A renderer with one fixed stylesheet decides how everything looks. Meaningful versions are snapshotted into numbered revisions with a note about what changed and why, and each render embeds a word-level diff against the previous revision, so the reader sees exactly what moved.
+## Requirements
 
-## Install
+Node 20.13+. The CLI runs with no install through `npx -y pentimento@latest <command>`, or install it once with `npm install -g pentimento`. Rendered pages make no outside requests.
 
-```bash
-npm install -g pentimento     # or skip the install: npx -y pentimento@latest <command>
-```
+## Write plans with your agent
 
-Node 20.13+ (the viewer's recursive file watch needs it). Rendered pages make no external requests. Every command works through `npx` with no install, so teammates can run it — and agents can drive it — without adding anything to their environment.
+Your agent writes the plan; Pentimento owns the look and the diff between drafts. Works with Claude Code, opencode, and Codex.
 
-## Quickstart
+1. Install the skill into your agent's skills folder (one command, nothing else to configure):
 
-```bash
-pentimento snapshot Plan.md --summary "Initial draft"
-pentimento render Plan.md          # → plan.html, open it anywhere
-# ...revise Plan.md...
-pentimento snapshot Plan.md --summary "Tightened scope" --why "Feedback round 1"
-pentimento render Plan.md          # same page, now with a "What changed in r002" panel
-pentimento diff Plan.md            # terminal diff of the latest two revisions
-pentimento serve .                 # local viewer: revision picker, diffs, comments
-pentimento verify .                # consistency check, exits nonzero for CI
-```
+   ```bash
+   npx -y pentimento@latest skill install ~/.claude/skills   # Claude Code
+   npx -y pentimento@latest skill install ~/.agents/skills   # opencode or Codex
+   ```
 
-`--author` defaults to your git `user.name`.
+2. Ask for a plan: *"Write an implementation plan for X as a Pentimento document."* The agent picks an archetype, writes the markdown, snapshots it, and renders the HTML.
 
-## How it works
+3. Read the render. It opens anywhere. For a live viewer with the revision picker and inline comments, run `pentimento serve .`.
 
-Your file, say `Plan.md`, keeps its name and location. `pentimento snapshot` copies the current state to `.history/Plan/r001.md`, `r002.md` and so on, and appends an entry (summary, why, author, timestamp) to an append-only `.history/Plan/meta.yml`. Everything is a plain text file. You can grep the history, sync it, commit it, or hand it to an agent. Nothing about it requires git, and nothing about it conflicts with git.
+4. Give feedback: select text in the viewer to leave a comment, then tell the agent *"I left comments."* It revises, snapshots again, and the new render shows a "what changed" panel so you see what moved.
 
-`pentimento render` produces a single self-contained HTML page: table of contents, the revision log as an evolution strip, an archetype badge, light and dark themes, three switchable palettes. The "What changed" panel appears from the second revision on, with unchanged sections collapsed. `pentimento diff <doc> rA rB --html` renders the same word-level view for any two revisions.
+Giving it to your team: each person runs the one `skill install` command. The skill keeps pace with the tool on its own: it defers to `pentimento guide`, which prints instructions matched to the installed version, so an old copy never hides new features. `pentimento skill check <dir>` reports when a copy has fallen behind.
 
-`pentimento verify <dir>` cross-checks every document's frontmatter against its history files and meta entries, and fails loudly when they drift.
+## Version your own documents
 
-## Comments and the review loop
-
-Run `pentimento serve .` and open a document. Select any text and a comment button appears; the comment is saved to `meta.yml` with the quoted text and surrounding context, so it stays attached even after the section moves. Open comments render as a panel on the page with the quotes highlighted in place.
-
-For the other side of the loop:
+The same engine works on anything you revise seriously, with no agent and no HTML.
 
 ```bash
-pentimento comments Plan.md               # list comments
-pentimento address Plan.md                # print open comments, formatted for an agent to act on
-pentimento resolve Plan.md c-2026-07-08-001 --rev r003   # close a comment against the revision that fixed it
+pentimento snapshot Notes.md --summary "Initial draft"
+# ...edit Notes.md over days or months...
+pentimento snapshot Notes.md --summary "Rewrote the opening" --why "Buried the point"
+pentimento list Notes.md            # every kept revision, with its note
+pentimento diff Notes.md            # word-level diff of the last two
+pentimento revert Notes.md r001     # restore an earlier version, kept as a new revision
 ```
 
-You can also comment without the viewer (`pentimento comment Plan.md --text "..." --quote "..."`) or leave inline `%% @c: a note %%` markers in the markdown, which snapshot extracts into `meta.yml`.
+Snapshots land in a hidden `.history/` next to the file (Obsidian keeps it out of the way), so your vault stays exactly as it was plus a memory of why the chorus changed. `pentimento render Notes.md` gives the HTML view with the same "what changed" panel; `pentimento serve .` browses revisions and diffs in the viewer. `--author` defaults to your git `user.name`.
 
 ## Writing documents
 
-A Pentimento document is markdown with two optional frontmatter keys:
+A document takes two optional frontmatter keys:
 
 ```yaml
 ---
@@ -70,33 +62,32 @@ Palette: iris               # iris | verdigris | mist
 ---
 ```
 
-Rich elements come from `:::` directives: callouts, verdict banners, severity-graded findings, phase timelines, side-by-side diffs, constrained SVG figures. The full vocabulary is in [`skill/references/directives.md`](skill/references/directives.md), and [`skill/references/archetypes.md`](skill/references/archetypes.md) has a section skeleton per document type.
+Rich elements come from `:::` directives: callouts, verdict banners, severity-graded findings, phase timelines, side-by-side diffs, constrained SVG figures. Run `pentimento guide directives` for the full syntax and `pentimento guide archetypes` for a section skeleton per document type (also on disk at [`skill/references/`](skill/references/)).
 
-The rules that keep output consistent: no custom CSS, no inline styles, no scripts, no hand-written HTML. If a document needs something the vocabulary can't say, the vocabulary grows in a tool release, not in a document.
+Four rules keep the output consistent: no custom CSS, no inline styles, no scripts, no hand-written HTML. When a document needs something the vocabulary can't say, the vocabulary grows in a tool release rather than in the document.
 
-## For writers
+## The review loop
 
-The same mechanics work for anything you revise seriously: song lyrics, essays, long-lived notes. The file stays where your other files are (Obsidian vaults work well, and `.history/` stays hidden there), every draft you cared enough to name is preserved, and `meta.yml` remembers why you changed the chorus.
-
-## For agents
-
-The skill is an open-standard [`SKILL.md`](skill/SKILL.md) that Claude Code, opencode, and Codex all load — the folder is the only difference (`.claude/skills/`, `.agents/skills/`, or the home-directory equivalents). Install it into a repo with:
+Run `pentimento serve .` and open a document. Select any text and a comment button appears; the comment saves to `meta.yml` with the quoted text and surrounding context, so it stays attached even after the section moves. Open comments show as a panel on the page with the quotes highlighted in place.
 
 ```bash
-pentimento skill install .claude/skills   # or .agents/skills for opencode / Codex
-pentimento skill check .claude/skills     # warn if the installed shim is out of date
+pentimento comments Plan.md               # list comments
+pentimento address Plan.md                # open comments, formatted for an agent to act on
+pentimento resolve Plan.md c-2026-07-08-001 --rev r003   # close one against the revision that fixed it
 ```
 
-The shim is deliberately thin so it can't go stale: it defers to `pentimento guide`, which prints the full authoring instructions — the loop, directive vocabulary, archetypes, flags — matched to the installed CLI version. Update the package and the guidance updates with it, no re-copying required. `pentimento guide directives` and `pentimento guide archetypes` serve the deep references.
+You can also comment without the viewer (`pentimento comment Plan.md --text "..." --quote "..."`) or leave inline `%% @c: a note %%` markers in the markdown, which snapshot pulls into `meta.yml`.
 
-The contract: write markdown against an archetype skeleton, snapshot with a reader-facing summary, render, publish. On feedback, revise and snapshot again; the render shows the reviewer what moved. Comments left in the viewer come back through `pentimento address`.
+## Checking consistency
+
+`pentimento verify <file-or-dir>` cross-checks every document's frontmatter against its history files and meta entries and exits nonzero when they drift, so it fits in CI.
 
 ## Design lineage
 
-The markdown-source, HTML-view split is a response to Thariq Shihipar's *Unreasonable Effectiveness of HTML* and its critics. The anchored-comment loop follows Google Antigravity's artifact comments. The `:::` directives are Pandoc/Quarto-style fenced divs on purpose. Pentimento's own plan is maintained with Pentimento; see [`PLAN.md`](PLAN.md) and its `.history/`.
+The markdown-source, HTML-view split answers Thariq Shihipar's *Unreasonable Effectiveness of HTML* and its critics. The anchored-comment loop follows Google Antigravity's artifact comments. The `:::` directives are Pandoc/Quarto-style fenced divs on purpose. Pentimento's own plan is written with Pentimento; see [`PLAN.md`](PLAN.md) and its `.history/`.
 
 ## Status
 
-v0.3. Young project, released tooling. Known limits: directives don't nest, Windows is untested, and while the renderer strips active content from figures, rendering hostile markdown is not a supported use case. Documents created under this tool's earlier name (`Vellum: true` frontmatter) are read as-is and migrated on their next snapshot.
+v0.4. Young project, released and versioned tooling. Known limits: directives don't nest, Windows is untested, and while the renderer strips active content from figures, rendering hostile markdown is not a supported case. Documents created under the tool's earlier name (`Vellum: true` frontmatter) are read as-is and migrated on their next snapshot.
 
 MIT © Lucas Traba
