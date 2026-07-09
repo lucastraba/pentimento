@@ -17,10 +17,10 @@ Pentimento treats both as the same problem. The author, human or agent, writes m
 ## Install
 
 ```bash
-npm install -g pentimento
+npm install -g pentimento     # or skip the install: npx -y pentimento@latest <command>
 ```
 
-Node 20.13+ (the viewer's recursive file watch needs it). Rendered pages make no external requests.
+Node 20.13+ (the viewer's recursive file watch needs it). Rendered pages make no external requests. Every command works through `npx` with no install, so teammates can run it — and agents can drive it — without adding anything to their environment.
 
 ## Quickstart
 
@@ -80,7 +80,16 @@ The same mechanics work for anything you revise seriously: song lyrics, essays, 
 
 ## For agents
 
-Point your agent at [`skill/SKILL.md`](skill/SKILL.md); for Claude Code, drop it in `.claude/skills/`. The contract: write markdown against an archetype skeleton, snapshot with a reader-facing summary, render, publish. On feedback, revise and snapshot again; the render shows the reviewer what moved. Comments left in the viewer come back through `pentimento address`.
+The skill is an open-standard [`SKILL.md`](skill/SKILL.md) that Claude Code, opencode, and Codex all load — the folder is the only difference (`.claude/skills/`, `.agents/skills/`, or the home-directory equivalents). Install it into a repo with:
+
+```bash
+pentimento skill install .claude/skills   # or .agents/skills for opencode / Codex
+pentimento skill check .claude/skills     # warn if the installed shim is out of date
+```
+
+The shim is deliberately thin so it can't go stale: it defers to `pentimento guide`, which prints the full authoring instructions — the loop, directive vocabulary, archetypes, flags — matched to the installed CLI version. Update the package and the guidance updates with it, no re-copying required. `pentimento guide directives` and `pentimento guide archetypes` serve the deep references.
+
+The contract: write markdown against an archetype skeleton, snapshot with a reader-facing summary, render, publish. On feedback, revise and snapshot again; the render shows the reviewer what moved. Comments left in the viewer come back through `pentimento address`.
 
 ## Design lineage
 

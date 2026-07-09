@@ -306,8 +306,14 @@ const chrome = (doc: Doc, meta: Meta, prepared: Prepared, opts: RenderOptions): 
   const pathLabel = doc.canonicalPath.split(path.sep).slice(-3).join('/')
   const historyRel = String(doc.frontmatter['History Folder'] ?? `.history/${doc.name}`)
 
+  // Default palette precedence: document frontmatter > PENTIMENTO_PALETTE env > built-in default.
+  // The env var lets a team pick a house default without touching every document's frontmatter.
+  const isPalette = (p: string): boolean => PALETTES.some(([k]) => k === p)
   const fmPalette = String(doc.frontmatter['Palette'] ?? '')
-  const defaultPalette = PALETTES.some(([k]) => k === fmPalette) ? fmPalette : DEFAULT_PALETTE
+  const envPalette = String(process.env.PENTIMENTO_PALETTE ?? '')
+  const defaultPalette = isPalette(fmPalette) ? fmPalette
+    : isPalette(envPalette) ? envPalette
+    : DEFAULT_PALETTE
 
   const paletteBtns = PALETTES.map(([key, label]) =>
     `<button class="pbtn" type="button" data-p="${key}" aria-pressed="${key === defaultPalette}">` +

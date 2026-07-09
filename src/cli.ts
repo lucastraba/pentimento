@@ -6,6 +6,7 @@ import path from 'node:path'
 import { createTwoFilesPatch } from 'diff'
 import { addComment, loadDoc, readMeta, readRevision, resolveComment, revert, snapshot } from './core.js'
 import { renderDiffPage, renderToFile } from './render.js'
+import { bundledShim, checkShim, installShim, readGuide } from './skill.js'
 import { findPentimentoDocs, verifyDoc } from './verify.js'
 import { serveViewer } from './viewer.js'
 
@@ -29,9 +30,16 @@ Usage:
   pentimento comment <doc> --text "..." [--anchor "#id"] [--quote "..."] [--author name]
   pentimento address <doc>                (open comments formatted for an agent to act on)
   pentimento resolve <doc> <comment-id> [--rev rNNN]
+  pentimento guide [directives|archetypes]  (version-matched authoring instructions)
+  pentimento skill install [dir]          (write the skill shim into dir; default .claude/skills)
+  pentimento skill check [dir]            (warn if the installed skill shim is out of date)
+  pentimento skill print                  (print the skill shim to stdout)
 
 Inline comments: leave %% @c: a note %% in the markdown — snapshot extracts them
 into meta.yml anchored to the nearest heading.
+
+Skills stay current by deferring to the CLI: the shim is thin and calls \`pentimento guide\`,
+which prints instructions matched to the installed version.
 `
 
 interface Args {
@@ -233,6 +241,41 @@ const main = (): void => {
       if (!doc || !positional[1]) fail('resolve needs a document path and a comment id')
       const c = resolveComment(doc, positional[1], flags.rev)
       console.log(`${c.id} resolved${c.resolved_in ? ` in ${c.resolved_in}` : ''}`)
+      break
+    }
+    case 'guide': {
+      // Version-matched authoring instructions, printed from this CLI's own files so a
+      // stale skill file can never hide new features. Topic defaults to the main guide.
+      console.log(readGuide(positional[0] ?? 'guide').trimEnd())
+      break
+    }
+    case 'skill': {
+      const sub = positional[0] ?? 'check'
+      const dir = positional[1] ?? '.claude/skills'
+      if (sub === 'print') {
+        process.stdout.write(bundledShim())
+      } else if (sub === 'install') {
+        const res = installShim(dir)
+        console.log(`${res.action}: ${res.path}`)
+        if (res.action !== 'unchanged') {
+          console.log('Tip: keep one copy per repo. opencode reads both .claude/skills and')
+          console.log('.agents/skills — installing into both double-lists the skill.')
+        }
+      } else if (sub === 'check') {
+        const res = checkShim(dir)
+        if (res.status === 'missing') {
+          console.log(`no skill at ${res.path} — install with: pentimento skill install ${dir}`)
+          process.exit(1)
+        } else if (res.status === 'stale') {
+          console.log(`stale: ${res.path} is revision ${res.installed}, current is ${res.bundled}`)
+          console.log(`refresh with: pentimento skill install ${dir}`)
+          process.exit(1)
+        } else {
+          console.log(`current: ${res.path} (revision ${res.installed})`)
+        }
+      } else {
+        fail(`unknown skill subcommand "${sub}" (use install | check | print)`)
+      }
       break
     }
     default: {
