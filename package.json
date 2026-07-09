@@ -1,6 +1,6 @@
 {
   "name": "pentimento",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Living documents: one canonical markdown file, hidden revision history, deterministic HTML rendering",
   "license": "MIT",
   "author": "Lucas Traba",
