@@ -52,6 +52,14 @@ Skills stay current by deferring to the CLI: the shim is thin and calls \`pentim
 which prints instructions matched to the installed version.
 `
 
+const VERSION = (() => {
+  try {
+    return String(JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version)
+  } catch {
+    return 'unknown'
+  }
+})()
+
 interface Args {
   positional: string[]
   flags: Record<string, string>
@@ -103,7 +111,10 @@ const defaultAuthor = (): string | undefined => {
 }
 
 const main = (): void => {
-  const [cmd, ...rest] = process.argv.slice(2)
+  const argv = process.argv.slice(2)
+  if (argv.includes('--version') || argv.includes('-v')) { console.log(VERSION); return }
+  const [cmd, ...rest] = argv
+  if (!cmd || cmd === 'help' || argv.includes('--help') || argv.includes('-h')) { console.log(USAGE); return }
   const { positional, flags } = parseArgs(rest)
   const doc = positional[0]
 

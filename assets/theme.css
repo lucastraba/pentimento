@@ -242,6 +242,8 @@ tr:last-child td { border-bottom: none; }
 .timeline { list-style: none; padding: 0; margin: 1rem 0; }
 .timeline li { display: grid; grid-template-columns: 2.2rem 1fr; gap: .9rem; padding: .9rem 0;
   border-bottom: 1px solid var(--line); margin: 0; }
+.timeline li > * { min-width: 0; }
+.timeline h3, .timeline code { overflow-wrap: anywhere; }
 .timeline li:last-child { border-bottom: none; }
 .ph { font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; color: var(--accent-deep);
   font-variant-numeric: tabular-nums; }
@@ -433,7 +435,7 @@ details.comments { margin: .75rem 0 0; }
 .vc-toast.anchored { position: absolute; bottom: auto; left: auto; transform: none; }
 
 /* live viewer: comments drawer */
-.vc-drawer { position: fixed; top: 0; right: 0; bottom: 3.2rem; width: min(23rem, 92vw);
+.vc-drawer { position: fixed; top: 0; right: 0; bottom: var(--vbar-height, 3.2rem); width: min(23rem, 92vw);
   background: var(--raise); border-left: 1px solid var(--line); z-index: 20; overflow-y: auto;
   padding: .9rem 1rem; box-sizing: border-box; }
 .vc-drawer-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem; }
@@ -477,7 +479,7 @@ details.comments { margin: .75rem 0 0; }
   font: 600 .82rem var(--sans); text-align: center; }
 
 /* viewer chrome (pentimento serve) */
-.vbar-pad { height: 3.2rem; }
+.vbar-pad { height: var(--vbar-height, 3.2rem); }
 .vbar { position: fixed; bottom: 0; left: 0; right: 0; display: flex; align-items: center; gap: .8rem;
   padding: .5rem 1rem; background: var(--raise); border-top: 1px solid var(--line);
   font-size: .82rem; z-index: 10; flex-wrap: wrap; box-shadow: 0 -4px 16px var(--shadow-color); }
@@ -494,6 +496,20 @@ details.comments { margin: .75rem 0 0; }
 .vcard:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: 0 5px 14px var(--shadow-color); }
 .vcard h3 { margin: .4rem 0 .2rem; }
 .vcard p { margin: 0; font-size: .88rem; color: var(--soft); }
+.empty-state { padding: 1.25rem; border: 1px dashed var(--control-line); border-radius: 8px; background: var(--surface-alt); }
+.empty-state h2 { margin-bottom: .4rem; }
+.empty-state code { display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
+
+@media (max-width: 48rem) {
+  .vbar { gap: .45rem; padding: .45rem .6rem; }
+  .vbar-name { display: none; }
+  .vbar-note { flex: 1 0 100%; }
+  .vbar a, .vbar select, .vc-toggle, .viewer-stop { min-height: 2.75rem; box-sizing: border-box; }
+  .vbar a { display: inline-flex; align-items: center; }
+  .vbar select { flex: 1 1 10rem; max-width: min(100%, 12rem); }
+  .vc-toggle { margin-left: 0; }
+  .vc-drawer { width: min(24rem, 100vw); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }

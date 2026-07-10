@@ -96,7 +96,7 @@ const viewerBar = (
   <select id="vrev" aria-label="Revision">${options}</select>
   ${diffLink}
   ${note}
-  <button id="vc-toggle" class="vc-toggle" type="button" aria-expanded="false" aria-label="Comments">${COMMENT_ICON}<span id="vc-count">${openCount}</span></button>
+  <button id="vc-toggle" class="vc-toggle" type="button" aria-controls="vc-drawer" aria-expanded="false" aria-label="Comments">${COMMENT_ICON}<span id="vc-count">${openCount}</span></button>
   ${canStop ? stopButton() : ''}
 </nav>`
 }
@@ -104,6 +104,7 @@ const viewerBar = (
 const indexPage = (root: string, canStop = false): string => {
   const css = renderStylesheet()
   const chromeJs = fs.readFileSync(path.join(ASSETS, 'chrome.js'), 'utf8')
+  const rootName = path.basename(root)
   const cards = findPentimentoDocs(root)
     .map((p) => {
       const doc = loadDoc(p)
@@ -150,12 +151,12 @@ ${css}</style>
 ${RESTORE_SNIPPET}
 <div class="wrap">
 <header class="doc">
-  <div class="meta-row"><span class="badge">Pentimento viewer</span>${themePicker()}${canStop ? stopButton() : ''}<span class="path-chip" title="${escapeHtml(root)}">${escapeHtml(root)}</span></div>
+  <div class="meta-row"><span class="badge">Pentimento viewer</span>${themePicker()}${canStop ? stopButton() : ''}<span class="path-chip">Serving ${escapeHtml(rootName)}</span></div>
   <h1>Living documents</h1>
 </header>
 <main>
 <div class="vcards">
-${cards || '<p>No Pentimento documents found under this directory.</p>'}
+${cards || '<div class="empty-state"><h2>No living documents yet</h2><p>Create a Markdown file here, then save its first revision:</p><code>pentimento snapshot Plan.md --summary "Initial version"</code></div>'}
 </div>
 </main>
 </div>

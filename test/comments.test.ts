@@ -177,8 +177,8 @@ describe('comments in render and viewer', () => {
     const locked = await (await app.request('/doc/Plan.md')).text()
     expect(locked).toContain('"canComment":false')
     expect(locked).toContain('read-only link')
-    expect(locked).not.toContain('data-stop-viewer')
-    expect(await (await app.request('/')).text()).not.toContain('data-stop-viewer')
+    expect(locked).not.toContain('<button class="viewer-stop" data-stop-viewer')
+    expect(await (await app.request('/')).text()).not.toContain('<button class="viewer-stop" data-stop-viewer')
     const body = JSON.stringify({ rel: 'Plan.md', text: 'remote note' })
     expect((await app.request('/api/comment', {
       method: 'POST', headers: { origin: 'http://100.64.0.2:4820', 'content-type': 'application/json' }, body,
@@ -199,8 +199,8 @@ describe('comments in render and viewer', () => {
     })).status).toBe(200)
     const writable = await (await app.request('/doc/Plan.md', { headers: { cookie } })).text()
     expect(writable).toContain('"canComment":true')
-    expect(writable).toContain('data-stop-viewer')
-    expect(await (await app.request('/', { headers: { cookie } })).text()).toContain('data-stop-viewer')
+    expect(writable).toContain('<button class="viewer-stop" data-stop-viewer')
+    expect(await (await app.request('/', { headers: { cookie } })).text()).toContain('<button class="viewer-stop" data-stop-viewer')
     expect((await app.request('/api/shutdown', {
       method: 'POST', headers: { origin: 'https://evil.example', 'content-type': 'application/json', cookie }, body: '{}',
     })).status).toBe(403)

@@ -99,10 +99,23 @@ describe('viewer', () => {
     expect(html).toContain('class="theme-controls"')
     expect(html).toContain('Use document default')
     expect(html).toContain('class="path-chip"')
+    expect(html).toContain(`Serving ${path.basename(dir)}`)
+    expect(html).not.toContain(dir)
     expect(html).toContain('window.__pSyncPalette = sync')
     expect(html).toMatch(/script-src 'sha256-[A-Za-z0-9+/=]+'/)
     expect(html).not.toMatch(/script-src[^;]*'unsafe-inline'/)
     expect(res.headers.get('content-security-policy')).toContain("frame-ancestors 'none'")
+  })
+
+  it('gives an empty workspace a private, actionable first step', async () => {
+    const empty = path.join(dir, 'empty-workspace')
+    fs.mkdirSync(empty)
+    const emptyApp = createApp(empty).app
+    const html = await (await emptyApp.request('/')).text()
+    expect(html).toContain('No living documents yet')
+    expect(html).toContain('pentimento snapshot Plan.md')
+    expect(html).toContain('Serving empty-workspace')
+    expect(html).not.toContain(empty)
   })
 
   it('serves the rendered document with the viewer bar and SSE', async () => {
@@ -113,6 +126,11 @@ describe('viewer', () => {
     expect(html).toContain('second version')
     expect(html).toContain('class="vbar"')
     expect(html).toContain('class="comment-icon"')
+    expect(html).toContain('aria-controls="vc-drawer"')
+    expect(html).toContain("drawer.setAttribute('role', 'dialog')")
+    expect(html).toContain("action('New comment'")
+    expect(html).toContain("e.key === 'Escape' && !drawer.hidden")
+    expect(html).toContain('new ResizeObserver(syncBarHeight)')
     expect(html).not.toContain('💬')
     expect(html).toContain('.vc-add[hidden] { display: none; }')
     expect(html).toContain("EventSource('/__events')")

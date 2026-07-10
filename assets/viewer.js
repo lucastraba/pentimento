@@ -167,6 +167,7 @@
   const toastAt = (rect, message, actionLabel, actionFn) => {
     if (toastEl) toastEl.remove()
     const t = el('div', 'vc-toast')
+    t.setAttribute('role', 'status')
     t.appendChild(el('span', '', message))
     if (actionLabel) {
       const b = el('button', 'vc-act', actionLabel)
@@ -192,8 +193,12 @@
 
   // --- drawer ---------------------------------------------------------------
   const drawer = el('aside', 'vc-drawer')
+  drawer.id = 'vc-drawer'
+  drawer.setAttribute('role', 'dialog')
+  drawer.setAttribute('aria-label', 'Comments')
   drawer.hidden = true
   document.body.appendChild(drawer)
+  let drawerOpener = null
 
   const openCount = () => state.comments.filter((c) => c.status === 'open').length
   const syncCount = () => {
@@ -319,14 +324,22 @@
   }
 
   const renderDrawer = () => {
+    const hadFocus = drawer.contains(document.activeElement)
     drawer.textContent = ''
     const head = el('div', 'vc-drawer-head')
     head.appendChild(el('strong', '', 'Comments'))
+    const controls = el('div', 'vc-actions')
+    if (cfg.canComment) {
+      controls.appendChild(action('New comment', () => openForm({
+        quote: '', prefix: '', suffix: '', anchor: location.hash || '', rect: null,
+      })))
+    }
     const close = el('button', 'vc-act', '✕')
     close.type = 'button'
     close.setAttribute('aria-label', 'Close comments')
     close.addEventListener('click', closeDrawer)
-    head.appendChild(close)
+    controls.appendChild(close)
+    head.appendChild(controls)
     drawer.appendChild(head)
     const open = state.comments.filter((c) => c.status === 'open')
     const resolved = state.comments.filter((c) => c.status === 'resolved')
@@ -340,9 +353,11 @@
       resolved.forEach((c) => drawer.appendChild(card(c)))
     }
     syncCount()
+    if (hadFocus) close.focus()
   }
 
   const openDrawer = (focusId) => {
+    drawerOpener = document.activeElement
     renderDrawer()
     drawer.hidden = false
     const tg = document.getElementById('vc-toggle')
@@ -350,18 +365,23 @@
     if (focusId) {
       const cardEl = drawer.querySelector('[data-cid="' + focusId + '"]')
       if (cardEl) {
+        cardEl.tabIndex = -1
         cardEl.scrollIntoView({ block: 'nearest' })
         cardEl.classList.add('vc-focus')
+        cardEl.focus()
         setTimeout(() => cardEl.classList.remove('vc-focus'), 1600)
       }
       flash(rangesById.get(focusId))
-    }
+    } else drawer.querySelector('[aria-label="Close comments"]')?.focus()
   }
 
   const closeDrawer = () => {
     drawer.hidden = true
     const tg = document.getElementById('vc-toggle')
     if (tg) tg.setAttribute('aria-expanded', 'false')
+    const restore = drawerOpener?.isConnected ? drawerOpener : tg
+    drawerOpener = null
+    restore?.focus()
   }
 
   const rerender = () => {
@@ -385,6 +405,10 @@
   const morph = async () => {
     morphQueued = false
     try {
+      const active = document.activeElement
+      const focusSelector = active?.id
+        ? '#' + CSS.escape(active.id)
+        : active?.matches?.('[data-stop-viewer]') ? '[data-stop-viewer]' : null
       const res = await fetch(location.pathname + location.search)
       if (!res.ok) return
       const html = await res.text()
@@ -400,6 +424,7 @@
       if (doc.title) document.title = doc.title
       if (window.__pSyncPalette) window.__pSyncPalette()
       rerender()
+      if (focusSelector) document.querySelector(focusSelector)?.focus()
     } catch (e) { /* keep the current view */ }
   }
 
@@ -417,6 +442,13 @@
   }
 
   // --- global delegated listeners (survive morphs) ---------------------------
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !drawer.hidden) {
+      closeDrawer()
+      e.preventDefault()
+    }
+  })
+
   document.addEventListener('click', (e) => {
     const t = e.target
     if (t.closest && t.closest('#vc-toggle')) {
@@ -439,6 +471,12 @@
   })
 
   // --- boot ---------------------------------------------------------------
+  const viewerBar = document.querySelector('.vbar')
+  if (viewerBar && typeof ResizeObserver !== 'undefined') {
+    const syncBarHeight = () => document.documentElement.style.setProperty('--vbar-height', viewerBar.offsetHeight + 'px')
+    new ResizeObserver(syncBarHeight).observe(viewerBar)
+    syncBarHeight()
+  }
   applyHighlights()
   syncCount()
 
@@ -536,7 +574,7 @@
     if (form) form.remove()
     btn.hidden = true
     form = el('div', 'vc-form')
-    form.appendChild(el('blockquote', '', sel.quote))
+    if (sel.quote) form.appendChild(el('blockquote', '', sel.quote))
     if (sel.truncated) form.appendChild(el('p', 'vc-note', 'Long selection — quote kept to its first 600 characters.'))
     const ta = el('textarea')
     ta.placeholder = 'Leave a comment for the agent…'
@@ -571,12 +609,13 @@
       form = null
       if (dropDraft) clearDraft()
       if (morphQueued) morph()
+      if (!drawer.hidden) drawer.querySelector('[aria-label="Close comments"]')?.focus()
     }
 
     cancel.addEventListener('click', () => closeForm(true))
     ta.addEventListener('input', () => saveDraft(sel, ta.value))
     form.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') closeForm(true)
+      if (e.key === 'Escape') { e.stopPropagation(); closeForm(true) }
       else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') save.click()
     })
 
