@@ -254,12 +254,4 @@ Use strict mode in CI:
 pentimento lint <doc> --strict
 ```
 
-## Design lineage
-
-The markdown-source, HTML-view split answers Thariq Shihipar's *Unreasonable Effectiveness of HTML* and its critics. The anchored-comment loop follows Google Antigravity's artifact comments, narrowed to one user's revision conversation with an agent. The `:::` directives are Pandoc/Quarto-style fenced divs on purpose. Pentimento's own plan is written with Pentimento; see [`PLAN.md`](PLAN.md) and its `.history/`.
-
-## Status
-
-The current npm release is v0.5.0. Main contains the unreleased 0.6 hardening work. Known limits in v0.5.0: directives don't nest, Windows is untested, and hostile markdown is not a supported input. Documents created under the tool's earlier name (`Vellum: true` frontmatter) are read as-is and migrated on their next snapshot.
-
 MIT © Lucas Traba
