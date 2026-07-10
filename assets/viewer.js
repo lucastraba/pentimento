@@ -6,16 +6,17 @@
 
   // --- state ------------------------------------------------------------
   const state = { comments: cfg.comments || [], revisions: cfg.revisions || [] }
+  const ownedKey = 'vc-owned:' + cfg.rel
   let session = ''
   let owned = new Set()
   try {
     session = sessionStorage.getItem('vc-session') || crypto.randomUUID()
     sessionStorage.setItem('vc-session', session)
-    owned = new Set(JSON.parse(sessionStorage.getItem('vc-owned') || '[]'))
+    owned = new Set(JSON.parse(sessionStorage.getItem(ownedKey) || '[]'))
   } catch (e) { session = String(Math.random()).slice(2) }
   const rememberOwned = (id) => {
     owned.add(id)
-    try { sessionStorage.setItem('vc-owned', JSON.stringify([...owned])) } catch (e) {}
+    try { sessionStorage.setItem(ownedKey, JSON.stringify([...owned])) } catch (e) {}
   }
 
   const DRAFT_KEY = 'vc-draft:' + cfg.rel

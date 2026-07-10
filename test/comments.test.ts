@@ -150,6 +150,49 @@ describe('comments in render and viewer', () => {
     expect(nope.status).toBe(404)
   })
 
+  it('rejects cross-origin, non-JSON, and oversized mutations', async () => {
+    const { app } = createApp(dir, { origin: 'http://localhost' })
+    const body = JSON.stringify({ rel: 'Plan.md', text: 'note' })
+    expect((await app.request('/api/comment', {
+      method: 'POST', headers: { origin: 'https://evil.example', 'content-type': 'application/json' }, body,
+    })).status).toBe(403)
+    expect((await app.request('/api/comment', {
+      method: 'POST', headers: { origin: 'http://localhost', 'content-type': 'text/plain' }, body,
+    })).status).toBe(415)
+    expect((await app.request('/api/comment', {
+      method: 'POST', headers: { origin: 'http://localhost', 'content-type': 'application/json' },
+      body: JSON.stringify({ rel: 'Plan.md', text: 'x'.repeat(20_000) }),
+    })).status).toBe(413)
+    expect((await app.request('/api/comment', {
+      method: 'POST', headers: { origin: 'http://localhost', 'content-type': 'application/json' },
+      body: JSON.stringify({ rel: 'Plan.md', text: 'x'.repeat(5000) }),
+    })).status).toBe(413)
+  })
+
+  it('uses an ephemeral capability for remote writes', async () => {
+    const { app } = createApp(dir, { origin: 'http://100.64.0.2:4820', writeToken: 'secret-token' })
+    const locked = await (await app.request('/doc/Plan.md')).text()
+    expect(locked).toContain('"canComment":false')
+    expect(locked).toContain('read-only link')
+    const body = JSON.stringify({ rel: 'Plan.md', text: 'remote note' })
+    expect((await app.request('/api/comment', {
+      method: 'POST', headers: { origin: 'http://100.64.0.2:4820', 'content-type': 'application/json' }, body,
+    })).status).toBe(403)
+
+    const unlock = await app.request('/?write=secret-token')
+    expect(unlock.status).toBe(302)
+    const cookie = unlock.headers.get('set-cookie')?.split(';')[0] ?? ''
+    expect(cookie).toContain('pentimento-write=')
+    expect(unlock.headers.get('set-cookie')).toContain('HttpOnly')
+    expect((await app.request('/api/comment', {
+      method: 'POST',
+      headers: { origin: 'http://100.64.0.2:4820', 'content-type': 'application/json', cookie },
+      body,
+    })).status).toBe(200)
+    const writable = await (await app.request('/doc/Plan.md', { headers: { cookie } })).text()
+    expect(writable).toContain('"canComment":true')
+  })
+
   it('disables commenting on historical revisions', async () => {
     const { app } = createApp(dir)
     const page = await (await app.request('/doc/Plan.md?rev=r001')).text()
@@ -193,6 +236,21 @@ describe('comments in render and viewer', () => {
     const ok = await post('/api/uncomment', { rel: 'Plan.md', id: entry.id, session: 's-1' })
     expect(ok.status).toBe(200)
     expect(readMeta(loadDoc(p).historyDir).comments).toHaveLength(0)
+  })
+
+  it('scopes temporary delete ownership by document and comment id', async () => {
+    const other = path.join(dir, 'Other.md')
+    fs.writeFileSync(other, '# Other\n\n## Section\n\nEnough body text for a document snapshot.\n')
+    snapshot(other, { summary: 'first', author: 'test' })
+    const { app } = createApp(dir)
+    const post = (url: string, body: unknown) => app.request(url, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+    })
+    const a = await (await post('/api/comment', { rel: 'Plan.md', text: 'a', session: 's-a' })).json()
+    const b = await (await post('/api/comment', { rel: 'Other.md', text: 'b', session: 's-b' })).json()
+    expect(a.id).toBe(b.id)
+    expect((await post('/api/uncomment', { rel: 'Plan.md', id: a.id, session: 's-b' })).status).toBe(403)
+    expect(readMeta(loadDoc(p).historyDir).comments).toHaveLength(1)
   })
 
   it('reopens and replies over the API', async () => {

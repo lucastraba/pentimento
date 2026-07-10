@@ -40,8 +40,10 @@ trusted device; it does not create a shared workspace.
    the feedback loop. The viewer is interactive and agent-agnostic: document index, revision
    picker, diff pages, select-to-comment with a comments drawer, and in-place live updates
    (edits appear without a reload). If the agent runs on a VPS, add `--tailscale`, send the
-   printed tailnet link to the same user, and keep the viewer inside that tailnet. Prefer
-   this private live loop over publishing a static file when the user needs to comment.
+   printed write link to the same user, and keep the viewer inside that tailnet. Opening the
+   write link once sets a private browser capability and redirects to a clean URL; the plain
+   link stays read-only. Prefer this private live loop over publishing a static file when the
+   user needs to comment.
 5. Static HTML (optional): `pentimento render <Name>.md -o <name>.html` produces a
    standalone page that opens anywhere. Use it only when you can't keep a server running or
    the user wants a file to email or upload. For claude.ai Artifact publishing, add

@@ -1,14 +1,18 @@
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { serve } from '@hono/node-server'
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
+import { getCookie, setCookie } from 'hono/cookie'
 import {
   addComment, addReply, deleteComment, isPathInside, loadDoc, readMeta, reopenComment,
   resolveComment, resolveContainedPath, type Meta,
 } from './core.js'
 import {
-  FAVICON_TAG, render, renderDiffPage, renderRevisionHtml, renderStylesheet, RESTORE_SNIPPET, secureHtml,
+  contentSecurityPolicy, FAVICON_TAG, render, renderDiffPage, renderRevisionHtml, renderStylesheet,
+  RESTORE_SNIPPET, secureHtml,
 } from './render.js'
 import { themePicker } from './themes.js'
 import { findPentimentoDocs } from './verify.js'
@@ -26,7 +30,7 @@ const COMMENT_ICON = '<svg class="comment-icon" viewBox="0 0 20 20" aria-hidden=
 // listens to the same stream and patches or morphs instead of reloading.
 const SSE_SNIPPET = `<script>new EventSource('/__events').onmessage = () => location.reload()</script>`
 
-const viewerBar = (rel: string, meta: Meta, current: string | null): string => {
+const viewerBar = (rel: string, meta: Meta, current: string | null, canComment = true): string => {
   const latest = meta.revisions[meta.revisions.length - 1]?.id ?? null
   const selected = current ?? 'canonical'
   const options = [
@@ -43,7 +47,7 @@ const viewerBar = (rel: string, meta: Meta, current: string | null): string => {
   const openCount = meta.comments.filter((c) => c.status === 'open').length
   const note = current
     ? `<span class="vbar-note">read-only revision — comments attach to the current version</span>`
-    : ''
+    : canComment ? '' : `<span class="vbar-note">read-only link — open the private write link to comment</span>`
   return `<div class="vbar-pad"></div>
 <nav class="vbar">
   <a href="/">◂ documents</a>
@@ -127,6 +131,17 @@ export interface ViewerApp {
 export interface ViewerOptions {
   /** author recorded on comments added through the viewer */
   author?: string
+  /** fixed viewer origin used to reject cross-origin browser mutations */
+  origin?: string
+  /** ephemeral capability required for writes in remote mode */
+  writeToken?: string
+}
+
+const WRITE_COOKIE = 'pentimento-write'
+const MAX_BODY = 16 * 1024
+const sameToken = (actual: string | undefined, expected: string): boolean => {
+  if (!actual || actual.length !== expected.length) return false
+  return crypto.timingSafeEqual(Buffer.from(actual), Buffer.from(expected))
 }
 
 export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerApp => {
@@ -140,11 +155,35 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
   }
   // which browser session created which comment — scopes undo/delete; dies with the server
   const owners = new Map<string, string>()
+  const canWrite = (c: Context): boolean => !viewerOpts.writeToken || sameToken(getCookie(c, WRITE_COOKIE), viewerOpts.writeToken)
+  const expectedOrigin = (c: Context): string => viewerOpts.origin ?? new URL(c.req.url).origin
+  const htmlResponse = (c: Context, html: string): Response => {
+    const secured = secureHtml(html)
+    c.header('Content-Security-Policy', contentSecurityPolicy(secured, true))
+    c.header('Referrer-Policy', 'no-referrer')
+    c.header('X-Content-Type-Options', 'nosniff')
+    c.header('X-Frame-Options', 'DENY')
+    c.header('Cache-Control', 'no-store')
+    return c.html(secured)
+  }
+
+  app.use('/api/*', bodyLimit({ maxSize: MAX_BODY, onError: (c) => c.text('request body too large', 413) }))
+  app.use('/api/*', async (c, next) => {
+    if (c.req.method !== 'POST') return next()
+    const origin = c.req.header('origin')
+    if (origin && origin !== expectedOrigin(c)) return c.text('cross-origin mutation refused', 403)
+    if (!/^application\/json(?:\s*;|$)/i.test(c.req.header('content-type') ?? '')) {
+      return c.text('mutations require application/json', 415)
+    }
+    if (!canWrite(c)) return c.text('write capability required', 403)
+    return next()
+  })
 
   const resolveDoc = (rel: string): string | null => {
     try {
       const abs = resolveContainedPath(absRoot, rel, 'Document path')
       if (!abs.endsWith('.md') || !fs.existsSync(abs)) return null
+      if (!fs.statSync(abs).isFile()) return null
       const real = fs.realpathSync(abs)
       return isPathInside(absRoot, real) ? real : null
     } catch {
@@ -165,10 +204,28 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
     }
   }
 
-  app.get('/', (c) => c.html(indexPage(absRoot)))
+  const decodeRel = (encoded: string): string | null => {
+    try { return decodeURIComponent(encoded) } catch { return null }
+  }
+  const ownerKey = (abs: string, id: string): string => `${abs}\0${id}`
+  const tooLong = (value: unknown, max: number): boolean => typeof value === 'string' && value.length > max
+
+  app.get('/', (c) => {
+    const presented = c.req.query('write')
+    if (viewerOpts.writeToken && presented) {
+      if (!sameToken(presented, viewerOpts.writeToken)) return c.text('invalid write capability', 403)
+      setCookie(c, WRITE_COOKIE, viewerOpts.writeToken, {
+        path: '/', httpOnly: true, sameSite: 'Strict', maxAge: 12 * 60 * 60,
+      })
+      c.header('Cache-Control', 'no-store')
+      return c.redirect('/')
+    }
+    return htmlResponse(c, indexPage(absRoot))
+  })
 
   app.get('/doc/*', (c) => {
-    const rel = decodeURIComponent(c.req.path.slice('/doc/'.length))
+    const rel = decodeRel(c.req.path.slice('/doc/'.length))
+    if (rel === null) return c.notFound()
     const abs = resolveDoc(rel)
     if (!abs) return c.notFound()
     const rev = c.req.query('rev') ?? null
@@ -183,16 +240,17 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
       return c.text(e instanceof Error ? e.message : String(e), 500)
     }
     const meta = readMeta(loadDoc(abs).historyDir)
+    const canComment = !rev && canWrite(c)
     const cfg = {
       rel,
       rev,
-      canComment: !rev,
+      canComment,
       author: viewerOpts.author ?? 'reader',
       comments: meta.comments,
       revisions: meta.revisions.map((r) => r.id),
     }
     const cfgScript = `<script>window.__pentimento=${JSON.stringify(cfg).replace(/</g, '\\u003c')}</script>\n<script>\n${viewerJs}</script>`
-    return c.html(secureHtml(html.replace('</body>', `${viewerBar(rel, meta, rev)}\n${cfgScript}\n</body>`)))
+    return htmlResponse(c, html.replace('</body>', `${viewerBar(rel, meta, rev, canComment)}\n${cfgScript}\n</body>`))
   })
 
   app.get('/api/comments', (c) => {
@@ -204,6 +262,10 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
   app.post('/api/comment', async (c) => {
     const b = await c.req.json().catch(() => null)
     if (!b) return c.text('bad json', 400)
+    if (tooLong(b.rel, 1024) || tooLong(b.text, 4000) || tooLong(b.anchor, 256) ||
+      tooLong(b.quote, 600) || tooLong(b.prefix, 200) || tooLong(b.suffix, 200) || tooLong(b.session, 128)) {
+      return c.text('comment field too large', 413)
+    }
     const abs = resolveDoc(String(b.rel ?? ''))
     if (!abs) return c.notFound()
     const text = String(b.text ?? '').trim()
@@ -216,23 +278,24 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
       suffix: typeof b.suffix === 'string' && b.suffix ? b.suffix : undefined,
       author: viewerOpts.author ?? 'reader',
     })
-    if (typeof b.session === 'string' && b.session) owners.set(entry.id, b.session)
+    if (typeof b.session === 'string' && b.session) owners.set(ownerKey(abs, entry.id), b.session)
     return c.json(entry)
   })
 
   app.post('/api/uncomment', async (c) => {
     const b = await c.req.json().catch(() => null)
     if (!b) return c.text('bad json', 400)
+    if (tooLong(b.rel, 1024) || tooLong(b.id, 128) || tooLong(b.session, 128)) return c.text('field too large', 413)
     const abs = resolveDoc(String(b.rel ?? ''))
     if (!abs) return c.notFound()
     const id = String(b.id ?? '')
     const session = String(b.session ?? '')
-    if (!session || owners.get(id) !== session) {
+    if (!session || owners.get(ownerKey(abs, id)) !== session) {
       return c.text('only comments made in this session can be deleted', 403)
     }
     try {
       const removed = deleteComment(abs, id)
-      owners.delete(id)
+      owners.delete(ownerKey(abs, id))
       return c.json(removed)
     } catch (e) {
       return c.text(e instanceof Error ? e.message : String(e), 404)
@@ -242,6 +305,7 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
   app.post('/api/resolve', async (c) => {
     const b = await c.req.json().catch(() => null)
     if (!b) return c.text('bad json', 400)
+    if (tooLong(b.rel, 1024) || tooLong(b.id, 128)) return c.text('field too large', 413)
     const abs = resolveDoc(String(b.rel ?? ''))
     if (!abs) return c.notFound()
     try {
@@ -254,6 +318,7 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
   app.post('/api/reopen', async (c) => {
     const b = await c.req.json().catch(() => null)
     if (!b) return c.text('bad json', 400)
+    if (tooLong(b.rel, 1024) || tooLong(b.id, 128)) return c.text('field too large', 413)
     const abs = resolveDoc(String(b.rel ?? ''))
     if (!abs) return c.notFound()
     try {
@@ -266,6 +331,7 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
   app.post('/api/reply', async (c) => {
     const b = await c.req.json().catch(() => null)
     if (!b) return c.text('bad json', 400)
+    if (tooLong(b.rel, 1024) || tooLong(b.id, 128) || tooLong(b.text, 4000)) return c.text('field too large', 413)
     const abs = resolveDoc(String(b.rel ?? ''))
     if (!abs) return c.notFound()
     const text = String(b.text ?? '').trim()
@@ -278,7 +344,8 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
   })
 
   app.get('/diff/*', (c) => {
-    const rel = decodeURIComponent(c.req.path.slice('/diff/'.length))
+    const rel = decodeRel(c.req.path.slice('/diff/'.length))
+    if (rel === null) return c.notFound()
     const abs = resolveDoc(rel)
     if (!abs) return c.notFound()
     const a = c.req.query('a')
@@ -287,7 +354,7 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
     if ((a !== 'canonical' && !hasRevision(abs, a)) || (b !== 'canonical' && !hasRevision(abs, b))) return c.notFound()
     try {
       const html = renderDiffPage(abs, a, b)
-      return c.html(secureHtml(html.replace('</body>', `${SSE_SNIPPET}\n</body>`)))
+      return htmlResponse(c, html.replace('</body>', `${SSE_SNIPPET}\n</body>`))
     } catch (e) {
       return c.text(e instanceof Error ? e.message : String(e), 500)
     }
@@ -324,14 +391,24 @@ export interface ServeOptions {
   host: string
   port: number
   author?: string
+  writeToken?: string
 }
 
-export const serveViewer = (root: string, { host, port, author }: ServeOptions): void => {
+export const isLoopbackHost = (host: string): boolean =>
+  host === 'localhost' || host === '::1' || /^127(?:\.\d{1,3}){3}$/.test(host)
+
+export const viewerOrigin = (host: string, port: number): string =>
+  `http://${host.includes(':') ? `[${host}]` : host}:${port}`
+
+export const serveViewer = (root: string, { host, port, author, writeToken }: ServeOptions): void => {
   if (!host.trim() || host === '0.0.0.0' || host === '::' || host === '*') {
     throw new Error('refusing to bind all interfaces — use 127.0.0.1 or a Tailscale IP (--tailscale)')
   }
+  if (!isLoopbackHost(host) && !writeToken) {
+    throw new Error('non-loopback viewers require an ephemeral write capability')
+  }
   const absRoot = path.resolve(root)
-  const { app, broadcast } = createApp(absRoot, { author })
+  const { app, broadcast } = createApp(absRoot, { author, origin: viewerOrigin(host, port), writeToken })
 
   // Batch watcher hits into one typed event: .md paths morph the affected document
   // page, .yml paths make every page re-fetch its comments.

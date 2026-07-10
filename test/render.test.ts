@@ -206,6 +206,26 @@ describe('render', () => {
     expect(html).toContain('<h2 id="repeat-2">')
   })
 
+  it('renders dot tokens as prose but leaves code examples literal', () => {
+    const html = render(doc('# T\n\n## S\n\n{dot:impl} prose and `{dot:impl}` code.\n\n```txt\n{dot:impl}\n```\n'))
+    expect(html).toContain('<span class="dot dot-impl"></span> prose')
+    expect(html).toContain('<code>{dot:impl}</code>')
+    expect(html).toContain('class="language-txt">{dot:impl}\n</code>')
+  })
+
+  it('does not treat source text as an internal renderer marker', () => {
+    const html = render(doc('# T\n\n## S\n\n\uE000PENTIMENTO-BLOCK-0\uE001\n\n\uE000PENTIMENTO-HEADING-99\uE001\n'))
+    expect(html).toContain('PENTIMENTO-BLOCK-0')
+    expect(html).toContain('PENTIMENTO-HEADING-99')
+  })
+
+  it('renders unknown directives literally and rejects unclosed supported directives', () => {
+    const p = doc('# T\n\n## S\n\n::: mystery\ntext\n:::\n')
+    expect(render(p)).toContain('::: mystery')
+    fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace('::: mystery\ntext\n:::', '::: callout decision\ntext'))
+    expect(() => render(p)).toThrow('unclosed ::: callout directive')
+  })
+
   it('allowlists figure SVG instead of passing active content through', () => {
     const p = doc(`# T
 
@@ -231,6 +251,11 @@ describe('render', () => {
     expect(figure).not.toContain('onload=')
     expect(figure).not.toContain('onclick=')
     expect(figure).not.toContain('style=')
+  })
+
+  it('requires exactly one SVG root in each figure', () => {
+    expect(() => render(doc('# T\n\n## S\n\n::: figure\n<svg viewBox="0 0 1 1"></svg><svg viewBox="0 0 1 1"></svg>\n:::\n')))
+      .toThrow('figure must contain one allowlisted <svg> root')
   })
 
   it('ships a restrictive content security policy', () => {

@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { snapshot } from '../src/core.js'
-import { createApp, serveViewer } from '../src/viewer.js'
+import { createApp, isLoopbackHost, serveViewer, viewerOrigin } from '../src/viewer.js'
 
 let dir: string
 let app: ReturnType<typeof createApp>['app']
@@ -29,6 +29,15 @@ describe('viewer', () => {
     }
   })
 
+  it('requires capabilities for non-loopback binds and formats IPv6 origins', () => {
+    expect(isLoopbackHost('127.0.0.2')).toBe(true)
+    expect(isLoopbackHost('::1')).toBe(true)
+    expect(isLoopbackHost('100.64.0.2')).toBe(false)
+    expect(viewerOrigin('::1', 4820)).toBe('http://[::1]:4820')
+    expect(() => serveViewer(dir, { host: '100.64.0.2', port: 4820 }))
+      .toThrow('non-loopback viewers require an ephemeral write capability')
+  })
+
   it('lists documents on the index with badge and revision', async () => {
     const res = await app.request('/')
     const html = await res.text()
@@ -44,6 +53,7 @@ describe('viewer', () => {
     expect(html).toContain('window.__pSyncPalette = sync')
     expect(html).toMatch(/script-src 'sha256-[A-Za-z0-9+/=]+'/)
     expect(html).not.toMatch(/script-src[^;]*'unsafe-inline'/)
+    expect(res.headers.get('content-security-policy')).toContain("frame-ancestors 'none'")
   })
 
   it('serves the rendered document with the viewer bar and SSE', async () => {
@@ -60,6 +70,8 @@ describe('viewer', () => {
     expect(html).toContain('diff vs r001')
     expect(html).toMatch(/script-src 'sha256-[A-Za-z0-9+/=]+'/)
     expect(html).not.toMatch(/script-src[^;]*'unsafe-inline'/)
+    expect(res.headers.get('content-security-policy')).toContain("frame-ancestors 'none'")
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff')
   })
 
   it('serves an old revision via ?rev=', async () => {
@@ -68,6 +80,7 @@ describe('viewer', () => {
     expect(html).toContain('first version')
     expect(html).not.toContain('second version')
     expect(html).toContain('<span class="chip">r001</span>')
+    expect(res.headers.get('content-security-policy')).toContain("frame-ancestors 'none'")
   })
 
   it('serves diff pages between revisions', async () => {
@@ -76,12 +89,20 @@ describe('viewer', () => {
     expect(res.status).toBe(200)
     expect(html).toContain('<del>first</del>')
     expect(html).toContain('<ins>second</ins>')
+    expect(res.headers.get('content-security-policy')).toContain("frame-ancestors 'none'")
   })
 
   it('blocks path traversal', async () => {
     fs.writeFileSync(path.join(os.tmpdir(), 'pentimento-outside.md'), '# outside\n')
     const res = await app.request('/doc/..%2Fpentimento-outside.md')
     expect(res.status).toBe(404)
+  })
+
+  it('handles malformed URL encoding and markdown-shaped directories as not found', async () => {
+    fs.mkdirSync(path.join(dir, 'Folder.md'))
+    expect((await app.request('/doc/%E0%A4%A')).status).toBe(404)
+    expect((await app.request('/diff/%E0%A4%A?a=r001&b=r002')).status).toBe(404)
+    expect((await app.request('/doc/Folder.md')).status).toBe(404)
   })
 
   it('blocks traversal through revision and diff query parameters', async () => {

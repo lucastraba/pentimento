@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import crypto from 'node:crypto'
 import { execSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -11,7 +12,7 @@ import { lintDoc } from './lint.js'
 import { bundledShim, checkShim, installShim, readGuide } from './skill.js'
 import { DEFAULT_PALETTE, isPalette, PALETTES } from './themes.js'
 import { findPentimentoDocs, verifyDoc } from './verify.js'
-import { serveViewer } from './viewer.js'
+import { isLoopbackHost, serveViewer, viewerOrigin } from './viewer.js'
 
 const USAGE = `pentimento — living documents
 
@@ -28,7 +29,8 @@ Usage:
                                        default: standalone HTML that works anywhere)
   pentimento serve [dir] [--port 4820] [--host 127.0.0.1 | --tailscale] [--author name]
                                       (live viewer: document index, revision picker, diffs,
-                                       hot reload, select-to-comment; never binds 0.0.0.0)
+                                       hot reload, select-to-comment; Tailscale writes use
+                                       an ephemeral capability; never binds 0.0.0.0)
   pentimento config theme [name|reset]    (show or set your personal default theme)
   pentimento comments <doc>               (list open comments, plus a resolved count)
   pentimento comment <doc> --text "..." [--anchor "#id"] [--quote "..."] [--author name]
@@ -208,8 +210,17 @@ const main = (): void => {
       if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) fail(`not a directory: ${root}`)
       const port = Number(flags.port ?? 4820)
       const host = flags.tailscale === 'true' ? tailscaleIp() : (flags.host?.trim() || '127.0.0.1')
-      serveViewer(root, { host, port, author: flags.author ?? defaultAuthor() })
-      console.log(`pentimento viewer → http://${host}:${port}/  (watching ${root})`)
+      const remote = !isLoopbackHost(host)
+      const writeToken = remote ? crypto.randomBytes(24).toString('base64url') : undefined
+      const origin = viewerOrigin(host, port)
+      serveViewer(root, { host, port, author: flags.author ?? defaultAuthor(), writeToken })
+      if (writeToken) {
+        console.log(`pentimento write link → ${origin}/?write=${writeToken}`)
+        console.log(`read-only link → ${origin}/`)
+      } else {
+        console.log(`pentimento viewer → ${origin}/`)
+      }
+      console.log(`watching ${root}`)
       break
     }
     case 'config': {

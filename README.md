@@ -71,7 +71,7 @@ If the agent runs on a VPS, it can bind the viewer to that machine's Tailscale a
 pentimento serve . --tailscale
 ```
 
-The agent sends the printed tailnet link, and the same user opens it from a trusted computer or phone. This is remote access to the private user-agent loop, not a shared workspace. Keep the viewer inside the tailnet; Pentimento is not a public hosting service.
+Pentimento protects every non-loopback bind and prints a write link plus a read-only link. The write link carries a fresh capability; opening it once stores that capability in an HttpOnly, same-site browser cookie and redirects to a clean URL. Send the write link only to the user who will leave revision instructions. This is remote access to the private user-agent loop, not a shared workspace. Keep the viewer inside the tailnet; Pentimento is not a public hosting service.
 
 The installed skill defers to the version-matched instructions in the CLI. Check whether a copy is current with:
 

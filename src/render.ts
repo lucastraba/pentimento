@@ -18,6 +18,15 @@ const md: MarkdownIt = new MarkdownIt({ html: false, linkify: false, typographer
 // Reader comments arrive over HTTP. Both renderers reject raw HTML and javascript: links.
 const mdUntrusted: MarkdownIt = new MarkdownIt({ html: false, linkify: false, typographer: false })
 
+md.inline.ruler.before('text', 'pentimento_dot', (state, silent) => {
+  const match = /^\{dot:([\w-]+)\}/.exec(state.src.slice(state.pos))
+  if (!match) return false
+  if (!silent) state.push('pentimento_dot', '', 0).content = match[1]
+  state.pos += match[0].length
+  return true
+})
+md.renderer.rules.pentimento_dot = (tokens, idx) => `<span class="dot dot-${tokens[idx].content}"></span>`
+
 // every table scrolls inside its own container; the page never scrolls sideways
 md.renderer.rules.table_open = () => '<div class="tablewrap"><table>\n'
 md.renderer.rules.table_close = () => '</table></div>\n'
@@ -44,12 +53,16 @@ export const FAVICON_TAG = `<link rel="icon" type="image/svg+xml" href="${FAVICO
 const scriptHash = (source: string): string => `'sha256-${crypto.createHash('sha256').update(source).digest('base64')}'`
 
 /** Add a deterministic CSP whose hashes cover only the scripts already present in the page. */
-export const secureHtml = (html: string): string => {
-  const clean = html.replace(/<meta http-equiv="Content-Security-Policy"[^>]*>\n?/i, '')
-  const hashes = [...clean.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)]
+export const contentSecurityPolicy = (html: string, includeFrameAncestors = false): string => {
+  const hashes = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)]
     .map((match) => scriptHash(match[1]))
   const scripts = hashes.length ? [...new Set(hashes)].join(' ') : "'none'"
-  const policy = `default-src 'none'; style-src 'unsafe-inline'; script-src ${scripts}; img-src data:; connect-src 'self'; base-uri 'none'; form-action 'none'`
+  return `default-src 'none'; style-src 'unsafe-inline'; script-src ${scripts}; img-src data:; connect-src 'self'; base-uri 'none'; object-src 'none'; form-action 'none'${includeFrameAncestors ? "; frame-ancestors 'none'" : ''}`
+}
+
+export const secureHtml = (html: string): string => {
+  const clean = html.replace(/<meta http-equiv="Content-Security-Policy"[^>]*>\n?/i, '')
+  const policy = contentSecurityPolicy(clean)
   const meta = `<meta http-equiv="Content-Security-Policy" content="${policy}">`
   return clean.replace(/(<meta name="viewport"[^>]*>)/i, `$1\n${meta}`)
 }
@@ -94,16 +107,14 @@ const sanitizeFigureSvg = (source: string): string => {
       },
     },
   }).trim()
-  if (!/^<svg\b[\s\S]*<\/svg>$/.test(cleaned)) throw new Error('figure must contain one allowlisted <svg> root')
+  if (!/^<svg\b[\s\S]*<\/svg>$/.test(cleaned) || (cleaned.match(/<svg\b/g) ?? []).length !== 1) {
+    throw new Error('figure must contain one allowlisted <svg> root')
+  }
   return cleaned
 }
 
-const DOT_PREFIX = '\uE000PENTIMENTO-DOT-'
-const DOT_SUFFIX = '\uE001'
-const renderDots = (html: string): string =>
-  html.replace(new RegExp(`${DOT_PREFIX}([\\w-]+)${DOT_SUFFIX}`, 'g'), '<span class="dot dot-$1"></span>')
-const renderMarkdown = (source: string): string => renderDots(md.render(source))
-const renderInline = (source: string): string => renderDots(md.renderInline(source))
+const renderMarkdown = (source: string): string => md.render(source)
+const renderInline = (source: string): string => md.renderInline(source)
 
 const plainText = (s: string): string => s.replace(/[`*_]/g, '')
 
@@ -279,8 +290,7 @@ const parseHeadingMeta = (comment: string): { id?: string; eyebrow?: string } =>
 }
 
 const prepare = (body: string): Prepared => {
-  const swapped = body.replace(/\{dot:([\w-]+)\}/g, (_match, name: string) => `${DOT_PREFIX}${name}${DOT_SUFFIX}`)
-  const lines = swapped.split('\n')
+  const lines = body.split('\n')
   const blocks: string[] = []
   const headings: HeadingInfo[] = []
   let title = ''
@@ -307,12 +317,14 @@ const prepare = (body: string): Prepared => {
         const contentLines: string[] = []
         i++
         let innerFence = false
+        let closed = false
         while (i < lines.length) {
           if (/^```/.test(lines[i].trim())) innerFence = !innerFence
-          if (!innerFence && /^:::\s*$/.test(lines[i])) break
+          if (!innerFence && /^:::\s*$/.test(lines[i])) { closed = true; break }
           contentLines.push(lines[i])
           i++
         }
+        if (!closed) throw new Error(`unclosed ::: ${open[1]} directive`)
         i++ // consume closing :::
         // a leading bare word is the variant (e.g. `::: callout decision`), the rest is k=v attrs
         let rest = open[2]
@@ -359,8 +371,9 @@ const prepare = (body: string): Prepared => {
   let bucket = preamble
   for (const line of out) {
     const hm = HEADING_MARKER_RE.exec(line)
-    if (hm && headings[Number(hm[1])].level === 2) {
-      sections.push({ heading: headings[Number(hm[1])], bodyLines: [] })
+    const heading = hm ? headings[Number(hm[1])] : undefined
+    if (heading?.level === 2) {
+      sections.push({ heading, bodyLines: [] })
       bucket = sections[sections.length - 1].bodyLines
       continue
     }
@@ -382,13 +395,14 @@ const renderSectionBody = (prepared: Prepared, bodyLines: string[]): string => {
   for (const line of bodyLines) {
     const heading = HEADING_MARKER_RE.exec(line)
     const block = BLOCK_MARKER_RE.exec(line)
-    if (heading) {
+    const h = heading ? prepared.headings[Number(heading[1])] : undefined
+    const renderedBlock = block ? prepared.blocks[Number(block[1])] : undefined
+    if (h) {
       flush()
-      const h = prepared.headings[Number(heading[1])]
       out.push(`<h3 id="${escapeHtml(h.id)}">${renderInline(h.title)}${anchor(h.id)}</h3>`)
-    } else if (block) {
+    } else if (renderedBlock) {
       flush()
-      out.push(prepared.blocks[Number(block[1])])
+      out.push(renderedBlock)
     } else {
       markdown.push(line)
     }
