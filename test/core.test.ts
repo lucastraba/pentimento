@@ -1,8 +1,20 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { loadDoc, readMeta, readRevision, revert, snapshot, stampFrontmatter } from '../src/core.js'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  addComment,
+  deleteComment,
+  loadDoc,
+  readMeta,
+  readRevision,
+  resolveComment,
+  revert,
+  snapshot,
+  stampFrontmatter,
+  writeMeta,
+} from '../src/core.js'
+import { verifyDoc } from '../src/verify.js'
 
 let dir: string
 
@@ -109,6 +121,46 @@ describe('snapshot', () => {
     expect(() => readRevision(p, '../../../secret')).toThrow(/Invalid revision/)
     expect(() => readRevision(p, 'r999')).toThrow(/No revision r999/)
   })
+
+  it('validates metadata before writing a new revision', () => {
+    const p = write('Plan.md', '# Plan\n\nInitial body.\n')
+    snapshot(p, { summary: 'one' })
+    const doc = loadDoc(p)
+    fs.writeFileSync(path.join(doc.historyDir, 'meta.yml'), 'revisions: broken\ncomments: []\n')
+    fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace('Initial', 'Draft'))
+
+    expect(() => snapshot(p, { summary: 'two' })).toThrow(/Invalid meta\.yml.*revisions.*array/)
+    expect(fs.existsSync(path.join(doc.historyDir, 'r002.md'))).toBe(false)
+    expect(loadDoc(p).body).toContain('Draft body')
+  })
+
+  it('rolls history and metadata back when the canonical commit fails', () => {
+    const p = write('Plan.md', '# Plan\n\nInitial body.\n')
+    snapshot(p, { summary: 'one' })
+    fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace('Initial', 'Draft'))
+    const doc = loadDoc(p)
+    const originalRename = fs.renameSync
+    const rename = vi.spyOn(fs, 'renameSync')
+    rename.mockImplementationOnce(originalRename)
+    rename.mockImplementationOnce(() => { throw new Error('simulated canonical failure') })
+
+    expect(() => snapshot(p, { summary: 'two' })).toThrow(/Snapshot failed without changing the canonical document/)
+    rename.mockRestore()
+    expect(fs.existsSync(path.join(doc.historyDir, 'r002.md'))).toBe(false)
+    expect(readMeta(doc.historyDir).revisions.map((entry) => entry.id)).toEqual(['r001'])
+    expect(loadDoc(p).body).toContain('Draft body')
+    expect(loadDoc(p).frontmatter['Current Revision']).toBe('r001')
+  })
+
+  it('reports malformed metadata through verify instead of crashing', () => {
+    const p = write('Plan.md', '# Plan\n\nInitial body with enough text to verify.\n')
+    snapshot(p, { summary: 'one' })
+    const doc = loadDoc(p)
+    fs.writeFileSync(path.join(doc.historyDir, 'meta.yml'), 'revisions: broken\ncomments: []\n')
+    expect(verifyDoc(p)).toEqual([
+      expect.objectContaining({ level: 'error', message: expect.stringMatching(/Invalid meta\.yml.*revisions.*array/) }),
+    ])
+  })
 })
 
 describe('revert', () => {
@@ -123,6 +175,50 @@ describe('revert', () => {
     expect(doc.body).toContain('original')
     expect(doc.frontmatter['Current Revision']).toBe('r003')
     expect(readMeta(doc.historyDir).revisions).toHaveLength(3)
+  })
+
+  it('does not change the canonical when a revert cannot create its revision', () => {
+    const p = write('Plan.md', '# Plan\n\noriginal\n')
+    snapshot(p, { summary: 'one' })
+    fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace('original', 'changed'))
+    snapshot(p, { summary: 'two' })
+    const before = fs.readFileSync(p, 'utf8')
+    fs.writeFileSync(path.join(loadDoc(p).historyDir, 'r003.md'), 'collision')
+    expect(() => revert(p, 'r001')).toThrow(/refusing to overwrite/)
+    expect(fs.readFileSync(p, 'utf8')).toBe(before)
+  })
+})
+
+describe('metadata and comments', () => {
+  it('rejects duplicate IDs and invalid resolution references', () => {
+    const p = write('Plan.md', '# Plan\n\nBody.\n')
+    snapshot(p, { summary: 'one' })
+    const comment = addComment(p, { text: 'Review this' })
+    const doc = loadDoc(p)
+    const meta = readMeta(doc.historyDir)
+    meta.comments.push({ ...meta.comments[0] })
+    expect(() => writeMeta(doc.historyDir, meta)).toThrow(/duplicate comment id/)
+    expect(() => resolveComment(p, comment.id, 'r999')).toThrow(/missing revision r999/)
+  })
+
+  it('does not reuse a same-day comment id after deletion', () => {
+    const p = write('Plan.md', '# Plan\n\nBody.\n')
+    snapshot(p, { summary: 'one' })
+    const first = addComment(p, { text: 'First' })
+    const second = addComment(p, { text: 'Second' })
+    deleteComment(p, first.id)
+    const third = addComment(p, { text: 'Third' })
+    expect(third.id).not.toBe(second.id)
+    expect(Number(third.id.split('-').at(-1))).toBeGreaterThan(Number(second.id.split('-').at(-1)))
+  })
+
+  it('records a closing note and resolution in one metadata write', () => {
+    const p = write('Plan.md', '# Plan\n\nBody.\n')
+    snapshot(p, { summary: 'one' })
+    const comment = addComment(p, { text: 'Review this' })
+    const resolved = resolveComment(p, comment.id, 'r001', { text: 'Addressed', author: 'Agent' })
+    expect(resolved).toMatchObject({ status: 'resolved', resolved_in: 'r001' })
+    expect(resolved.replies).toEqual([expect.objectContaining({ text: 'Addressed', author: 'Agent' })])
   })
 })
 

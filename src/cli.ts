@@ -309,8 +309,9 @@ const main = (): void => {
     }
     case 'resolve': {
       if (!doc || !positional[1]) fail('resolve needs a document path and a comment id')
-      if (flags.note) addReply(doc, positional[1], { text: flags.note, author: flags.author ?? defaultAuthor() })
-      const c = resolveComment(doc, positional[1], flags.rev)
+      const c = resolveComment(doc, positional[1], flags.rev, flags.note
+        ? { text: flags.note, author: flags.author ?? defaultAuthor() }
+        : undefined)
       console.log(`${c.id} resolved${c.resolved_in ? ` in ${c.resolved_in}` : ''}`)
       break
     }

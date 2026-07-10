@@ -100,8 +100,13 @@ export const nowStamp = (): string => {
 
 export const atomicWrite = (filePath: string, content: string): void => {
   const tmp = `${filePath}.tmp-${process.pid}`
-  fs.writeFileSync(tmp, content, 'utf8')
-  fs.renameSync(tmp, filePath)
+  try {
+    fs.writeFileSync(tmp, content, 'utf8')
+    fs.renameSync(tmp, filePath)
+  } catch (error) {
+    fs.rmSync(tmp, { force: true })
+    throw error
+  }
 }
 
 export const revId = (n: number): string => `r${String(n).padStart(3, '0')}`
@@ -166,18 +171,107 @@ export const stampFrontmatter = (raw: string, updates: Record<string, string | b
   return `---\n${fmDoc}\n---\n\n${raw}`
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value)
+
+const metadataError = (metaPath: string, detail: string): never => {
+  throw new Error(`Invalid meta.yml at ${metaPath}: ${detail}`)
+}
+
+const validateMeta = (value: unknown, metaPath: string): Meta => {
+  if (!isRecord(value)) metadataError(metaPath, 'expected an object')
+  const record = value as Record<string, unknown>
+  if (!Array.isArray(record.revisions)) metadataError(metaPath, '`revisions` must be an array')
+  if (!Array.isArray(record.comments)) metadataError(metaPath, '`comments` must be an array')
+  const revisions = record.revisions as unknown[]
+  const comments = record.comments as unknown[]
+
+  const revisionIds = new Set<string>()
+  revisions.forEach((entry, index) => {
+    if (!isRecord(entry)) metadataError(metaPath, `revisions[${index}] must be an object`)
+    const revision = entry as Record<string, unknown>
+    if (typeof revision.id !== 'string' || !/^r\d{3,}$/.test(revision.id)) {
+      metadataError(metaPath, `revisions[${index}].id must be rNNN`)
+    }
+    if (revisionIds.has(revision.id as string)) metadataError(metaPath, `duplicate revision id ${revision.id}`)
+    revisionIds.add(revision.id as string)
+    for (const field of ['created_at', 'author', 'summary'] as const) {
+      if (typeof revision[field] !== 'string' || !revision[field]) {
+        metadataError(metaPath, `revisions[${index}].${field} must be a non-empty string`)
+      }
+    }
+    if (Number.isNaN(Date.parse(revision.created_at as string))) {
+      metadataError(metaPath, `revisions[${index}].created_at must be an ISO timestamp`)
+    }
+    for (const field of ['why', 'source'] as const) {
+      if (revision[field] !== undefined && typeof revision[field] !== 'string') {
+        metadataError(metaPath, `revisions[${index}].${field} must be a string`)
+      }
+    }
+  })
+
+  const commentIds = new Set<string>()
+  comments.forEach((entry, index) => {
+    if (!isRecord(entry)) metadataError(metaPath, `comments[${index}] must be an object`)
+    const comment = entry as Record<string, unknown>
+    for (const field of ['id', 'anchor', 'text', 'created_at', 'author'] as const) {
+      if (typeof comment[field] !== 'string' || (field !== 'anchor' && !comment[field])) {
+        metadataError(metaPath, `comments[${index}].${field} must be ${field === 'anchor' ? 'a string' : 'a non-empty string'}`)
+      }
+    }
+    if (commentIds.has(comment.id as string)) metadataError(metaPath, `duplicate comment id ${comment.id}`)
+    commentIds.add(comment.id as string)
+    if (Number.isNaN(Date.parse(comment.created_at as string))) {
+      metadataError(metaPath, `comments[${index}].created_at must be an ISO timestamp`)
+    }
+    if (comment.status !== 'open' && comment.status !== 'resolved') {
+      metadataError(metaPath, `comments[${index}].status must be open or resolved`)
+    }
+    if (comment.resolved_in !== null && comment.resolved_in !== undefined) {
+      if (typeof comment.resolved_in !== 'string' || !revisionIds.has(comment.resolved_in)) {
+        metadataError(metaPath, `comments[${index}].resolved_in must name an existing revision`)
+      }
+    }
+    for (const field of ['quote', 'prefix', 'suffix'] as const) {
+      if (comment[field] !== undefined && typeof comment[field] !== 'string') {
+        metadataError(metaPath, `comments[${index}].${field} must be a string`)
+      }
+    }
+    if (comment.replies !== undefined) {
+      if (!Array.isArray(comment.replies)) metadataError(metaPath, `comments[${index}].replies must be an array`)
+      const replies = comment.replies as unknown[]
+      replies.forEach((reply, replyIndex) => {
+        if (!isRecord(reply)) metadataError(metaPath, `comments[${index}].replies[${replyIndex}] must be an object`)
+        const replyRecord = reply as Record<string, unknown>
+        for (const field of ['author', 'text', 'created_at'] as const) {
+          if (typeof replyRecord[field] !== 'string' || !replyRecord[field]) {
+            metadataError(metaPath, `comments[${index}].replies[${replyIndex}].${field} must be a non-empty string`)
+          }
+        }
+        if (Number.isNaN(Date.parse(replyRecord.created_at as string))) {
+          metadataError(metaPath, `comments[${index}].replies[${replyIndex}].created_at must be an ISO timestamp`)
+        }
+      })
+    }
+  })
+  return record as unknown as Meta
+}
+
 export const readMeta = (historyDir: string): Meta => {
   const metaPath = path.join(historyDir, 'meta.yml')
   if (!fs.existsSync(metaPath)) return { revisions: [], comments: [] }
-  const parsed = parseYaml(fs.readFileSync(metaPath, 'utf8')) as Partial<Meta> | null
-  if (parsed === null || typeof parsed !== 'object') {
-    throw new Error(`Unreadable meta.yml at ${metaPath} — refusing to touch it`)
+  let parsed: unknown
+  try {
+    parsed = parseYaml(fs.readFileSync(metaPath, 'utf8'))
+  } catch (error) {
+    throw new Error(`Unreadable meta.yml at ${metaPath} — refusing to touch it: ${error instanceof Error ? error.message : String(error)}`)
   }
-  return { revisions: parsed.revisions ?? [], comments: parsed.comments ?? [] }
+  return validateMeta(parsed, metaPath)
 }
 
 export const writeMeta = (historyDir: string, meta: Meta): void => {
   const metaPath = path.join(historyDir, 'meta.yml')
+  validateMeta(meta, metaPath)
   atomicWrite(metaPath, stringifyYaml({ revisions: meta.revisions, comments: meta.comments }))
 }
 
@@ -211,14 +305,11 @@ export interface SnapshotResult {
   historyFile: string
 }
 
-/**
- * Capture the canonical as the next revision.
- * Order: history file first (refusing to overwrite), then meta, then canonical stamp —
- * a crash mid-way surfaces loudly on the next run instead of silently overwriting (audit C1).
- */
-export const snapshot = (docPath: string, opts: SnapshotOptions): SnapshotResult => {
-  const doc = loadDoc(docPath)
-  return withLock(doc.historyDir, () => {
+const snapshotWithBody = (docPath: string, opts: SnapshotOptions, replacementBody?: string): SnapshotResult => {
+  const initial = loadDoc(docPath)
+  return withLock(initial.historyDir, () => {
+    const doc = loadDoc(docPath)
+    if (doc.historyDir !== initial.historyDir) throw new Error('History Folder changed while waiting for the lock')
     // 'Vellum: true' is the pre-rename marker — keep reading it so old docs snapshot cleanly
     const isPentimento = doc.frontmatter['Pentimento'] === true || doc.frontmatter['Vellum'] === true
     const current = isPentimento && doc.frontmatter['Current Revision'] !== undefined
@@ -233,14 +324,16 @@ export const snapshot = (docPath: string, opts: SnapshotOptions): SnapshotResult
       .relative(path.dirname(doc.canonicalPath), doc.historyDir)
       .split(path.sep)
       .join('/')
-    const { cleaned, found } = extractInlineComments(doc.raw)
+    const sourceRaw = replacementBody === undefined
+      ? doc.raw
+      : doc.raw.slice(0, doc.raw.length - doc.body.length) + replacementBody
+    const { cleaned, found } = extractInlineComments(sourceRaw)
     const stamped = stampFrontmatter(cleaned, {
       Pentimento: true,
       Vellum: null, // migrate pre-rename docs: drop the legacy marker on first snapshot
       'Current Revision': next,
       'History Folder': historyRel,
     })
-    fs.writeFileSync(historyFile, stamped, { flag: 'wx' })
     const meta = readMeta(doc.historyDir)
     meta.revisions.push({
       id: next,
@@ -253,16 +346,49 @@ export const snapshot = (docPath: string, opts: SnapshotOptions): SnapshotResult
     for (const f of found) {
       meta.comments.push(makeComment(meta, { text: f.text, anchor: f.anchor, author: opts.author }))
     }
-    writeMeta(doc.historyDir, meta)
-    atomicWrite(doc.canonicalPath, stamped)
+    const metaPath = path.join(doc.historyDir, 'meta.yml')
+    const previousMeta = fs.existsSync(metaPath) ? fs.readFileSync(metaPath, 'utf8') : null
+    let revisionWritten = false
+    let metaWritten = false
+    try {
+      fs.writeFileSync(historyFile, stamped, { flag: 'wx' })
+      revisionWritten = true
+      writeMeta(doc.historyDir, meta)
+      metaWritten = true
+      atomicWrite(doc.canonicalPath, stamped)
+    } catch (error) {
+      const rollbackErrors: string[] = []
+      if (metaWritten) {
+        try {
+          if (previousMeta === null) fs.rmSync(metaPath, { force: true })
+          else atomicWrite(metaPath, previousMeta)
+        } catch (rollbackError) {
+          rollbackErrors.push(`metadata rollback failed: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`)
+        }
+      }
+      if (revisionWritten) {
+        try { fs.rmSync(historyFile, { force: true }) } catch (rollbackError) {
+          rollbackErrors.push(`revision rollback failed: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`)
+        }
+      }
+      const detail = error instanceof Error ? error.message : String(error)
+      throw new Error(`Snapshot failed without changing the canonical document: ${detail}${rollbackErrors.length ? `; ${rollbackErrors.join('; ')}` : ''}`)
+    }
     return { rev: next, historyFile }
   })
 }
 
+/** Capture the canonical as the next revision under a document-scoped lock. */
+export const snapshot = (docPath: string, opts: SnapshotOptions): SnapshotResult =>
+  snapshotWithBody(docPath, opts)
+
 const makeComment = (meta: Meta, input: NewComment): CommentEntry => {
   const stamp = nowStamp()
   const date = stamp.slice(0, 10)
-  const seq = meta.comments.filter((c) => c.id.startsWith(`c-${date}`)).length + 1
+  const seq = Math.max(0, ...meta.comments.map((comment) => {
+    const match = new RegExp(`^c-${date}-(\\d+)$`).exec(comment.id)
+    return match ? Number(match[1]) : 0
+  })) + 1
   return {
     id: `c-${date}-${String(seq).padStart(3, '0')}`,
     anchor: input.anchor ?? '',
@@ -288,12 +414,23 @@ export const addComment = (docPath: string, input: NewComment): CommentEntry => 
   })
 }
 
-export const resolveComment = (docPath: string, id: string, rev?: string): CommentEntry => {
+export const resolveComment = (
+  docPath: string,
+  id: string,
+  rev?: string,
+  note?: { text: string; author?: string },
+): CommentEntry => {
   const doc = loadDoc(docPath)
   return withLock(doc.historyDir, () => {
     const meta = readMeta(doc.historyDir)
     const c = meta.comments.find((x) => x.id === id)
     if (!c) throw new Error(`no comment ${id} on ${doc.name}`)
+    if (rev && !meta.revisions.some((entry) => entry.id === rev)) {
+      throw new Error(`cannot resolve ${id} in missing revision ${rev}`)
+    }
+    if (note) {
+      c.replies = [...(c.replies ?? []), { author: note.author ?? 'reader', text: note.text, created_at: nowStamp() }]
+    }
     c.status = 'resolved'
     c.resolved_in = rev ?? null
     writeMeta(doc.historyDir, meta)
@@ -355,15 +492,12 @@ export const readRevision = (docPath: string, rev: string): string => {
 /** Restore an earlier revision's body as a new revision (history stays append-only). */
 export const revert = (docPath: string, rev: string, author?: string): SnapshotResult => {
   const target = readRevision(docPath, rev)
-  const doc = loadDoc(docPath)
   const targetBody = FRONTMATTER_RE.exec(target)
     ? target.slice(FRONTMATTER_RE.exec(target)![0].length)
     : target
-  const restored = doc.raw.slice(0, doc.raw.length - doc.body.length) + targetBody
-  atomicWrite(doc.canonicalPath, restored)
-  return snapshot(docPath, {
+  return snapshotWithBody(docPath, {
     summary: `Restored content of ${rev}`,
     why: `pentimento revert ${rev}`,
     author,
-  })
+  }, targetBody)
 }

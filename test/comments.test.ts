@@ -26,9 +26,9 @@ describe('comments core', () => {
     const b = addComment(p, { text: 'second note', quote: 'body text' })
     expect(a.id).toMatch(/^c-\d{4}-\d{2}-\d{2}-001$/)
     expect(b.id.endsWith('-002')).toBe(true)
-    const resolved = resolveComment(p, a.id, 'r002')
+    const resolved = resolveComment(p, a.id, 'r001')
     expect(resolved.status).toBe('resolved')
-    expect(resolved.resolved_in).toBe('r002')
+    expect(resolved.resolved_in).toBe('r001')
     const meta = readMeta(loadDoc(p).historyDir)
     expect(meta.comments).toHaveLength(2)
     expect(meta.comments.filter((c) => c.status === 'open')).toHaveLength(1)
@@ -40,7 +40,7 @@ describe('comments core', () => {
 
   it('reopens a resolved comment', () => {
     const c = addComment(p, { text: 'note' })
-    resolveComment(p, c.id, 'r002')
+    resolveComment(p, c.id, 'r001')
     const reopened = reopenComment(p, c.id)
     expect(reopened.status).toBe('open')
     expect(reopened.resolved_in).toBeNull()
