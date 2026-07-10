@@ -3,8 +3,12 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import MarkdownIt from 'markdown-it'
 import { parse as parseYaml } from 'yaml'
+import { readUserConfig } from './config.js'
 import { loadDoc, readMeta, readRevision, slugify, splitRaw, type Doc, type Meta } from './core.js'
 import { renderDiffHtml } from './semdiff.js'
+import {
+  DEFAULT_PALETTE, isPalette, themeCss, themeInitSnippet, themePicker,
+} from './themes.js'
 
 const ASSETS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../assets')
 
@@ -37,7 +41,11 @@ export const FAVICON = `data:image/svg+xml,${encodeURIComponent(
 export const FAVICON_TAG = `<link rel="icon" type="image/svg+xml" href="${FAVICON}">`
 
 /** Re-apply the reader's stored palette/scheme before first paint on pages without doc frontmatter (index, diff). */
-export const RESTORE_SNIPPET = `<script>(()=>{let p=null,t=null;try{p=localStorage.getItem('pentimento-palette');t=localStorage.getItem('pentimento-theme')}catch(e){}if(p&&p!=='verdigris')document.documentElement.dataset.palette=p;if(t==='dark'||t==='light')document.documentElement.dataset.theme=t})()</script>`
+export const RESTORE_SNIPPET = themeInitSnippet()
+
+/** The fixed design system plus generated palette definitions, shared by every rendered surface. */
+export const renderStylesheet = (): string =>
+  `${fs.readFileSync(path.join(ASSETS, 'theme.css'), 'utf8')}\n${themeCss()}`
 
 /** Strip active content from agent-supplied HTML/SVG (defense in depth; not a full sanitizer). */
 const sanitize = (html: string): string =>
@@ -136,11 +144,13 @@ const renderTimeline: Handler = (content) => {
     const phCls = status === 'done' ? 'ph ph-done' : 'ph'
     return `<li><span class="${phCls}">${i + 1}</span><div><h3>${title}${pill}</h3>${desc}</div></li>`
   })
-  // computed progress strip — done/total at a glance, with a native meter
+  // Progress includes the active `next` phase, so a sequence that has started is
+  // visibly different from one where every phase is still `later`.
   const total = items.length
+  const reached = counts.done + counts.next
   const parts = (['done', 'next', 'later'] as const).filter((k) => counts[k]).map((k) => `${counts[k]} ${k}`)
   const progress = total && (counts.done || counts.next || counts.later)
-    ? `<div class="timeline-progress"><meter value="${counts.done}" min="0" max="${total}" aria-label="Phases done"></meter>` +
+    ? `<div class="timeline-progress"><meter value="${reached}" min="0" max="${total}" aria-label="Sequence progress"></meter>` +
       `<span>${parts.join(' · ')} · ${total} total</span></div>`
     : ''
   return `${progress}<ol class="timeline">${lis.join('\n')}</ol>`
@@ -321,14 +331,6 @@ const ARCHETYPES: Record<string, string> = {
   'design-doc': 'Design doc · PRD',
 }
 
-const PALETTES = [
-  ['verdigris', 'Verdigris'],
-  ['mist', 'Mist'],
-  ['iris', 'Iris'],
-] as const
-
-const DEFAULT_PALETTE = 'iris'
-
 export interface RenderOptions {
   /** Emit a claude.ai-Artifact-compatible fragment (no doctype/html/head/body — the platform wraps it). */
   artifact?: boolean
@@ -337,7 +339,7 @@ export interface RenderOptions {
 }
 
 const chrome = (doc: Doc, meta: Meta, prepared: Prepared, opts: RenderOptions): string => {
-  const css = fs.readFileSync(path.join(ASSETS, 'theme.css'), 'utf8')
+  const css = renderStylesheet()
   const js = fs.readFileSync(path.join(ASSETS, 'chrome.js'), 'utf8')
   const archetype = String(doc.frontmatter['Archetype'] ?? 'design-doc')
   const badge = ARCHETYPES[archetype] ?? archetype
@@ -347,19 +349,15 @@ const chrome = (doc: Doc, meta: Meta, prepared: Prepared, opts: RenderOptions): 
   const pathLabel = doc.canonicalPath.split(path.sep).slice(-3).join('/')
   const historyRel = String(doc.frontmatter['History Folder'] ?? `.history/${doc.name}`)
 
-  // Default palette precedence: document frontmatter > PENTIMENTO_PALETTE env > built-in default.
-  // The env var lets a team pick a house default without touching every document's frontmatter.
-  const isPalette = (p: string): boolean => PALETTES.some(([k]) => k === p)
+  // Default palette precedence: document frontmatter > env > personal CLI config > built-in.
+  // Explicit browser choices still win until the reader resets to the document default.
   const fmPalette = String(doc.frontmatter['Palette'] ?? '')
   const envPalette = String(process.env.PENTIMENTO_PALETTE ?? '')
+  const userPalette = String(readUserConfig().palette ?? '')
   const defaultPalette = isPalette(fmPalette) ? fmPalette
     : isPalette(envPalette) ? envPalette
+    : isPalette(userPalette) ? userPalette
     : DEFAULT_PALETTE
-
-  const paletteBtns = PALETTES.map(([key, label]) =>
-    `<button class="pbtn" type="button" data-p="${key}" aria-pressed="${key === defaultPalette}">` +
-    `<span class="dot dot-${key}"></span>${label}</button>`).join('\n      ')
-  const themeBtn = `<button class="tbtn" type="button" aria-label="Color scheme">◐ Auto</button>`
 
   const inline = (s: string): string => sanitize(md.renderInline(s))
 
@@ -405,8 +403,8 @@ const chrome = (doc: Doc, meta: Meta, prepared: Prepared, opts: RenderOptions): 
     : ''
 
   const title = escapeHtml(plainText(prepared.title))
-  // set palette and scheme before first paint; localStorage (user's explicit picks) wins over doc defaults
-  const paletteInit = `<script>(()=>{let p=null,t=null;try{p=localStorage.getItem('pentimento-palette');t=localStorage.getItem('pentimento-theme')}catch(e){}p=p||'${defaultPalette}';if(p!=='verdigris')document.documentElement.dataset.palette=p;if(t==='dark'||t==='light')document.documentElement.dataset.theme=t})()</script>`
+  // Set palette and scheme before first paint; a valid reader override wins over document defaults.
+  const paletteInit = themeInitSnippet(defaultPalette)
 
   const body = `${paletteInit}
 
@@ -415,11 +413,8 @@ const chrome = (doc: Doc, meta: Meta, prepared: Prepared, opts: RenderOptions): 
   <div class="meta-row">
     <span class="badge badge-${escapeHtml(archetype)}">${escapeHtml(badge)}</span>
     <span class="chip">${escapeHtml(rev)}</span>
-    ${date ? `<time class="chip" datetime="${escapeHtml(date)}">${escapeHtml(date)}</time>\n    ` : ''}<span class="chip">${escapeHtml(pathLabel)}</span>
-    <div class="palettes" role="group" aria-label="Color theme">
-      ${paletteBtns}
-      ${themeBtn}
-    </div>
+    ${date ? `<time class="chip" datetime="${escapeHtml(date)}">${escapeHtml(date)}</time>\n    ` : ''}${themePicker(defaultPalette)}
+    <span class="path-chip" title="${escapeHtml(doc.canonicalPath)}">${escapeHtml(pathLabel)}</span>
   </div>
   <h1>${inline(prepared.title)}</h1>
   ${prepared.standfirst ? `<p class="standfirst">${inline(prepared.standfirst)}</p>` : ''}
@@ -505,7 +500,8 @@ export const renderRevisionHtml = (docPath: string, rev: string, opts: RenderOpt
 /** Standalone page showing the changes between two revisions ('canonical' = current file). */
 export const renderDiffPage = (docPath: string, a: string, b: string): string => {
   const doc = loadDoc(docPath)
-  const css = fs.readFileSync(path.join(ASSETS, 'theme.css'), 'utf8')
+  const css = renderStylesheet()
+  const js = fs.readFileSync(path.join(ASSETS, 'chrome.js'), 'utf8')
   const bodyOf = (rev: string): string =>
     rev === 'canonical' ? doc.body : splitRaw(readRevision(docPath, rev)).body
   const rdiff = renderDiffHtml(bodyOf(a), bodyOf(b))
@@ -528,6 +524,7 @@ ${RESTORE_SNIPPET}
     <span class="badge">Changes</span>
     <span class="chip">${escapeHtml(a)} → ${escapeHtml(b)}</span>
     <span class="chip">${escapeHtml(doc.name)}</span>
+    ${themePicker()}
   </div>
   <h1>${escapeHtml(doc.name)}</h1>
   <p class="standfirst">What changed between ${escapeHtml(a)} and ${escapeHtml(b)}.</p>
@@ -537,6 +534,7 @@ ${RESTORE_SNIPPET}
 </main>
 <footer class="doc">Rendered by <code>pentimento diff --html</code>.</footer>
 </div>
+<script>${js}</script>
 </body>
 </html>
 `

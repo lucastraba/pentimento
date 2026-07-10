@@ -37,6 +37,11 @@ describe('viewer', () => {
     expect(html).toContain('badge-brainstorm')
     expect(html).toContain('r002')
     expect(html).toContain('/doc/My%20Plan.md')
+    expect(html).toContain('class="theme-picker"')
+    expect(html).toContain('class="theme-controls"')
+    expect(html).toContain('Use document default')
+    expect(html).toContain('class="path-chip"')
+    expect(html).toContain('window.__pSyncPalette = sync')
   })
 
   it('serves the rendered document with the viewer bar and SSE', async () => {
@@ -46,6 +51,9 @@ describe('viewer', () => {
     expect(html).toContain('<title>My Plan</title>')
     expect(html).toContain('second version')
     expect(html).toContain('class="vbar"')
+    expect(html).toContain('class="comment-icon"')
+    expect(html).not.toContain('💬')
+    expect(html).toContain('.vc-add[hidden] { display: none; }')
     expect(html).toContain("EventSource('/__events')")
     expect(html).toContain('diff vs r001')
   })

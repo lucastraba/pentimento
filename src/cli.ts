@@ -4,10 +4,12 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { createTwoFilesPatch } from 'diff'
+import { configPath, readUserConfig, setUserPalette } from './config.js'
 import { addComment, addReply, loadDoc, readMeta, readRevision, resolveComment, revert, snapshot } from './core.js'
 import { renderDiffPage, renderToFile } from './render.js'
 import { lintDoc } from './lint.js'
 import { bundledShim, checkShim, installShim, readGuide } from './skill.js'
+import { DEFAULT_PALETTE, isPalette, PALETTES } from './themes.js'
 import { findPentimentoDocs, verifyDoc } from './verify.js'
 import { serveViewer } from './viewer.js'
 
@@ -27,6 +29,7 @@ Usage:
   pentimento serve [dir] [--port 4820] [--host 127.0.0.1 | --tailscale] [--author name]
                                       (live viewer: document index, revision picker, diffs,
                                        hot reload, select-to-comment; never binds 0.0.0.0)
+  pentimento config theme [name|reset]    (show or set your personal default theme)
   pentimento comments <doc>               (list open comments, plus a resolved count)
   pentimento comment <doc> --text "..." [--anchor "#id"] [--quote "..."] [--author name]
   pentimento address <doc>                (open comments formatted for an agent to act on)
@@ -207,6 +210,35 @@ const main = (): void => {
       const host = flags.tailscale === 'true' ? tailscaleIp() : (flags.host?.trim() || '127.0.0.1')
       serveViewer(root, { host, port, author: flags.author ?? defaultAuthor() })
       console.log(`pentimento viewer → http://${host}:${port}/  (watching ${root})`)
+      break
+    }
+    case 'config': {
+      const subject = positional[0] ?? 'theme'
+      if (subject !== 'theme' && subject !== 'palette') fail('config supports: theme [name|reset]')
+      const requested = positional[1]?.toLowerCase()
+      if (!requested) {
+        const configured = readUserConfig().palette
+        const active = configured ?? DEFAULT_PALETTE
+        const label = PALETTES.find((palette) => palette.key === active)?.label ?? active
+        console.log(`default theme: ${label}${configured ? ' (personal config)' : ' (built in)'}`)
+        console.log(`config: ${configPath()}`)
+        console.log(`themes: ${PALETTES.map((palette) => palette.key).join(', ')}`)
+        break
+      }
+      if (requested === 'reset') {
+        const file = setUserPalette(null)
+        console.log(`default theme reset to ${DEFAULT_PALETTE}`)
+        console.log(`config: ${file}`)
+        console.log('Reload the viewer and use “Use document default”; restart only if it still shows the old compact picker.')
+        break
+      }
+      const key = requested === 'high-contrast' ? 'contrast' : requested
+      if (!isPalette(key)) fail(`unknown theme "${requested}" (choose: ${PALETTES.map((palette) => palette.key).join(', ')})`)
+      const file = setUserPalette(key)
+      const label = PALETTES.find((palette) => palette.key === key)?.label ?? key
+      console.log(`default theme: ${label}`)
+      console.log(`config: ${file}`)
+      console.log('Reload the viewer and use “Use document default”; restart only if it still shows the old compact picker.')
       break
     }
     case 'comments': {

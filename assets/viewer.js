@@ -42,6 +42,20 @@
     if (text !== undefined) n.textContent = text
     return n
   }
+  const commentIcon = () => {
+    const ns = 'http://www.w3.org/2000/svg'
+    const svg = document.createElementNS(ns, 'svg')
+    svg.setAttribute('class', 'comment-icon')
+    svg.setAttribute('viewBox', '0 0 20 20')
+    svg.setAttribute('aria-hidden', 'true')
+    const bubble = document.createElementNS(ns, 'path')
+    bubble.setAttribute('d', 'M5.25 3.75h9.5a2.5 2.5 0 0 1 2.5 2.5v5.5a2.5 2.5 0 0 1-2.5 2.5H9l-4.25 2.5v-2.6a2.5 2.5 0 0 1-2-2.4v-5.5a2.5 2.5 0 0 1 2.5-2.5Z')
+    const dots = document.createElementNS(ns, 'path')
+    dots.setAttribute('class', 'comment-dots')
+    dots.setAttribute('d', 'M7 9h.01M10 9h.01M13 9h.01')
+    svg.append(bubble, dots)
+    return svg
+  }
 
   // --- anchoring: normalized cross-node text search ----------------------
   // Quotes are matched against a whitespace-collapsed view of main's text nodes,
@@ -454,7 +468,8 @@
   }
 
   // --- select text → comment button → popover form -------------------------
-  const btn = el('button', 'vc-add', '💬 Comment')
+  const btn = el('button', 'vc-add')
+  btn.append(commentIcon(), document.createTextNode('Comment'))
   btn.type = 'button'
   btn.hidden = true
   document.body.appendChild(btn)

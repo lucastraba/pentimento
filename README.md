@@ -9,7 +9,7 @@ That one mechanism covers two jobs, and you can use either without the other:
 
 ## What it is
 
-A Pentimento document is one markdown file that keeps its name and place. `pentimento snapshot` copies the current state into a numbered revision (`r001`, `r002`, …) under a hidden `.history/` folder beside it, with a note on what changed and why. `pentimento render` turns the file into a self-contained HTML page (table of contents, revision log, light and dark themes), and from the second revision on it adds a panel showing a word-level diff against the previous one.
+A Pentimento document is one markdown file that keeps its name and place. `pentimento snapshot` copies the current state into a numbered revision (`r001`, `r002`, …) under a hidden `.history/` folder beside it, with a note on what changed and why. `pentimento render` turns the file into a self-contained HTML page (table of contents, revision log, six themes with light and dark modes), and from the second revision on it adds a panel showing a word-level diff against the previous one.
 
 The author, human or agent, writes markdown plus a small set of `:::` directives. A single fixed stylesheet decides every pixel, so two documents built months apart look like the same tool made them, and every draft can be diffed against the last. Everything on disk is plain text: grep it, sync it, commit it, hand it to an agent. Nothing needs git, and nothing conflicts with git.
 
@@ -36,6 +36,20 @@ Your agent writes the plan; Pentimento owns the look and the diff between drafts
 
 Giving it to your team: each person runs the one `skill install` command. The skill keeps pace with the tool on its own: it defers to `pentimento guide`, which prints instructions matched to the installed version, so an old copy never hides new features. `pentimento skill check <dir>` reports when a copy has fallen behind.
 
+## Themes
+
+Every rendered page includes Verdigris, Mist, Iris, Parchment, Fjord, and High Contrast, each with Auto, Light, and Dark modes. The picker stores an explicit browser choice locally; **Use document default** clears that override.
+
+Set a personal default once from the CLI:
+
+```bash
+pentimento config theme iris       # set it
+pentimento config theme            # show the current default and available themes
+pentimento config theme reset      # return to the built-in default
+```
+
+The personal setting is stored in `~/.config/pentimento/config.json`. Default precedence is: document `Palette` frontmatter, `PENTIMENTO_PALETTE`, personal CLI config, then built-in Verdigris. An explicit choice in the browser sits above those until you use **Use document default**. Reload after changing the config; if a viewer was started with an older Pentimento build and still shows the compact three-theme picker, restart `pentimento serve` once.
+
 ## Version your own documents
 
 The same engine works on anything you revise seriously, with no agent and no HTML.
@@ -58,7 +72,7 @@ A document takes two optional frontmatter keys:
 ```yaml
 ---
 Archetype: implementation   # implementation | brainstorm | audit | design-doc
-Palette: iris               # iris | verdigris | mist
+Palette: iris               # verdigris | mist | iris | parchment | fjord | contrast
 ---
 ```
 

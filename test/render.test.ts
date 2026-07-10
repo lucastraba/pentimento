@@ -6,12 +6,22 @@ import { snapshot } from '../src/core.js'
 import { render } from '../src/render.js'
 
 let dir: string
+let previousConfig: string | undefined
+let previousPalette: string | undefined
 
 beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pentimento-render-'))
+  previousConfig = process.env.PENTIMENTO_CONFIG
+  previousPalette = process.env.PENTIMENTO_PALETTE
+  process.env.PENTIMENTO_CONFIG = path.join(dir, 'user-config.json')
+  delete process.env.PENTIMENTO_PALETTE
 })
 
 afterEach(() => {
+  if (previousConfig === undefined) delete process.env.PENTIMENTO_CONFIG
+  else process.env.PENTIMENTO_CONFIG = previousConfig
+  if (previousPalette === undefined) delete process.env.PENTIMENTO_PALETTE
+  else process.env.PENTIMENTO_PALETTE = previousPalette
   fs.rmSync(dir, { recursive: true, force: true })
 })
 
@@ -89,9 +99,17 @@ describe('render', () => {
     const p = doc('# T\n\n## S\n\n::: timeline\n1. **One** [done] — a\n2. **Two** [done] — b\n3. **Three** [next] — c\n4. **Four** [later] — d\n:::\n')
     const html = render(p)
     expect(html).toContain('<div class="timeline-progress">')
-    expect(html).toContain('<meter value="2" min="0" max="4"')
+    expect(html).toContain('<meter value="3" min="0" max="4"')
+    expect(html).toContain('aria-label="Sequence progress"')
     expect(html).toContain('2 done · 1 next · 1 later · 4 total')
     expect(html).toContain('<span class="ph ph-done">1</span>')
+  })
+
+  it('shows the active next phase as progress even before anything is done', () => {
+    const p = doc('# T\n\n## S\n\n::: timeline\n1. **One** [next] — a\n2. **Two** [later] — b\n3. **Three** [later] — c\n:::\n')
+    const html = render(p)
+    expect(html).toContain('<meter value="1" min="0" max="3"')
+    expect(html).toContain('1 next · 2 later · 3 total')
   })
 
   it('renders figure aria as a figcaption and uses a time element for the date', () => {
@@ -130,18 +148,33 @@ describe('render', () => {
     expect(fragment).not.toContain('<!doctype')
   })
 
-  it('defaults the palette to iris, overridable via Palette frontmatter', () => {
+  it('defaults the palette to verdigris, overridable via Palette frontmatter', () => {
     const p = doc('# T\n\n## S\n\nx\n')
     const html = render(p)
-    expect(html).toContain("p=p||'iris'")
-    expect(html).toContain('data-p="iris" aria-pressed="true"')
+    expect(html).toContain("r.dataset.documentPalette='verdigris'")
+    expect(html).toContain("r.dataset.palette=p||'verdigris'")
+    expect(html).toContain('data-p="verdigris" aria-pressed="true"')
     const p2 = path.join(dir, 'Other.md')
     fs.writeFileSync(p2, '---\nPalette: mist\n---\n# T2\n\n## S\n\nx\n')
     snapshot(p2, { summary: 's' })
     const html2 = render(p2)
-    expect(html2).toContain("p=p||'mist'")
+    expect(html2).toContain("r.dataset.documentPalette='mist'")
+    expect(html2).toContain("r.dataset.palette=p||'mist'")
     expect(html2).toContain('data-p="mist" aria-pressed="true"')
     expect(html2).toContain('data-p="iris" aria-pressed="false"')
+  })
+
+  it('respects the configured house palette without changing the product default', () => {
+    const previous = process.env.PENTIMENTO_PALETTE
+    process.env.PENTIMENTO_PALETTE = 'iris'
+    try {
+      const html = render(doc('# Configured\n\n## Section\n\ntext\n'))
+      expect(html).toContain("r.dataset.documentPalette='iris'")
+      expect(html).toContain('data-p="iris" aria-pressed="true"')
+    } finally {
+      if (previous === undefined) delete process.env.PENTIMENTO_PALETTE
+      else process.env.PENTIMENTO_PALETTE = previous
+    }
   })
 
   it('passes figures through with aria labels', () => {

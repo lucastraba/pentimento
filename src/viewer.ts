@@ -6,13 +6,20 @@ import { Hono } from 'hono'
 import {
   addComment, addReply, deleteComment, loadDoc, readMeta, reopenComment, resolveComment, type Meta,
 } from './core.js'
-import { FAVICON_TAG, render, renderDiffPage, renderRevisionHtml, RESTORE_SNIPPET } from './render.js'
+import {
+  FAVICON_TAG, render, renderDiffPage, renderRevisionHtml, renderStylesheet, RESTORE_SNIPPET,
+} from './render.js'
+import { themePicker } from './themes.js'
 import { findPentimentoDocs } from './verify.js'
 
 const ASSETS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../assets')
 
 const escapeHtml = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+const COMMENT_ICON = '<svg class="comment-icon" viewBox="0 0 20 20" aria-hidden="true">' +
+  '<path d="M5.25 3.75h9.5a2.5 2.5 0 0 1 2.5 2.5v5.5a2.5 2.5 0 0 1-2.5 2.5H9l-4.25 2.5v-2.6a2.5 2.5 0 0 1-2-2.4v-5.5a2.5 2.5 0 0 1 2.5-2.5Z"/>' +
+  '<path class="comment-dots" d="M7 9h.01M10 9h.01M13 9h.01"/></svg>'
 
 // Index and diff pages reload on any change; document pages get viewer.js, which
 // listens to the same stream and patches or morphs instead of reloading.
@@ -43,12 +50,13 @@ const viewerBar = (rel: string, meta: Meta, current: string | null): string => {
   <select id="vrev" aria-label="Revision">${options}</select>
   ${diffLink}
   ${note}
-  <button id="vc-toggle" class="vc-toggle" type="button" aria-expanded="false" aria-label="Comments">💬 <span id="vc-count">${openCount}</span></button>
+  <button id="vc-toggle" class="vc-toggle" type="button" aria-expanded="false" aria-label="Comments">${COMMENT_ICON}<span id="vc-count">${openCount}</span></button>
 </nav>`
 }
 
 const indexPage = (root: string): string => {
-  const css = fs.readFileSync(path.join(ASSETS, 'theme.css'), 'utf8')
+  const css = renderStylesheet()
+  const chromeJs = fs.readFileSync(path.join(ASSETS, 'chrome.js'), 'utf8')
   const cards = findPentimentoDocs(root)
     .map((p) => {
       const doc = loadDoc(p)
@@ -74,7 +82,7 @@ const indexPage = (root: string): string => {
     <span class="badge badge-${escapeHtml(d.archetype)}">${escapeHtml(d.archetype)}</span>
     <span class="chip">${escapeHtml(d.rev)}</span>
     ${d.date ? `<span class="chip">${escapeHtml(d.date)}</span>` : ''}
-    ${d.open ? `<span class="chip chip-comments">💬 ${d.open}</span>` : ''}
+    ${d.open ? `<span class="chip chip-comments">${COMMENT_ICON}${d.open}</span>` : ''}
   </div>
   <h3>${escapeHtml(d.name)}</h3>
   ${d.summary ? `<p>${escapeHtml(d.summary)}</p>` : ''}
@@ -94,7 +102,7 @@ ${css}</style>
 ${RESTORE_SNIPPET}
 <div class="wrap">
 <header class="doc">
-  <div class="meta-row"><span class="badge">Pentimento viewer</span><span class="chip">${escapeHtml(root)}</span></div>
+  <div class="meta-row"><span class="badge">Pentimento viewer</span>${themePicker()}<span class="path-chip" title="${escapeHtml(root)}">${escapeHtml(root)}</span></div>
   <h1>Living documents</h1>
 </header>
 <main>
@@ -103,6 +111,7 @@ ${cards || '<p>No Pentimento documents found under this directory.</p>'}
 </div>
 </main>
 </div>
+<script>${chromeJs}</script>
 ${SSE_SNIPPET}
 </body>
 </html>
