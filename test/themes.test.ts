@@ -42,6 +42,18 @@ describe('theme registry', () => {
     expect(picker).not.toContain('class="scheme-group"')
   })
 
+  it('renders every palette preview in the active light or dark scheme', () => {
+    const css = themeCss()
+    for (const palette of PALETTES) {
+      const light = `--preview-page:${palette.light.bg};--preview-accent:${palette.light.accent};--preview-ink:${palette.light.ink}`
+      const dark = `--preview-page:${palette.dark.bg};--preview-accent:${palette.dark.accent};--preview-ink:${palette.dark.ink}`
+      expect(css).toContain(`.preview-${palette.key}{${light}}`)
+      expect(css).toContain(`@media (prefers-color-scheme:dark){.preview-${palette.key}{${dark}}}`)
+      expect(css).toContain(`:root[data-theme="light"] .preview-${palette.key}{${light}}`)
+      expect(css).toContain(`:root[data-theme="dark"] .preview-${palette.key}{${dark}}`)
+    }
+  })
+
   it('validates stored palette and scheme values before first paint', () => {
     const init = themeInitSnippet('fjord')
     expect(init).toContain('k.includes(p)')

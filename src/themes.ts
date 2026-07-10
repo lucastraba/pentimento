@@ -200,13 +200,22 @@ const declarations = (palette: Palette, scheme: Scheme): string => {
   return `${colors};--font-display:${display};--standfirst-style:${standfirstStyle}`
 }
 
+const previewDeclarations = (palette: Palette, scheme: Scheme): string => {
+  const values = palette[scheme]
+  return `--preview-page:${values.bg};--preview-accent:${values.accent};--preview-ink:${values.ink}`
+}
+
 export const themeCss = (): string => PALETTES.map((palette) => {
   const selector = `:root[data-palette="${palette.key}"]`
+  const previewSelector = `.preview-${palette.key}`
   return `${selector}{${declarations(palette, 'light')}}\n` +
     `@media (prefers-color-scheme:dark){${selector}{${declarations(palette, 'dark')}}}\n` +
     `:root[data-theme="light"][data-palette="${palette.key}"]{${declarations(palette, 'light')}}\n` +
     `:root[data-theme="dark"][data-palette="${palette.key}"]{${declarations(palette, 'dark')}}\n` +
-    `.preview-${palette.key}{--preview-page:${palette.preview[0]};--preview-accent:${palette.preview[1]};--preview-ink:${palette.preview[2]}}`
+    `${previewSelector}{${previewDeclarations(palette, 'light')}}\n` +
+    `@media (prefers-color-scheme:dark){${previewSelector}{${previewDeclarations(palette, 'dark')}}}\n` +
+    `:root[data-theme="light"] ${previewSelector}{${previewDeclarations(palette, 'light')}}\n` +
+    `:root[data-theme="dark"] ${previewSelector}{${previewDeclarations(palette, 'dark')}}`
 }).join('\n')
 
 export const themeInitSnippet = (documentPalette = DEFAULT_PALETTE): string => {
