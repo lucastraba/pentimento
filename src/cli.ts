@@ -28,9 +28,9 @@ Usage:
                                       (--artifact: fragment for claude.ai Artifact publishing;
                                        default: standalone HTML that works anywhere)
   pentimento serve [dir] [--port 4820] [--host 127.0.0.1 | --tailscale] [--author name]
-                                      (live viewer: document index, revision picker, diffs,
-                                       hot reload, select-to-comment; Tailscale writes use
-                                       an ephemeral capability; never binds 0.0.0.0)
+                                       (live viewer: document index, revision picker, diffs,
+                                       hot reload, comments, and a protected stop control;
+                                       one port serves all plans below dir; never binds 0.0.0.0)
   pentimento config theme [name|reset]    (show or set your personal default theme)
   pentimento comments <doc>               (list open comments, plus a resolved count)
   pentimento comment <doc> --text "..." [--anchor "#id"] [--quote "..."] [--author name]

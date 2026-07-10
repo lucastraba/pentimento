@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { snapshot } from '../src/core.js'
 import { createApp, isLoopbackHost, serveViewer, viewerOrigin } from '../src/viewer.js'
 
@@ -36,6 +36,18 @@ describe('viewer', () => {
     expect(viewerOrigin('::1', 4820)).toBe('http://[::1]:4820')
     expect(() => serveViewer(dir, { host: '100.64.0.2', port: 4820 }))
       .toThrow('non-loopback viewers require an ephemeral write capability')
+  })
+
+  it('lets the writable viewer stop its root server', async () => {
+    const onShutdown = vi.fn()
+    const stoppable = createApp(dir, { onShutdown }).app
+    expect(await (await stoppable.request('/')).text()).toContain('data-stop-viewer')
+    expect(await (await stoppable.request('/doc/My%20Plan.md')).text()).toContain('data-stop-viewer')
+    const response = await stoppable.request('/api/shutdown', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    })
+    expect(response.status).toBe(202)
+    expect(onShutdown).toHaveBeenCalledOnce()
   })
 
   it('lists documents on the index with badge and revision', async () => {

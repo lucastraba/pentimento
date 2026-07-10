@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
+import type { Server as HttpServer } from 'node:http'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { serve } from '@hono/node-server'
@@ -26,11 +27,43 @@ const COMMENT_ICON = '<svg class="comment-icon" viewBox="0 0 20 20" aria-hidden=
   '<path d="M5.25 3.75h9.5a2.5 2.5 0 0 1 2.5 2.5v5.5a2.5 2.5 0 0 1-2.5 2.5H9l-4.25 2.5v-2.6a2.5 2.5 0 0 1-2-2.4v-5.5a2.5 2.5 0 0 1 2.5-2.5Z"/>' +
   '<path class="comment-dots" d="M7 9h.01M10 9h.01M13 9h.01"/></svg>'
 
+const STOP_ICON = '<svg class="stop-icon" viewBox="0 0 20 20" aria-hidden="true">' +
+  '<path d="M10 2.5v7M5.2 5.3a7 7 0 1 0 9.6 0"/></svg>'
+const stopButton = (): string =>
+  `<button class="viewer-stop" data-stop-viewer type="button">${STOP_ICON}<span>Stop viewer</span></button>`
+const STOP_SNIPPET = `<script>(() => {
+  document.addEventListener('click', async (event) => {
+    const button = event.target.closest?.('[data-stop-viewer]')
+    if (!button || !confirm('Stop this viewer for every document it serves?')) return
+    button.disabled = true
+    button.querySelector('span').textContent = 'Stopping…'
+    try {
+      const response = await fetch('/api/shutdown', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+      })
+      if (!response.ok) throw new Error(await response.text())
+      button.querySelector('span').textContent = 'Viewer stopped'
+      document.documentElement.dataset.viewerStopped = 'true'
+      const status = document.createElement('div')
+      status.className = 'viewer-stopped-status'
+      status.role = 'status'
+      status.tabIndex = -1
+      status.textContent = 'Viewer stopped. This page is now offline.'
+      document.body.append(status)
+      status.focus()
+    } catch (error) {
+      button.disabled = false
+      button.querySelector('span').textContent = 'Stop viewer'
+      alert(error instanceof Error ? error.message : String(error))
+    }
+  })
+})()</script>`
+
 // Index and diff pages reload on any change; document pages get viewer.js, which
 // listens to the same stream and patches or morphs instead of reloading.
 const SSE_SNIPPET = `<script>new EventSource('/__events').onmessage = () => location.reload()</script>`
 
-const viewerBar = (rel: string, meta: Meta, current: string | null, canComment = true): string => {
+const viewerBar = (rel: string, meta: Meta, current: string | null, canComment = true, canStop = false): string => {
   const latest = meta.revisions[meta.revisions.length - 1]?.id ?? null
   const selected = current ?? 'canonical'
   const options = [
@@ -56,10 +89,11 @@ const viewerBar = (rel: string, meta: Meta, current: string | null, canComment =
   ${diffLink}
   ${note}
   <button id="vc-toggle" class="vc-toggle" type="button" aria-expanded="false" aria-label="Comments">${COMMENT_ICON}<span id="vc-count">${openCount}</span></button>
+  ${canStop ? stopButton() : ''}
 </nav>`
 }
 
-const indexPage = (root: string): string => {
+const indexPage = (root: string, canStop = false): string => {
   const css = renderStylesheet()
   const chromeJs = fs.readFileSync(path.join(ASSETS, 'chrome.js'), 'utf8')
   const cards = findPentimentoDocs(root)
@@ -107,7 +141,7 @@ ${css}</style>
 ${RESTORE_SNIPPET}
 <div class="wrap">
 <header class="doc">
-  <div class="meta-row"><span class="badge">Pentimento viewer</span>${themePicker()}<span class="path-chip" title="${escapeHtml(root)}">${escapeHtml(root)}</span></div>
+  <div class="meta-row"><span class="badge">Pentimento viewer</span>${themePicker()}${canStop ? stopButton() : ''}<span class="path-chip" title="${escapeHtml(root)}">${escapeHtml(root)}</span></div>
   <h1>Living documents</h1>
 </header>
 <main>
@@ -118,6 +152,7 @@ ${cards || '<p>No Pentimento documents found under this directory.</p>'}
 </div>
 <script>${chromeJs}</script>
 ${SSE_SNIPPET}
+${canStop ? STOP_SNIPPET : ''}
 </body>
 </html>
 `)
@@ -135,6 +170,8 @@ export interface ViewerOptions {
   origin?: string
   /** ephemeral capability required for writes in remote mode */
   writeToken?: string
+  /** stop the root viewer process after an authorized browser request */
+  onShutdown?: () => void
 }
 
 const WRITE_COOKIE = 'pentimento-write'
@@ -156,6 +193,7 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
   // which browser session created which comment — scopes undo/delete; dies with the server
   const owners = new Map<string, string>()
   const canWrite = (c: Context): boolean => !viewerOpts.writeToken || sameToken(getCookie(c, WRITE_COOKIE), viewerOpts.writeToken)
+  const canStop = (c: Context): boolean => Boolean(viewerOpts.onShutdown) && canWrite(c)
   const expectedOrigin = (c: Context): string => viewerOpts.origin ?? new URL(c.req.url).origin
   const htmlResponse = (c: Context, html: string): Response => {
     const secured = secureHtml(html)
@@ -220,7 +258,7 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
       c.header('Cache-Control', 'no-store')
       return c.redirect('/')
     }
-    return htmlResponse(c, indexPage(absRoot))
+    return htmlResponse(c, indexPage(absRoot, canStop(c)))
   })
 
   app.get('/doc/*', (c) => {
@@ -241,6 +279,7 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
     }
     const meta = readMeta(loadDoc(abs).historyDir)
     const canComment = !rev && canWrite(c)
+    const stoppable = canStop(c)
     const cfg = {
       rel,
       rev,
@@ -250,13 +289,19 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
       revisions: meta.revisions.map((r) => r.id),
     }
     const cfgScript = `<script>window.__pentimento=${JSON.stringify(cfg).replace(/</g, '\\u003c')}</script>\n<script>\n${viewerJs}</script>`
-    return htmlResponse(c, html.replace('</body>', `${viewerBar(rel, meta, rev, canComment)}\n${cfgScript}\n</body>`))
+    return htmlResponse(c, html.replace('</body>', `${viewerBar(rel, meta, rev, canComment, stoppable)}\n${cfgScript}\n${stoppable ? STOP_SNIPPET : ''}\n</body>`))
   })
 
   app.get('/api/comments', (c) => {
     const abs = resolveDoc(c.req.query('rel') ?? '')
     if (!abs) return c.notFound()
     return c.json(commentsPayload(abs))
+  })
+
+  app.post('/api/shutdown', (c) => {
+    if (!viewerOpts.onShutdown) return c.text('viewer shutdown is unavailable', 501)
+    viewerOpts.onShutdown()
+    return c.json({ stopping: true }, 202)
   })
 
   app.post('/api/comment', async (c) => {
@@ -408,14 +453,29 @@ export const serveViewer = (root: string, { host, port, author, writeToken }: Se
     throw new Error('non-loopback viewers require an ephemeral write capability')
   }
   const absRoot = path.resolve(root)
-  const { app, broadcast } = createApp(absRoot, { author, origin: viewerOrigin(host, port), writeToken })
+  let timer: NodeJS.Timeout | null = null
+  let watcher: fs.FSWatcher | null = null
+  let server: HttpServer | null = null
+  let stopping = false
+  const onShutdown = () => {
+    if (stopping) return
+    stopping = true
+    setTimeout(() => {
+      if (timer) clearTimeout(timer)
+      watcher?.close()
+      server?.close()
+      setTimeout(() => server?.closeAllConnections(), 250)
+    }, 50)
+  }
+  const { app, broadcast } = createApp(absRoot, {
+    author, origin: viewerOrigin(host, port), writeToken, onShutdown,
+  })
 
   // Batch watcher hits into one typed event: .md paths morph the affected document
   // page, .yml paths make every page re-fetch its comments.
-  let timer: NodeJS.Timeout | null = null
   const docs = new Set<string>()
   const metas = new Set<string>()
-  fs.watch(absRoot, { recursive: true }, (_event, fname) => {
+  watcher = fs.watch(absRoot, { recursive: true }, (_event, fname) => {
     if (!fname) return
     const f = String(fname).split(path.sep).join('/')
     if (f.includes('node_modules') || f.includes('.git/')) return
@@ -430,5 +490,5 @@ export const serveViewer = (root: string, { host, port, author, writeToken }: Se
     }, 200)
   })
 
-  serve({ fetch: app.fetch, hostname: host, port })
+  server = serve({ fetch: app.fetch, hostname: host, port }) as HttpServer
 }

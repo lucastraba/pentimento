@@ -73,6 +73,8 @@ pentimento serve . --tailscale
 
 Pentimento protects every non-loopback bind and prints a write link plus a read-only link. The write link carries a fresh capability; opening it once stores that capability in an HttpOnly, same-site browser cookie and redirects to a clean URL. Send the write link only to the user who will leave revision instructions. This is remote access to the private user-agent loop, not a shared workspace. Keep the viewer inside the tailnet; Pentimento is not a public hosting service.
 
+Each `serve` command starts one server on one port and serves every Pentimento document under the selected directory. Closing a browser tab does not stop it. A writable viewer includes a **Stop viewer** button; after confirmation it closes that server and every document on its port. Read-only links cannot stop a server, and other Pentimento processes on other ports are unaffected.
+
 The installed skill defers to the version-matched instructions in the CLI. Check whether a copy is current with:
 
 ```bash

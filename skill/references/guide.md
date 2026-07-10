@@ -43,7 +43,9 @@ trusted device; it does not create a shared workspace.
    printed write link to the same user, and keep the viewer inside that tailnet. Opening the
    write link once sets a private browser capability and redirects to a clean URL; the plain
    link stays read-only. Prefer this private live loop over publishing a static file when the
-   user needs to comment.
+   user needs to comment. One `serve` process uses one port for every Pentimento document under
+   that directory. The writable viewer's **Stop viewer** button closes that whole process after
+   confirmation; read-only links cannot stop it, and separate servers on other ports stay up.
 5. Static HTML (optional): `pentimento render <Name>.md -o <name>.html` produces a
    standalone page that opens anywhere. Use it only when you can't keep a server running or
    the user wants a file to email or upload. For claude.ai Artifact publishing, add

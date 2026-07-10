@@ -2,7 +2,7 @@
 name: pentimento-plan
 description: "Produce and serve a plan as a living document: markdown source, versioned history, and a constrained interactive viewer. Use when the user asks for a plan, design doc, brainstorm, audit report, or invokes /pentimento-plan. Also for revising an existing Pentimento plan after feedback."
 metadata:
-  pentimento_skill_revision: "7"
+  pentimento_skill_revision: "8"
 ---
 
 # Pentimento plans
@@ -30,6 +30,7 @@ Check with `command -v pentimento`. Prefer an existing install — it's faster a
 - Assume one user and one canonical document. Comments are that user's revision instructions to the agent, not a multi-reviewer thread.
 - Use `--tailscale` only when the agent runs on a VPS and the same user needs the private live viewer on another trusted device. Send that user the printed write link; the plain link is read-only. It is remote access, not a shared workspace.
 - Serve the plan after the first snapshot and give the user the printed viewer URL. This is the default delivery path. Render a standalone file only when the user asks for one or a server cannot stay running.
+- Reuse one `serve` process for every plan under the same workspace root. Tell the user that **Stop viewer** closes every plan on that server, while separate servers on other ports remain independent.
 - The Prose rules in `pentimento guide` bind like the rules above: plain words, no false contrast, no engagement hooks, bullets that carry full claims.
 
 ## Authoring

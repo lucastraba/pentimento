@@ -170,13 +170,21 @@ describe('comments in render and viewer', () => {
   })
 
   it('uses an ephemeral capability for remote writes', async () => {
-    const { app } = createApp(dir, { origin: 'http://100.64.0.2:4820', writeToken: 'secret-token' })
+    let shutdowns = 0
+    const { app } = createApp(dir, {
+      origin: 'http://100.64.0.2:4820', writeToken: 'secret-token', onShutdown: () => { shutdowns++ },
+    })
     const locked = await (await app.request('/doc/Plan.md')).text()
     expect(locked).toContain('"canComment":false')
     expect(locked).toContain('read-only link')
+    expect(locked).not.toContain('data-stop-viewer')
+    expect(await (await app.request('/')).text()).not.toContain('data-stop-viewer')
     const body = JSON.stringify({ rel: 'Plan.md', text: 'remote note' })
     expect((await app.request('/api/comment', {
       method: 'POST', headers: { origin: 'http://100.64.0.2:4820', 'content-type': 'application/json' }, body,
+    })).status).toBe(403)
+    expect((await app.request('/api/shutdown', {
+      method: 'POST', headers: { origin: 'http://100.64.0.2:4820', 'content-type': 'application/json' }, body: '{}',
     })).status).toBe(403)
 
     const unlock = await app.request('/?write=secret-token')
@@ -191,6 +199,19 @@ describe('comments in render and viewer', () => {
     })).status).toBe(200)
     const writable = await (await app.request('/doc/Plan.md', { headers: { cookie } })).text()
     expect(writable).toContain('"canComment":true')
+    expect(writable).toContain('data-stop-viewer')
+    expect(await (await app.request('/', { headers: { cookie } })).text()).toContain('data-stop-viewer')
+    expect((await app.request('/api/shutdown', {
+      method: 'POST', headers: { origin: 'https://evil.example', 'content-type': 'application/json', cookie }, body: '{}',
+    })).status).toBe(403)
+    expect((await app.request('/api/shutdown', {
+      method: 'POST', headers: { origin: 'http://100.64.0.2:4820', 'content-type': 'text/plain', cookie }, body: '{}',
+    })).status).toBe(415)
+    expect(shutdowns).toBe(0)
+    expect((await app.request('/api/shutdown', {
+      method: 'POST', headers: { origin: 'http://100.64.0.2:4820', 'content-type': 'application/json', cookie }, body: '{}',
+    })).status).toBe(202)
+    expect(shutdowns).toBe(1)
   })
 
   it('disables commenting on historical revisions', async () => {
