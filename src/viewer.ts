@@ -4,10 +4,11 @@ import { fileURLToPath } from 'node:url'
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import {
-  addComment, addReply, deleteComment, loadDoc, readMeta, reopenComment, resolveComment, type Meta,
+  addComment, addReply, deleteComment, isPathInside, loadDoc, readMeta, reopenComment,
+  resolveComment, resolveContainedPath, type Meta,
 } from './core.js'
 import {
-  FAVICON_TAG, render, renderDiffPage, renderRevisionHtml, renderStylesheet, RESTORE_SNIPPET,
+  FAVICON_TAG, render, renderDiffPage, renderRevisionHtml, renderStylesheet, RESTORE_SNIPPET, secureHtml,
 } from './render.js'
 import { themePicker } from './themes.js'
 import { findPentimentoDocs } from './verify.js'
@@ -88,7 +89,7 @@ const indexPage = (root: string): string => {
   ${d.summary ? `<p>${escapeHtml(d.summary)}</p>` : ''}
 </a>`)
     .join('\n')
-  return `<!doctype html>
+  return secureHtml(`<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -115,7 +116,7 @@ ${cards || '<p>No Pentimento documents found under this directory.</p>'}
 ${SSE_SNIPPET}
 </body>
 </html>
-`
+`)
 }
 
 export interface ViewerApp {
@@ -129,7 +130,7 @@ export interface ViewerOptions {
 }
 
 export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerApp => {
-  const absRoot = path.resolve(root)
+  const absRoot = fs.realpathSync(path.resolve(root))
   const viewerJs = fs.readFileSync(path.join(ASSETS, 'viewer.js'), 'utf8')
   const app = new Hono()
   const clients = new Set<(data: string) => void>()
@@ -141,10 +142,19 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
   const owners = new Map<string, string>()
 
   const resolveDoc = (rel: string): string | null => {
-    const abs = path.resolve(absRoot, rel)
-    if (!abs.startsWith(absRoot + path.sep) && abs !== absRoot) return null
-    if (!abs.endsWith('.md') || !fs.existsSync(abs)) return null
-    return abs
+    try {
+      const abs = resolveContainedPath(absRoot, rel, 'Document path')
+      if (!abs.endsWith('.md') || !fs.existsSync(abs)) return null
+      const real = fs.realpathSync(abs)
+      return isPathInside(absRoot, real) ? real : null
+    } catch {
+      return null
+    }
+  }
+
+  const hasRevision = (abs: string, rev: string): boolean => {
+    if (!/^r\d{3,}$/.test(rev)) return false
+    return readMeta(loadDoc(abs).historyDir).revisions.some((entry) => entry.id === rev)
   }
 
   const commentsPayload = (abs: string) => {
@@ -162,6 +172,7 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
     const abs = resolveDoc(rel)
     if (!abs) return c.notFound()
     const rev = c.req.query('rev') ?? null
+    if (rev && !hasRevision(abs, rev)) return c.notFound()
     let html: string
     try {
       // the viewer replaces the static header panel with its drawer
@@ -181,7 +192,7 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
       revisions: meta.revisions.map((r) => r.id),
     }
     const cfgScript = `<script>window.__pentimento=${JSON.stringify(cfg).replace(/</g, '\\u003c')}</script>\n<script>\n${viewerJs}</script>`
-    return c.html(html.replace('</body>', `${viewerBar(rel, meta, rev)}\n${cfgScript}\n</body>`))
+    return c.html(secureHtml(html.replace('</body>', `${viewerBar(rel, meta, rev)}\n${cfgScript}\n</body>`)))
   })
 
   app.get('/api/comments', (c) => {
@@ -273,9 +284,10 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
     const a = c.req.query('a')
     const b = c.req.query('b') ?? 'canonical'
     if (!a) return c.text('missing ?a=<rev>', 400)
+    if ((a !== 'canonical' && !hasRevision(abs, a)) || (b !== 'canonical' && !hasRevision(abs, b))) return c.notFound()
     try {
       const html = renderDiffPage(abs, a, b)
-      return c.html(html.replace('</body>', `${SSE_SNIPPET}\n</body>`))
+      return c.html(secureHtml(html.replace('</body>', `${SSE_SNIPPET}\n</body>`)))
     } catch (e) {
       return c.text(e instanceof Error ? e.message : String(e), 500)
     }

@@ -42,6 +42,8 @@ describe('viewer', () => {
     expect(html).toContain('Use document default')
     expect(html).toContain('class="path-chip"')
     expect(html).toContain('window.__pSyncPalette = sync')
+    expect(html).toMatch(/script-src 'sha256-[A-Za-z0-9+/=]+'/)
+    expect(html).not.toMatch(/script-src[^;]*'unsafe-inline'/)
   })
 
   it('serves the rendered document with the viewer bar and SSE', async () => {
@@ -56,6 +58,8 @@ describe('viewer', () => {
     expect(html).toContain('.vc-add[hidden] { display: none; }')
     expect(html).toContain("EventSource('/__events')")
     expect(html).toContain('diff vs r001')
+    expect(html).toMatch(/script-src 'sha256-[A-Za-z0-9+/=]+'/)
+    expect(html).not.toMatch(/script-src[^;]*'unsafe-inline'/)
   })
 
   it('serves an old revision via ?rev=', async () => {
@@ -78,6 +82,30 @@ describe('viewer', () => {
     fs.writeFileSync(path.join(os.tmpdir(), 'pentimento-outside.md'), '# outside\n')
     const res = await app.request('/doc/..%2Fpentimento-outside.md')
     expect(res.status).toBe(404)
+  })
+
+  it('blocks traversal through revision and diff query parameters', async () => {
+    const outside = path.join(path.dirname(dir), `pentimento-secret-${path.basename(dir)}.md`)
+    fs.writeFileSync(outside, '# secret\n')
+    try {
+      const rev = encodeURIComponent(`../../../${path.basename(outside, '.md')}`)
+      expect((await app.request(`/doc/My%20Plan.md?rev=${rev}`)).status).toBe(404)
+      expect((await app.request(`/diff/My%20Plan.md?a=${rev}&b=r002`)).status).toBe(404)
+    } finally {
+      fs.rmSync(outside, { force: true })
+    }
+  })
+
+  it('does not serve markdown symlinks that escape the viewer root', async () => {
+    const outside = path.join(path.dirname(dir), `pentimento-linked-${path.basename(dir)}.md`)
+    fs.writeFileSync(outside, '# linked secret\n')
+    try {
+      fs.symlinkSync(outside, path.join(dir, 'Linked.md'))
+      expect((await app.request('/doc/Linked.md')).status).toBe(404)
+      expect(await (await app.request('/')).text()).not.toContain('linked secret')
+    } finally {
+      fs.rmSync(outside, { force: true })
+    }
   })
 
   it('404s unknown documents', async () => {

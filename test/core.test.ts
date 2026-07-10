@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { loadDoc, readMeta, revert, snapshot, stampFrontmatter } from '../src/core.js'
+import { loadDoc, readMeta, readRevision, revert, snapshot, stampFrontmatter } from '../src/core.js'
 
 let dir: string
 
@@ -81,6 +81,33 @@ describe('snapshot', () => {
     const p = write('Тру крайм плюс.md', '# Тру крайм\n')
     const res = snapshot(p, { summary: 'x' })
     expect(res.historyFile).toContain('.history/Тру крайм плюс/r001.md')
+  })
+
+  it('rejects history folders outside the canonical document directory', () => {
+    const p = write('Plan.md', '---\nHistory Folder: ../outside\n---\n# Plan\n')
+    expect(() => loadDoc(p)).toThrow(/History Folder.*inside/)
+
+    const absolute = write('Absolute.md', `---\nHistory Folder: ${JSON.stringify(path.join(dir, 'absolute'))}\n---\n# Plan\n`)
+    expect(() => loadDoc(absolute)).toThrow(/History Folder.*relative/)
+  })
+
+  it('rejects history folders reached through an escaping symlink', () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'pentimento-outside-history-'))
+    try {
+      fs.symlinkSync(outside, path.join(dir, '.history'))
+      const p = write('Plan.md', '# Plan\n')
+      expect(() => loadDoc(p)).toThrow(/History Folder.*symlink/)
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
+  it('reads only revision IDs recorded for the document', () => {
+    const p = write('Plan.md', '# Plan\n')
+    snapshot(p, { summary: 'one' })
+    expect(readRevision(p, 'r001')).toContain('# Plan')
+    expect(() => readRevision(p, '../../../secret')).toThrow(/Invalid revision/)
+    expect(() => readRevision(p, 'r999')).toThrow(/No revision r999/)
   })
 })
 

@@ -19,6 +19,7 @@ export const findPentimentoDocs = (root: string): string[] => {
       return // unreadable directory — skip
     }
     for (const entry of entries) {
+      if (entry.isSymbolicLink()) continue
       if (entry.isDirectory()) {
         if (!SKIP_DIRS.has(entry.name) && !entry.name.startsWith('.')) walk(path.join(dir, entry.name))
         continue

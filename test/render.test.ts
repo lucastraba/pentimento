@@ -183,4 +183,64 @@ describe('render', () => {
     expect(html).toContain('<figure class="diagram" role="img" aria-label="a diagram">')
     expect(html).toContain('<rect class="nodebox"')
   })
+
+  it('treats raw markdown HTML and heading metadata as text', () => {
+    const p = doc(`# <img src=x onerror="titleAttack()">
+
+## <img src=x onerror="headingAttack()"> <!-- id: safe\" onmouseover=\"idAttack(); eyebrow: <svg onload=\"eyebrowAttack()\"> -->
+
+<a href=javascript:bodyAttack()>bad link</a>
+`)
+    const html = render(p)
+    expect(html).not.toContain('<img src=x')
+    expect(html).not.toContain('<svg onload')
+    expect(html).not.toContain('<a href=javascript:')
+    expect(html).not.toContain('onmouseover="idAttack()"')
+    expect(html).toContain('&lt;img src=x onerror=&quot;headingAttack()&quot;&gt;')
+    expect(html.match(/<h2 id="[^"]+">/)?.[0]).toMatch(/^<h2 id="[a-z0-9-]+">$/)
+  })
+
+  it('deduplicates generated heading IDs', () => {
+    const html = render(doc('# T\n\n## Repeat\n\none\n\n## Repeat\n\ntwo\n'))
+    expect(html).toContain('<h2 id="repeat">')
+    expect(html).toContain('<h2 id="repeat-2">')
+  })
+
+  it('allowlists figure SVG instead of passing active content through', () => {
+    const p = doc(`# T
+
+## S
+
+::: figure aria="safe diagram"
+<svg viewBox="0 0 10 10" onload="attack()">
+  <script>alert(1)</script>
+  <foreignObject><img src=x onerror="attack()"></foreignObject>
+  <rect class="nodebox alien" width="10" height="10" style="fill:red" onclick="attack()"/>
+  <a href="https://example.com"><text>outside</text></a>
+</svg>
+:::
+`)
+    const html = render(p)
+    const figure = html.match(/<figure class="diagram"[\s\S]*?<\/figure>/)?.[0] ?? ''
+    expect(figure).toContain('<svg viewBox="0 0 10 10">')
+    expect(figure).toContain('<rect class="nodebox" width="10" height="10">')
+    expect(figure).not.toContain('<script')
+    expect(figure).not.toContain('<foreignObject')
+    expect(figure).not.toContain('<img')
+    expect(figure).not.toContain('<a ')
+    expect(figure).not.toContain('onload=')
+    expect(figure).not.toContain('onclick=')
+    expect(figure).not.toContain('style=')
+  })
+
+  it('ships a restrictive content security policy', () => {
+    const html = render(doc('# T\n\n## S\n\ntext\n'))
+    expect(html).toContain('http-equiv="Content-Security-Policy"')
+    expect(html).toContain("default-src 'none'")
+    expect(html).toContain("connect-src 'self'")
+    expect(html).toContain("img-src data:")
+    expect(html).toContain("base-uri 'none'")
+    expect(html).toMatch(/script-src 'sha256-[A-Za-z0-9+/=]+'/)
+    expect(html).not.toMatch(/script-src[^;]*'unsafe-inline'/)
+  })
 })

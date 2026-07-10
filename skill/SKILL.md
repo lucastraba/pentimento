@@ -2,7 +2,7 @@
 name: pentimento-plan
 description: "Produce and serve a plan as a living document: markdown source, versioned history, and a constrained interactive viewer. Use when the user asks for a plan, design doc, brainstorm, audit report, or invokes /pentimento-plan. Also for revising an existing Pentimento plan after feedback."
 metadata:
-  pentimento_skill_revision: "5"
+  pentimento_skill_revision: "6"
 ---
 
 # Pentimento plans

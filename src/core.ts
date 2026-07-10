@@ -112,9 +112,34 @@ export const parseRevId = (value: unknown): number => {
   return Number(m[1])
 }
 
+export const isPathInside = (root: string, target: string): boolean => {
+  const relative = path.relative(root, target)
+  return relative === '' || (!path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`))
+}
+
+/** Resolve a relative path while rejecting lexical traversal and symlink escapes. */
+export const resolveContainedPath = (root: string, relativePath: string, label = 'Path'): string => {
+  if (path.isAbsolute(relativePath)) throw new Error(`${label} must be relative`)
+  const absRoot = path.resolve(root)
+  const target = path.resolve(absRoot, relativePath)
+  if (!isPathInside(absRoot, target)) throw new Error(`${label} must stay inside ${absRoot}`)
+
+  const realRoot = fs.realpathSync(absRoot)
+  let ancestor = target
+  while (!fs.existsSync(ancestor)) {
+    const parent = path.dirname(ancestor)
+    if (parent === ancestor) break
+    ancestor = parent
+  }
+  const realAncestor = fs.realpathSync(ancestor)
+  if (!isPathInside(realRoot, realAncestor)) throw new Error(`${label} escapes through a symlink`)
+  return target
+}
+
 export const loadDoc = (docPath: string): Doc => {
-  const canonicalPath = path.resolve(docPath)
-  if (!fs.existsSync(canonicalPath)) throw new Error(`No such document: ${canonicalPath}`)
+  const requestedPath = path.resolve(docPath)
+  if (!fs.existsSync(requestedPath)) throw new Error(`No such document: ${requestedPath}`)
+  const canonicalPath = fs.realpathSync(requestedPath)
   const raw = fs.readFileSync(canonicalPath, 'utf8')
   const m = FRONTMATTER_RE.exec(raw)
   const frontmatter = m ? ((parseYaml(m[1]) ?? {}) as Record<string, unknown>) : {}
@@ -124,7 +149,7 @@ export const loadDoc = (docPath: string): Doc => {
   const historyRel = typeof frontmatter['History Folder'] === 'string'
     ? (frontmatter['History Folder'] as string)
     : path.join('.history', name)
-  const historyDir = path.resolve(path.dirname(canonicalPath), historyRel)
+  const historyDir = resolveContainedPath(path.dirname(canonicalPath), historyRel, 'History Folder')
   return { canonicalPath, name, historyDir, frontmatter, body, raw }
 }
 
@@ -316,9 +341,15 @@ export const addReply = (docPath: string, id: string, input: { text: string; aut
 
 export const readRevision = (docPath: string, rev: string): string => {
   const doc = loadDoc(docPath)
-  const file = path.join(doc.historyDir, `${rev}.md`)
+  if (!/^r\d{3,}$/.test(rev)) throw new Error(`Invalid revision ${JSON.stringify(rev)} — expected rNNN`)
+  const meta = readMeta(doc.historyDir)
+  if (!meta.revisions.some((entry) => entry.id === rev)) throw new Error(`No revision ${rev} for ${doc.name}`)
+  const file = resolveContainedPath(doc.historyDir, `${rev}.md`, 'Revision path')
   if (!fs.existsSync(file)) throw new Error(`No revision ${rev} for ${doc.name} (looked at ${file})`)
-  return fs.readFileSync(file, 'utf8')
+  const realFile = fs.realpathSync(file)
+  const realHistory = fs.realpathSync(doc.historyDir)
+  if (!isPathInside(realHistory, realFile)) throw new Error(`Revision ${rev} escapes its history directory`)
+  return fs.readFileSync(realFile, 'utf8')
 }
 
 /** Restore an earlier revision's body as a new revision (history stays append-only). */

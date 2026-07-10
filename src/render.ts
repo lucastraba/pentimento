@@ -1,7 +1,9 @@
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import MarkdownIt from 'markdown-it'
+import sanitizeHtml from 'sanitize-html'
 import { parse as parseYaml } from 'yaml'
 import { readUserConfig } from './config.js'
 import { loadDoc, readMeta, readRevision, slugify, splitRaw, type Doc, type Meta } from './core.js'
@@ -12,9 +14,8 @@ import {
 
 const ASSETS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../assets')
 
-const md: MarkdownIt = new MarkdownIt({ html: true, linkify: false, typographer: false })
-// reader comments are untrusted (they arrive over HTTP via the viewer) — html:false makes
-// markdown-it escape raw HTML and reject javascript: links, unlike the regex sanitize()
+const md: MarkdownIt = new MarkdownIt({ html: false, linkify: false, typographer: false })
+// Reader comments arrive over HTTP. Both renderers reject raw HTML and javascript: links.
 const mdUntrusted: MarkdownIt = new MarkdownIt({ html: false, linkify: false, typographer: false })
 
 // every table scrolls inside its own container; the page never scrolls sideways
@@ -40,6 +41,19 @@ export const FAVICON = `data:image/svg+xml,${encodeURIComponent(
 
 export const FAVICON_TAG = `<link rel="icon" type="image/svg+xml" href="${FAVICON}">`
 
+const scriptHash = (source: string): string => `'sha256-${crypto.createHash('sha256').update(source).digest('base64')}'`
+
+/** Add a deterministic CSP whose hashes cover only the scripts already present in the page. */
+export const secureHtml = (html: string): string => {
+  const clean = html.replace(/<meta http-equiv="Content-Security-Policy"[^>]*>\n?/i, '')
+  const hashes = [...clean.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)]
+    .map((match) => scriptHash(match[1]))
+  const scripts = hashes.length ? [...new Set(hashes)].join(' ') : "'none'"
+  const policy = `default-src 'none'; style-src 'unsafe-inline'; script-src ${scripts}; img-src data:; connect-src 'self'; base-uri 'none'; form-action 'none'`
+  const meta = `<meta http-equiv="Content-Security-Policy" content="${policy}">`
+  return clean.replace(/(<meta name="viewport"[^>]*>)/i, `$1\n${meta}`)
+}
+
 /** Re-apply the reader's stored palette/scheme before first paint on pages without doc frontmatter (index, diff). */
 export const RESTORE_SNIPPET = themeInitSnippet()
 
@@ -47,13 +61,49 @@ export const RESTORE_SNIPPET = themeInitSnippet()
 export const renderStylesheet = (): string =>
   `${fs.readFileSync(path.join(ASSETS, 'theme.css'), 'utf8')}\n${themeCss()}`
 
-/** Strip active content from agent-supplied HTML/SVG (defense in depth; not a full sanitizer). */
-const sanitize = (html: string): string =>
-  html
-    .replace(/<\s*(script|iframe|object|embed|foreignObject)\b[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
-    .replace(/<\s*(script|iframe|object|embed|foreignObject)\b[^>]*\/?>/gi, '')
-    .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-    .replace(/(href|src|xlink:href)\s*=\s*(["'])\s*javascript:[^"']*\2/gi, '$1=$2#$2')
+const SVG_TAGS = ['svg', 'g', 'defs', 'marker', 'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'text', 'tspan', 'title', 'desc']
+const SVG_ATTRIBUTES = [
+  'xmlns', 'viewBox', 'width', 'height', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'r', 'rx', 'ry',
+  'd', 'points', 'transform', 'text-anchor', 'dominant-baseline', 'class', 'id', 'role', 'aria-label',
+  'aria-hidden', 'focusable', 'marker-end', 'marker-start', 'markerWidth', 'markerHeight', 'markerUnits',
+  'orient', 'refX', 'refY', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin',
+  'preserveAspectRatio',
+]
+
+const sanitizeFigureSvg = (source: string): string => {
+  const cleaned = sanitizeHtml(source, {
+    allowedTags: SVG_TAGS,
+    allowedAttributes: { '*': SVG_ATTRIBUTES },
+    allowedClasses: { '*': ['nodebox', 'accentbox', 'flow', 'lbl'] },
+    allowedSchemes: [],
+    allowProtocolRelative: false,
+    disallowedTagsMode: 'completelyDiscard',
+    parser: { lowerCaseTags: false, lowerCaseAttributeNames: false },
+    transformTags: {
+      '*': (tagName, attribs) => {
+        const safe = { ...attribs }
+        if (safe.id && !/^[A-Za-z][\w-]*$/.test(safe.id)) delete safe.id
+        for (const name of ['marker-end', 'marker-start']) {
+          if (safe[name] && !/^url\(#[A-Za-z][\w-]*\)$/.test(safe[name])) delete safe[name]
+        }
+        for (const name of ['fill', 'stroke']) {
+          if (safe[name] && !/^(?:none|currentColor|var\(--[a-z0-9-]+\))$/.test(safe[name])) delete safe[name]
+        }
+        if (safe.xmlns && safe.xmlns !== 'http://www.w3.org/2000/svg') delete safe.xmlns
+        return { tagName, attribs: safe }
+      },
+    },
+  }).trim()
+  if (!/^<svg\b[\s\S]*<\/svg>$/.test(cleaned)) throw new Error('figure must contain one allowlisted <svg> root')
+  return cleaned
+}
+
+const DOT_PREFIX = '\uE000PENTIMENTO-DOT-'
+const DOT_SUFFIX = '\uE001'
+const renderDots = (html: string): string =>
+  html.replace(new RegExp(`${DOT_PREFIX}([\\w-]+)${DOT_SUFFIX}`, 'g'), '<span class="dot dot-$1"></span>')
+const renderMarkdown = (source: string): string => renderDots(md.render(source))
+const renderInline = (source: string): string => renderDots(md.renderInline(source))
 
 const plainText = (s: string): string => s.replace(/[`*_]/g, '')
 
@@ -78,7 +128,7 @@ const CALLOUT_LABELS: Record<string, string> = {
 const renderCallout: Handler = (content, attrs, kind) => {
   const label = CALLOUT_LABELS[kind] ?? 'Note'
   const id = attrs.id ? ` id="${escapeHtml(attrs.id)}"` : ''
-  return `<div class="callout ${kind}"${id}><span class="label">${label}</span>${md.render(content)}</div>`
+  return `<div class="callout ${kind}"${id}><span class="label">${label}</span>${renderMarkdown(content)}</div>`
 }
 
 const renderVerdict: Handler = (content) => {
@@ -86,7 +136,7 @@ const renderVerdict: Handler = (content) => {
     .split('\n')
     .map((l) => /^-\s+(.+?)\s+::\s+(.+)$/.exec(l.trim()))
     .filter((m): m is RegExpExecArray => m !== null)
-    .map(([, q, a]) => `<div><span class="q">${md.renderInline(q)}</span><span class="a">${md.renderInline(a)}</span></div>`)
+    .map(([, q, a]) => `<div><span class="q">${renderInline(q)}</span><span class="a">${renderInline(a)}</span></div>`)
   return `<div class="verdict">${cells.join('')}</div>`
 }
 
@@ -105,7 +155,7 @@ const renderFindings: Handler = (content) => {
     const m = /^-\s+(CRIT|HIGH|MED|LOW)\s+::\s+(.+)$/.exec(t)
     if (!m) continue
     counts[m[1]]++
-    const html = `<div class="finding"><span class="sev ${SEV_CLASS[m[1]]}">${m[1]}</span><div>${md.renderInline(m[2])}</div></div>`
+    const html = `<div class="finding"><span class="sev ${SEV_CLASS[m[1]]}">${m[1]}</span><div>${renderInline(m[2])}</div></div>`
     ;(collapseLabel ? collapsed : open).push(html)
   }
   // computed severity strip — the reader sees the shape before reading a single finding
@@ -138,9 +188,9 @@ const renderTimeline: Handler = (content) => {
     const m = /^\*\*(.+?)\*\*(?:\s+\[(next|later|done)\])?(?:\s+—\s+([\s\S]+))?$/.exec(item)
     const status = m?.[2]
     if (status && status in counts) counts[status as keyof typeof counts]++
-    const title = m ? md.renderInline(m[1]) : md.renderInline(item)
+    const title = m ? renderInline(m[1]) : renderInline(item)
     const pill = status ? ` <span class="pill${status === 'next' ? '' : ` ${status}`}">${status}</span>` : ''
-    const desc = m?.[3] ? `<p>${md.renderInline(m[3])}</p>` : ''
+    const desc = m?.[3] ? `<p>${renderInline(m[3])}</p>` : ''
     const phCls = status === 'done' ? 'ph ph-done' : 'ph'
     return `<li><span class="${phCls}">${i + 1}</span><div><h3>${title}${pill}</h3>${desc}</div></li>`
   })
@@ -181,7 +231,7 @@ const renderDiff: Handler = (content, attrs) => {
 const renderFigure: Handler = (content, attrs) => {
   const aria = attrs.aria ? ` role="img" aria-label="${escapeHtml(attrs.aria)}"` : ''
   const caption = attrs.aria ? `<figcaption>${escapeHtml(attrs.aria)}</figcaption>` : ''
-  return `<figure class="diagram"${aria}>${sanitize(content)}${caption}</figure>`
+  return `<figure class="diagram"${aria}>${sanitizeFigureSvg(content)}${caption}</figure>`
 }
 
 const HANDLERS: Record<string, Handler> = {
@@ -191,8 +241,8 @@ const HANDLERS: Record<string, Handler> = {
   timeline: renderTimeline,
   diff: renderDiff,
   figure: renderFigure,
-  compare: (content) => md.render(content),
-  files: (content) => md.render(content),
+  compare: (content) => renderMarkdown(content),
+  files: (content) => renderMarkdown(content),
 }
 
 // ---------------------------------------------------------------------------
@@ -216,6 +266,8 @@ interface Prepared {
 }
 
 const HEADING_META_RE = /\s*<!--\s*([^>]*?)\s*-->\s*$/
+const BLOCK_MARKER_RE = /^\uE000PENTIMENTO-BLOCK-(\d+)\uE001$/
+const HEADING_MARKER_RE = /^\uE000PENTIMENTO-HEADING-(\d+)\uE001$/
 
 const parseHeadingMeta = (comment: string): { id?: string; eyebrow?: string } => {
   const out: { id?: string; eyebrow?: string } = {}
@@ -227,13 +279,14 @@ const parseHeadingMeta = (comment: string): { id?: string; eyebrow?: string } =>
 }
 
 const prepare = (body: string): Prepared => {
-  const swapped = body.replace(/\{dot:([\w-]+)\}/g, '<span class="dot dot-$1"></span>')
+  const swapped = body.replace(/\{dot:([\w-]+)\}/g, (_match, name: string) => `${DOT_PREFIX}${name}${DOT_SUFFIX}`)
   const lines = swapped.split('\n')
   const blocks: string[] = []
   const headings: HeadingInfo[] = []
   let title = ''
   const standfirstLines: string[] = []
   const out: string[] = []
+  const usedIds = new Set<string>()
   let inFence = false
   let i = 0
   while (i < lines.length) {
@@ -270,7 +323,7 @@ const prepare = (body: string): Prepared => {
           rest = rest.slice(vm[0].length)
         }
         blocks.push(HANDLERS[open[1]](contentLines.join('\n').trim(), parseAttrs(rest), variant))
-        out.push('', `<!--PENTIMENTO-BLOCK-${blocks.length - 1}-->`, '')
+        out.push('', `\uE000PENTIMENTO-BLOCK-${blocks.length - 1}\uE001`, '')
         continue
       }
       const h = /^(#{2,3})\s+(.+)$/.exec(line)
@@ -279,14 +332,19 @@ const prepare = (body: string): Prepared => {
         let meta: { id?: string; eyebrow?: string } = {}
         const c = HEADING_META_RE.exec(text)
         if (c) { meta = parseHeadingMeta(c[1]); text = text.replace(HEADING_META_RE, '') }
+        const requestedId = slugify(meta.id ?? text) || `section-${headings.length + 1}`
+        let id = requestedId
+        let suffix = 2
+        while (usedIds.has(id)) id = `${requestedId}-${suffix++}`
+        usedIds.add(id)
         const info: HeadingInfo = {
           level: h[1].length as 2 | 3,
           title: text.trim(),
-          id: meta.id ?? slugify(text),
+          id,
           eyebrow: meta.eyebrow,
         }
         headings.push(info)
-        out.push(`<!--PENTIMENTO-H-${headings.length - 1}-->`)
+        out.push(`\uE000PENTIMENTO-HEADING-${headings.length - 1}\uE001`)
         i++
         continue
       }
@@ -300,7 +358,7 @@ const prepare = (body: string): Prepared => {
   const preamble: string[] = []
   let bucket = preamble
   for (const line of out) {
-    const hm = /^<!--PENTIMENTO-H-(\d+)-->$/.exec(line)
+    const hm = HEADING_MARKER_RE.exec(line)
     if (hm && headings[Number(hm[1])].level === 2) {
       sections.push({ heading: headings[Number(hm[1])], bodyLines: [] })
       bucket = sections[sections.length - 1].bodyLines
@@ -312,16 +370,31 @@ const prepare = (body: string): Prepared => {
 }
 
 const anchor = (id: string): string =>
-  `<a class="anch" href="#${id}" aria-label="Link to this section">#</a>`
+  `<a class="anch" href="#${escapeHtml(id)}" aria-label="Link to this section">#</a>`
 
 const renderSectionBody = (prepared: Prepared, bodyLines: string[]): string => {
-  let html = md.render(bodyLines.join('\n'))
-  html = html.replace(/<!--PENTIMENTO-H-(\d+)-->/g, (_, n) => {
-    const h = prepared.headings[Number(n)]
-    return `<h3 id="${h.id}">${md.renderInline(h.title)}${anchor(h.id)}</h3>`
-  })
-  html = html.replace(/<!--PENTIMENTO-BLOCK-(\d+)-->/g, (_, n) => prepared.blocks[Number(n)])
-  return sanitize(html)
+  const out: string[] = []
+  let markdown: string[] = []
+  const flush = () => {
+    if (markdown.length) out.push(renderMarkdown(markdown.join('\n')))
+    markdown = []
+  }
+  for (const line of bodyLines) {
+    const heading = HEADING_MARKER_RE.exec(line)
+    const block = BLOCK_MARKER_RE.exec(line)
+    if (heading) {
+      flush()
+      const h = prepared.headings[Number(heading[1])]
+      out.push(`<h3 id="${escapeHtml(h.id)}">${renderInline(h.title)}${anchor(h.id)}</h3>`)
+    } else if (block) {
+      flush()
+      out.push(prepared.blocks[Number(block[1])])
+    } else {
+      markdown.push(line)
+    }
+  }
+  flush()
+  return out.join('\n')
 }
 
 const ARCHETYPES: Record<string, string> = {
@@ -359,7 +432,7 @@ const chrome = (doc: Doc, meta: Meta, prepared: Prepared, opts: RenderOptions): 
     : isPalette(userPalette) ? userPalette
     : DEFAULT_PALETTE
 
-  const inline = (s: string): string => sanitize(md.renderInline(s))
+  const inline = (s: string): string => renderInline(s)
 
   const evolution = [...meta.revisions].reverse().slice(0, 4).map((r) =>
     `<div class="evolution"><span class="rev">${escapeHtml(r.id)}</span>` +
@@ -381,20 +454,19 @@ const chrome = (doc: Doc, meta: Meta, prepared: Prepared, opts: RenderOptions): 
   if (meta.revisions.length >= 2) {
     const prev = meta.revisions[meta.revisions.length - 2]
     const latest = meta.revisions[meta.revisions.length - 1]
-    const prevFile = path.join(doc.historyDir, `${prev.id}.md`)
-    if (fs.existsSync(prevFile)) {
-      const prevBody = splitRaw(fs.readFileSync(prevFile, 'utf8')).body
+    try {
+      const prevBody = splitRaw(readRevision(doc.canonicalPath, prev.id)).body
       changes = `\n  <details class="changes"><summary>What changed in ${escapeHtml(latest.id)} (vs ${escapeHtml(prev.id)})</summary><div class="rdiff">${renderDiffHtml(prevBody, doc.body)}</div></details>`
-    }
+    } catch { /* verify reports missing or invalid history; rendering stays available */ }
   }
 
   const toc = prepared.sections.map((s, i) =>
-    `<li><a href="#${s.heading.id}"><span class="n">${String(i + 1).padStart(2, '0')}</span>` +
+    `<li><a href="#${escapeHtml(s.heading.id)}"><span class="n">${String(i + 1).padStart(2, '0')}</span>` +
     `${escapeHtml(plainText(s.heading.title))}</a></li>`).join('\n      ')
 
   const sections = prepared.sections.map((s) => {
     const eyebrow = s.heading.eyebrow ? `<span class="eyebrow">${escapeHtml(s.heading.eyebrow)}</span>\n  ` : ''
-    return `<section>\n  ${eyebrow}<h2 id="${s.heading.id}">${md.renderInline(s.heading.title)}${anchor(s.heading.id)}</h2>\n` +
+    return `<section>\n  ${eyebrow}<h2 id="${escapeHtml(s.heading.id)}">${renderInline(s.heading.title)}${anchor(s.heading.id)}</h2>\n` +
       renderSectionBody(prepared, s.bodyLines) + '\n</section>'
   }).join('\n\n')
 
@@ -445,7 +517,7 @@ ${js}</script>
 
   if (opts.artifact) return `<title>${title}</title>\n<style>\n${css}</style>\n\n${body}`
 
-  return `<!doctype html>
+  return secureHtml(`<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -458,7 +530,7 @@ ${css}</style>
 <body>
 ${body}</body>
 </html>
-`
+`)
 }
 
 export const render = (docPath: string, opts: RenderOptions = {}): string => {
@@ -506,7 +578,7 @@ export const renderDiffPage = (docPath: string, a: string, b: string): string =>
     rev === 'canonical' ? doc.body : splitRaw(readRevision(docPath, rev)).body
   const rdiff = renderDiffHtml(bodyOf(a), bodyOf(b))
   const title = `${doc.name}: ${a} → ${b}`
-  return `<!doctype html>
+  return secureHtml(`<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -537,5 +609,5 @@ ${RESTORE_SNIPPET}
 <script>${js}</script>
 </body>
 </html>
-`
+`)
 }

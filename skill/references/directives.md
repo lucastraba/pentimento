@@ -75,7 +75,7 @@ Write a plain unified diff (` ` context, `-` removed, `+` added) inside a `txt` 
 
 ## Figure (diagrams)
 
-Inline SVG only, composed from `theme.css` classes: `nodebox` (plain node), `accentbox` (highlighted node), `flow` (arrow path; add `marker-end="url(#arr)"` and define the `arr` marker in `<defs>`), `lbl` (small caption text). Colors come from CSS variables — never hardcode fills beyond those classes. Always set `aria`.
+Inline SVG only, composed from `theme.css` classes: `nodebox` (plain node), `accentbox` (highlighted node), `flow` (arrow path; add `marker-end="url(#arr)"` and define the `arr` marker in `<defs>`), `lbl` (small caption text). The renderer keeps only its SVG tag, attribute, and class allowlists; scripts, event handlers, links, foreign objects, and inline styles are removed. Colors come from CSS variables — never hardcode fills beyond those classes. Always set `aria`.
 
 ```markdown
 ::: figure aria="PLAN.md flows through the pentimento CLI to plan.html"
