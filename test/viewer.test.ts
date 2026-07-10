@@ -1,4 +1,6 @@
+import { once } from 'node:events'
 import fs from 'node:fs'
+import type { AddressInfo } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -48,6 +50,41 @@ describe('viewer', () => {
     })
     expect(response.status).toBe(202)
     expect(onShutdown).toHaveBeenCalledOnce()
+  })
+
+  it('flushes the shutdown response, closes SSE, and leaves peer servers running', async () => {
+    const server = serveViewer(dir, { host: '127.0.0.1', port: 0 })
+    const peer = serveViewer(dir, { host: '127.0.0.1', port: 0 })
+    const waitForPort = async (target: typeof server): Promise<number> => {
+      if (!target.listening) await once(target, 'listening')
+      return (target.address() as AddressInfo).port
+    }
+    const serverPort = await waitForPort(server)
+    const peerPort = await waitForPort(peer)
+    const stop = async (target: typeof server, port: number): Promise<void> => {
+      if (!target.listening) return
+      const closed = once(target, 'close')
+      await fetch(`http://127.0.0.1:${port}/api/shutdown`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+      })
+      await closed
+    }
+    try {
+      const sse = await fetch(`http://127.0.0.1:${serverPort}/__events`)
+      expect(sse.status).toBe(200)
+      const closed = once(server, 'close')
+      const response = await fetch(`http://127.0.0.1:${serverPort}/api/shutdown`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+      })
+      expect(response.status).toBe(202)
+      expect(await response.json()).toEqual({ stopping: true })
+      await closed
+      expect(peer.listening).toBe(true)
+      expect((await fetch(`http://127.0.0.1:${peerPort}/`)).status).toBe(200)
+    } finally {
+      await stop(server, serverPort)
+      await stop(peer, peerPort)
+    }
   })
 
   it('lists documents on the index with badge and revision', async () => {

@@ -445,7 +445,7 @@ export const isLoopbackHost = (host: string): boolean =>
 export const viewerOrigin = (host: string, port: number): string =>
   `http://${host.includes(':') ? `[${host}]` : host}:${port}`
 
-export const serveViewer = (root: string, { host, port, author, writeToken }: ServeOptions): void => {
+export const serveViewer = (root: string, { host, port, author, writeToken }: ServeOptions): HttpServer => {
   if (!host.trim() || host === '0.0.0.0' || host === '::' || host === '*') {
     throw new Error('refusing to bind all interfaces — use 127.0.0.1 or a Tailscale IP (--tailscale)')
   }
@@ -491,4 +491,5 @@ export const serveViewer = (root: string, { host, port, author, writeToken }: Se
   })
 
   server = serve({ fetch: app.fetch, hostname: host, port }) as HttpServer
+  return server
 }
