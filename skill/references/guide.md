@@ -16,12 +16,12 @@ cached instructions. Deep topics have their own pages: `pentimento guide directi
    ```yaml
    ---
    Archetype: implementation
-   Palette: iris        # optional: verdigris | mist | iris
+   Palette: iris        # optional: verdigris | mist | iris | parchment | fjord | contrast
    ---
    ```
    Palette precedence: this frontmatter field wins; if omitted, the `PENTIMENTO_PALETTE`
-   env var sets the default (a team can `export PENTIMENTO_PALETTE=verdigris` once); if
-   neither is set, the default is `iris`. Readers can still switch palette in the viewer.
+   env var sets the team default, followed by the user's `pentimento config theme` setting,
+   then built-in Verdigris. Readers can still switch palette in the viewer.
    Structure: `# Title`, then a `> standfirst` blockquote, then `##` sections. Add
    `<!-- id: short-id; eyebrow: Section Label -->` at the end of `##` heading lines.
 3. Lint, then snapshot — the snapshot note drafts the decision log the reader sees at
@@ -30,8 +30,9 @@ cached instructions. Deep topics have their own pages: `pentimento guide directi
    pentimento lint <Name>.md        # fix the style warnings it prints, then:
    pentimento snapshot <Name>.md --summary "what changed" --why "why" --author <who>
    ```
-4. Serve the plan (default): run `pentimento serve .` in the background and give the user
-   the printed URL. The viewer is interactive and agent-agnostic: document index, revision
+4. Serve the plan (default): run `pentimento serve .` as a tracked background process, verify
+   that the printed URL responds, and give the URL to the user. Keep the server running for
+   the feedback loop. The viewer is interactive and agent-agnostic: document index, revision
    picker, diff pages, select-to-comment with a comments drawer, and in-place live updates
    (edits appear without a reload). Add `--tailscale` to share it beyond localhost. Prefer
    this over publishing a static file.
@@ -104,7 +105,7 @@ before any feedback round):
    `pentimento reply <Name>.md <comment-id> --text "..."` (or close with a note via
    `resolve --note "..."`). Replies show on the reader's comment card in the viewer.
    Leave genuinely unresolved ones open and say why.
-5. Re-render and republish.
+5. The running viewer updates on its own. Re-render only if you chose the static HTML path.
 
 You can also leave inline notes in the markdown as `%% @c: a note %%` — snapshot extracts
 them into meta.yml anchored to the nearest heading (useful for flagging open questions to

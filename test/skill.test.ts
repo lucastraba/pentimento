@@ -29,6 +29,13 @@ describe('guide', () => {
     expect(guide).toContain('pentimento guide style')
   })
 
+  it('makes the live viewer the default plan handoff', () => {
+    expect(bundledShim()).toContain('Serve the plan after the first snapshot')
+    expect(bundledShim()).toContain('tracked background process')
+    expect(readGuide()).toContain('Serve the plan (default)')
+    expect(readGuide()).toContain('give the URL to the user')
+  })
+
   it('rejects unknown topics with the available list', () => {
     expect(() => readGuide('nope')).toThrow(/unknown guide topic/)
   })
