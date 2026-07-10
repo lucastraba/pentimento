@@ -48,6 +48,15 @@ describe('render', () => {
     expect(html).toContain('Rendered by <code>pentimento render</code>')
   })
 
+  it('labels unsnapshotted canonical changes as a draft after the saved revision', () => {
+    const p = doc('# Plan\n\n## Section\n\nSaved body.\n')
+    fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace('Saved body.', 'Unsaved draft body.'))
+    const html = render(p)
+    expect(html).toContain('<span class="chip">Draft after r001</span>')
+    expect(html).toContain('Draft changes after r001')
+    expect(html).not.toContain('What changed in r001')
+  })
+
   it('renders callouts, verdicts, findings, timeline', () => {
     const p = doc(`# T
 

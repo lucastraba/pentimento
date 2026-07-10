@@ -489,6 +489,21 @@ export const readRevision = (docPath: string, rev: string): string => {
   return fs.readFileSync(realFile, 'utf8')
 }
 
+export interface CanonicalRevisionState {
+  latest: string | null
+  dirty: boolean
+  label: string
+}
+
+/** Describe whether the canonical body still matches its latest saved revision. */
+export const canonicalRevisionState = (doc: Doc, meta: Meta): CanonicalRevisionState => {
+  const latest = meta.revisions[meta.revisions.length - 1]?.id ?? null
+  if (!latest) return { latest: null, dirty: true, label: 'Draft' }
+  const savedBody = splitRaw(readRevision(doc.canonicalPath, latest)).body
+  const dirty = savedBody.trim() !== doc.body.trim()
+  return { latest, dirty, label: dirty ? `Draft after ${latest}` : latest }
+}
+
 /** Restore an earlier revision's body as a new revision (history stays append-only). */
 export const revert = (docPath: string, rev: string, author?: string): SnapshotResult => {
   const target = readRevision(docPath, rev)

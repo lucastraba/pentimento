@@ -8,7 +8,7 @@ import { Hono, type Context } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { getCookie, setCookie } from 'hono/cookie'
 import {
-  addComment, addReply, deleteComment, isPathInside, loadDoc, readMeta, reopenComment,
+  addComment, addReply, canonicalRevisionState, deleteComment, isPathInside, loadDoc, readMeta, reopenComment,
   resolveComment, resolveContainedPath, type Meta,
 } from './core.js'
 import {
@@ -63,16 +63,24 @@ const STOP_SNIPPET = `<script>(() => {
 // listens to the same stream and patches or morphs instead of reloading.
 const SSE_SNIPPET = `<script>new EventSource('/__events').onmessage = () => location.reload()</script>`
 
-const viewerBar = (rel: string, meta: Meta, current: string | null, canComment = true, canStop = false): string => {
+const viewerBar = (
+  rel: string,
+  meta: Meta,
+  current: string | null,
+  canonicalLabel: string,
+  canonicalDirty: boolean,
+  canComment = true,
+  canStop = false,
+): string => {
   const latest = meta.revisions[meta.revisions.length - 1]?.id ?? null
   const selected = current ?? 'canonical'
   const options = [
-    `<option value="canonical"${selected === 'canonical' ? ' selected' : ''}>canonical (now)</option>`,
+    `<option value="canonical"${selected === 'canonical' ? ' selected' : ''}>${escapeHtml(canonicalLabel)} (now)</option>`,
     ...[...meta.revisions].reverse().map((r) =>
       `<option value="${r.id}"${selected === r.id ? ' selected' : ''}>${r.id} · ${escapeHtml(r.summary.slice(0, 48))}</option>`),
   ].join('')
   const idx = current ? meta.revisions.findIndex((r) => r.id === current) : meta.revisions.length - 1
-  const prev = idx > 0 ? meta.revisions[idx - 1].id : null
+  const prev = !current && canonicalDirty ? latest : idx > 0 ? meta.revisions[idx - 1].id : null
   const diffTo = current ?? 'canonical'
   const diffLink = prev
     ? `<a href="/diff/${encodeURI(rel)}?a=${prev}&amp;b=${diffTo}">diff vs ${prev}</a>`
@@ -84,7 +92,7 @@ const viewerBar = (rel: string, meta: Meta, current: string | null, canComment =
   return `<div class="vbar-pad"></div>
 <nav class="vbar">
   <a href="/">◂ documents</a>
-  <span class="vbar-name">${escapeHtml(rel)}${latest ? ` · ${latest}` : ''}</span>
+  <span class="vbar-name">${escapeHtml(rel)} · ${escapeHtml(current ?? canonicalLabel)}</span>
   <select id="vrev" aria-label="Revision">${options}</select>
   ${diffLink}
   ${note}
@@ -102,13 +110,14 @@ const indexPage = (root: string, canStop = false): string => {
       let meta: Meta = { revisions: [], comments: [] }
       try { meta = readMeta(doc.historyDir) } catch { /* show the doc anyway */ }
       const latest = meta.revisions[meta.revisions.length - 1]
+      const revisionState = canonicalRevisionState(doc, meta)
       const rel = path.relative(root, p).split(path.sep).join('/')
       const archetype = String(doc.frontmatter['Archetype'] ?? 'design-doc')
       return {
         rel,
         name: doc.name,
         archetype,
-        rev: String(doc.frontmatter['Current Revision'] ?? '—'),
+        rev: revisionState.label,
         summary: latest?.summary ?? '',
         date: latest?.created_at?.slice(0, 10) ?? '',
         open: meta.comments.filter((c) => c.status === 'open').length,
@@ -277,7 +286,9 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
     } catch (e) {
       return c.text(e instanceof Error ? e.message : String(e), 500)
     }
-    const meta = readMeta(loadDoc(abs).historyDir)
+    const doc = loadDoc(abs)
+    const meta = readMeta(doc.historyDir)
+    const revisionState = canonicalRevisionState(doc, meta)
     const canComment = !rev && canWrite(c)
     const stoppable = canStop(c)
     const cfg = {
@@ -289,7 +300,7 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
       revisions: meta.revisions.map((r) => r.id),
     }
     const cfgScript = `<script>window.__pentimento=${JSON.stringify(cfg).replace(/</g, '\\u003c')}</script>\n<script>\n${viewerJs}</script>`
-    return htmlResponse(c, html.replace('</body>', `${viewerBar(rel, meta, rev, canComment, stoppable)}\n${cfgScript}\n${stoppable ? STOP_SNIPPET : ''}\n</body>`))
+    return htmlResponse(c, html.replace('</body>', `${viewerBar(rel, meta, rev, revisionState.label, revisionState.dirty, canComment, stoppable)}\n${cfgScript}\n${stoppable ? STOP_SNIPPET : ''}\n</body>`))
   })
 
   app.get('/api/comments', (c) => {

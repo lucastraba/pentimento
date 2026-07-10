@@ -123,6 +123,20 @@ describe('viewer', () => {
     expect(res.headers.get('x-content-type-options')).toBe('nosniff')
   })
 
+  it('carries draft state through the index, document bar, and diff target', async () => {
+    const file = path.join(dir, 'My Plan.md')
+    fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('second version', 'unsaved draft'))
+    const index = await (await app.request('/')).text()
+    expect(index).toContain('Draft after r002')
+    const html = await (await app.request('/doc/My%20Plan.md')).text()
+    expect(html).toContain('Draft after r002 (now)')
+    expect(html).toContain('My Plan.md · Draft after r002')
+    expect(html).toContain('/diff/My%20Plan.md?a=r002&amp;b=canonical')
+    const historical = await (await app.request('/doc/My%20Plan.md?rev=r001')).text()
+    expect(historical).toContain('<span class="chip">r001</span>')
+    expect(historical).toContain('My Plan.md · r001')
+  })
+
   it('serves an old revision via ?rev=', async () => {
     const res = await app.request('/doc/My%20Plan.md?rev=r001')
     const html = await res.text()

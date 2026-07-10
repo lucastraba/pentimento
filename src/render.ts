@@ -6,7 +6,9 @@ import MarkdownIt from 'markdown-it'
 import sanitizeHtml from 'sanitize-html'
 import { parse as parseYaml } from 'yaml'
 import { readUserConfig } from './config.js'
-import { loadDoc, readMeta, readRevision, slugify, splitRaw, type Doc, type Meta } from './core.js'
+import {
+  canonicalRevisionState, loadDoc, readMeta, readRevision, slugify, splitRaw, type Doc, type Meta,
+} from './core.js'
 import { renderDiffHtml } from './semdiff.js'
 import {
   DEFAULT_PALETTE, isPalette, themeCss, themeInitSnippet, themePicker,
@@ -430,8 +432,9 @@ const chrome = (doc: Doc, meta: Meta, prepared: Prepared, opts: RenderOptions): 
   const js = fs.readFileSync(path.join(ASSETS, 'chrome.js'), 'utf8')
   const archetype = String(doc.frontmatter['Archetype'] ?? 'design-doc')
   const badge = ARCHETYPES[archetype] ?? archetype
-  const rev = String(doc.frontmatter['Current Revision'] ?? '—')
   const latest = meta.revisions[meta.revisions.length - 1]
+  const revisionState = canonicalRevisionState(doc, meta)
+  const rev = revisionState.label
   const date = latest ? latest.created_at.slice(0, 10) : ''
   const pathLabel = doc.canonicalPath.split(path.sep).slice(-3).join('/')
   const historyRel = String(doc.frontmatter['History Folder'] ?? `.history/${doc.name}`)
@@ -465,7 +468,12 @@ const chrome = (doc: Doc, meta: Meta, prepared: Prepared, opts: RenderOptions): 
 
   // what changed since the previous revision — so a reader never has to ask the agent
   let changes = ''
-  if (meta.revisions.length >= 2) {
+  if (revisionState.dirty && revisionState.latest) {
+    try {
+      const savedBody = splitRaw(readRevision(doc.canonicalPath, revisionState.latest)).body
+      changes = `\n  <details class="changes"><summary>Draft changes after ${escapeHtml(revisionState.latest)}</summary><div class="rdiff">${renderDiffHtml(savedBody, doc.body)}</div></details>`
+    } catch { /* verify reports missing or invalid history; rendering stays available */ }
+  } else if (meta.revisions.length >= 2) {
     const prev = meta.revisions[meta.revisions.length - 2]
     const latest = meta.revisions[meta.revisions.length - 1]
     try {
