@@ -1,4 +1,8 @@
-# Pentimento
+<p align="center">
+  <img src="assets/logo.svg" alt="Pentimento logo" width="112" height="112">
+</p>
+
+<h1 align="center">Pentimento</h1>
 
 Pentimento keeps a document as plain markdown, saves a hidden history of the versions you choose to keep, and renders it to one HTML page whose look you don't control. A pentimento is a trace of earlier brushwork visible under the surface of a painting.
 
