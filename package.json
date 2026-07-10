@@ -1,6 +1,6 @@
 {
   "name": "pentimento",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Living documents: one canonical markdown file, hidden revision history, deterministic HTML rendering",
   "license": "MIT",
   "author": "Lucas Traba",
@@ -28,7 +28,8 @@
   "files": [
     "dist",
     "assets",
-    "skill"
+    "skill",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "tsc",
@@ -37,18 +38,21 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.0.8",
-    "diff": "^7.0.0",
+    "diff": "^9.0.0",
     "hono": "^4.12.27",
     "markdown-it": "^14.1.0",
     "sanitize-html": "^2.17.5",
     "yaml": "^2.5.0"
   },
   "devDependencies": {
-    "@types/diff": "^6.0.0",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^22.0.0",
     "@types/sanitize-html": "^2.16.1",
     "typescript": "^5.6.0",
-    "vitest": "^2.1.0"
-  }
+    "vitest": "^4.1.10"
+  },
+  "bugs": {
+    "url": "https://github.com/lucastraba/pentimento/issues"
+  },
+  "homepage": "https://github.com/lucastraba/pentimento#readme"
 }

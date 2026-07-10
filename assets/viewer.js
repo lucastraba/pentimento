@@ -192,7 +192,7 @@
   }
 
   // --- drawer ---------------------------------------------------------------
-  const drawer = el('aside', 'vc-drawer')
+  const drawer = el('div', 'vc-drawer')
   drawer.id = 'vc-drawer'
   drawer.setAttribute('role', 'dialog')
   drawer.setAttribute('aria-label', 'Comments')
