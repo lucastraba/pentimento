@@ -5,6 +5,11 @@ printed by `pentimento guide`, so it always matches the installed CLI — follow
 cached instructions. Deep topics have their own pages: `pentimento guide directives`,
 `pentimento guide archetypes`, and `pentimento guide style`.
 
+Pentimento assumes one user and one canonical document. In the agent loop, comments are
+that user's revision instructions to the agent, not a conversation among reviewers. When
+the agent runs on a VPS, `--tailscale` lets the same user open the viewer from another
+trusted device; it does not create a shared workspace.
+
 ## The loop
 
 1. Research and think as normal (in plan mode if active). Decide the archetype:
@@ -34,8 +39,9 @@ cached instructions. Deep topics have their own pages: `pentimento guide directi
    that the printed URL responds, and give the URL to the user. Keep the server running for
    the feedback loop. The viewer is interactive and agent-agnostic: document index, revision
    picker, diff pages, select-to-comment with a comments drawer, and in-place live updates
-   (edits appear without a reload). Add `--tailscale` to share it beyond localhost. Prefer
-   this over publishing a static file.
+   (edits appear without a reload). If the agent runs on a VPS, add `--tailscale`, send the
+   printed tailnet link to the same user, and keep the viewer inside that tailnet. Prefer
+   this private live loop over publishing a static file when the user needs to comment.
 5. Static HTML (optional): `pentimento render <Name>.md -o <name>.html` produces a
    standalone page that opens anywhere. Use it only when you can't keep a server running or
    the user wants a file to email or upload. For claude.ai Artifact publishing, add
@@ -90,8 +96,9 @@ itself prints the warning count so a slip never ships silently.
 
 ## Addressing review comments
 
-Readers leave comments by selecting text in the viewer (`pentimento serve`); comments land
-in `meta.yml` with the quoted text and context. When the user says "I left comments" (or
+The user leaves revision instructions by selecting text in the viewer (`pentimento serve`);
+the UI calls them comments, and they land in `meta.yml` with the quoted text and context.
+When the user says "I left comments" (or
 before any feedback round):
 
 1. `pentimento address <Name>.md` — lists each open comment with its anchor, quoted text,

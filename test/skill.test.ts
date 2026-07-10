@@ -36,6 +36,14 @@ describe('guide', () => {
     expect(readGuide()).toContain('give the URL to the user')
   })
 
+  it('frames plans as a single-user loop, including VPS access', () => {
+    expect(bundledShim()).toContain('one user and one canonical document')
+    expect(bundledShim()).toContain('remote access, not a shared workspace')
+    expect(readGuide()).toContain('revision instructions')
+    expect(readGuide()).toContain('same user')
+    expect(readGuide()).toContain('VPS')
+  })
+
   it('rejects unknown topics with the available list', () => {
     expect(() => readGuide('nope')).toThrow(/unknown guide topic/)
   })

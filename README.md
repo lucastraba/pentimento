@@ -2,6 +2,8 @@
 
 Pentimento keeps a document as plain markdown, saves a hidden history of the versions you choose to keep, and renders it to one HTML page whose look you don't control. A pentimento is a trace of earlier brushwork visible under the surface of a painting.
 
+Pentimento is deliberately single-user. In its primary loop, one person reviews a plan written by an agent, leaves revision instructions, and sees exactly what changed in the next saved version. It also works without an agent as a version history for one person's evolving documents. It is not a shared editor or team-approval system.
+
 That one mechanism covers two jobs, and you can use either without the other:
 
 - Plans your agent writes: a coding agent produces a reviewable HTML plan, design doc, or audit, and Pentimento fixes how it looks and tracks what changed between drafts.
@@ -62,6 +64,14 @@ Then ask: *"Write an implementation plan for X as a Pentimento document."*
 The skill tells the agent to research the task, write the markdown, lint it, save the first revision, and start the viewer in the background. The agent should give you the local viewer URL. You do not need to run the render command yourself.
 
 Select text in the viewer to leave a comment, then tell the agent: *"I left comments."* It reads the comments, revises the markdown, and saves another revision. The page updates in place and shows what changed.
+
+If the agent runs on a VPS, it can bind the viewer to that machine's Tailscale address:
+
+```bash
+pentimento serve . --tailscale
+```
+
+The agent sends the printed tailnet link, and the same user opens it from a trusted computer or phone. This is remote access to the private user-agent loop, not a shared workspace. Keep the viewer inside the tailnet; Pentimento is not a public hosting service.
 
 The installed skill defers to the version-matched instructions in the CLI. Check whether a copy is current with:
 
@@ -240,10 +250,10 @@ pentimento lint <doc> --strict
 
 ## Design lineage
 
-The markdown-source, HTML-view split answers Thariq Shihipar's *Unreasonable Effectiveness of HTML* and its critics. The anchored-comment loop follows Google Antigravity's artifact comments. The `:::` directives are Pandoc/Quarto-style fenced divs on purpose. Pentimento's own plan is written with Pentimento; see [`PLAN.md`](PLAN.md) and its `.history/`.
+The markdown-source, HTML-view split answers Thariq Shihipar's *Unreasonable Effectiveness of HTML* and its critics. The anchored-comment loop follows Google Antigravity's artifact comments, narrowed to one user's revision conversation with an agent. The `:::` directives are Pandoc/Quarto-style fenced divs on purpose. Pentimento's own plan is written with Pentimento; see [`PLAN.md`](PLAN.md) and its `.history/`.
 
 ## Status
 
-v0.5.0. Young project, released and versioned tooling. Known limits: directives don't nest, Windows is untested, and while the renderer strips active content from figures, rendering hostile markdown is not a supported case. Documents created under the tool's earlier name (`Vellum: true` frontmatter) are read as-is and migrated on their next snapshot.
+The current npm release is v0.5.0. Main contains the unreleased 0.6 hardening work. Known limits in v0.5.0: directives don't nest, Windows is untested, and hostile markdown is not a supported input. Documents created under the tool's earlier name (`Vellum: true` frontmatter) are read as-is and migrated on their next snapshot.
 
 MIT © Lucas Traba

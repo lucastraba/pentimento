@@ -9,4 +9,10 @@ revisions:
     author: Claude
     summary: Clean prose to pass the new lint (em-dashes to periods and colons)
     why: Dogfooding pentimento lint on the project's own plan
+  - id: r003
+    created_at: 2026-07-10T16:32:55+02:00
+    author: Lucas Traba
+    summary: Locked the single-user 0.6 direction
+    why: Tailscale extends one user's agent loop from a VPS rather than creating
+      collaboration
 comments: []
