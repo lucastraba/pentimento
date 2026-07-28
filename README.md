@@ -166,7 +166,7 @@ Palette: iris               # verdigris | mist | iris | parchment | fjord | cont
 ---
 ```
 
-Rich elements come from `:::` directives: callouts, verdict banners, severity-graded findings, phase timelines, side-by-side diffs, and constrained SVG figures. The CLI has version-matched writing references.
+Rich elements come from `:::` directives: callouts, verdict banners, severity-graded findings, phase timelines, verification checklists, option scorecards, side-by-side diffs, and diagrams laid out from `A -> B` edge chains. The CLI has version-matched writing references.
 
 Directive syntax:
 
@@ -188,7 +188,7 @@ pentimento guide style
 
 The same references are in [`skill/references/`](skill/references/).
 
-Each archetype leads with a verdict banner so a reader gets the recommendation before the evidence. The renderer computes the glance-level summaries: a severity tally above `::: findings`, a progress meter above `::: timeline`. On wide screens the table of contents becomes a fixed side rail; a print stylesheet, sticky table headers, and a light/dark toggle come with every render.
+Each archetype leads with a verdict banner so a reader gets the recommendation before the evidence. The renderer computes the glance-level summaries: a severity tally above `::: findings`, progress meters above `::: timeline` and `::: checklist`. From the second revision on it also computes where the document moved: changed sections get a dot in the table of contents, and the "What changed" panel tallies deltas like `+1 done · −2 HIGH`. On wide screens the table of contents becomes a fixed side rail; a print stylesheet, sticky table headers, and a light/dark toggle come with every render.
 
 Four rules keep the output consistent: no custom CSS, no inline styles, no scripts, no hand-written HTML. When a document needs something the vocabulary can't say, the vocabulary grows in a tool release rather than in the document.
 

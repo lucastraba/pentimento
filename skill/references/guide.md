@@ -128,14 +128,19 @@ Full syntax and examples: `pentimento guide directives`. Summary:
 
 | Directive | Use for |
 |---|---|
-| `::: callout decision\|info\|warn\|risk` | decisions (link ids like `d-1`), notes, risks |
+| `::: callout decision\|info\|warn\|risk` | decisions (link ids like `d-1`; `superseded-by=` marks reversals), notes, risks |
 | `::: verdict` | 2–4 headline question :: answer cells |
 | `::: findings` + `@collapse` | severity-graded findings (CRIT/HIGH/MED/LOW) |
 | `::: timeline` | numbered phases with `[next]`/`[later]`/`[done]` pills |
+| `::: checklist` | verification / done-when items; the render computes coverage |
+| `::: options criteria="..."` | option scorecard, one row marked `[pick]` |
 | `::: diff head="file · what"` | proposed file changes, written as a unified diff |
-| `::: figure aria="..."` | inline SVG diagrams |
+| `::: flow aria="..."` | box-and-arrow diagrams from `A -> B` chains, layout computed |
+| `::: figure aria="..."` | hand-composed inline SVG when `flow` can't say it |
 | `{dot:impl}` etc. | color swatches in tables |
-| plain markdown tables | comparisons, file-touch lists (auto-wrapped, scrollable) |
+| plain markdown tables | file-touch lists and other enumerations (auto-wrapped, scrollable) |
+
+Findings, phases, and checklist items take a trailing `{#id}` anchor for comments to target.
 
 Pick components the archetype calls for; leave the rest out. Flexibility = archetype +
 component choice. Everything visual is fixed.

@@ -277,4 +277,86 @@ describe('render', () => {
     expect(html).toMatch(/script-src 'sha256-[A-Za-z0-9+/=]+'/)
     expect(html).not.toMatch(/script-src[^;]*'unsafe-inline'/)
   })
+
+  it('renders a checklist with a computed coverage strip', () => {
+    const html = render(doc('# T\n\n## S\n\n::: checklist\n- [x] tests green\n- [ ] npm publish {#c-npm}\n- [X] docs updated\n:::\n'))
+    expect(html).toContain('<meter value="2" min="0" max="3" aria-label="Checklist progress">')
+    expect(html).toContain('2 of 3 done')
+    expect(html).toContain('<ul class="checklist">')
+    expect(html).toContain('<li class="done">')
+    expect(html).toContain('<li class="open" id="c-npm">')
+    expect(html).toContain('href="#c-npm"')
+    expect(html).not.toContain('{#c-npm}')
+  })
+
+  it('renders an options scorecard and highlights the pick', () => {
+    const html = render(doc('# T\n\n## S\n\n::: options criteria="Latency, Memory"\n- **SQLite** [pick] :: 120ms :: 3× RSS\n- **Postgres** :: 800ms :: 1× RSS\n:::\n'))
+    expect(html).toContain('<table class="options">')
+    expect(html).toContain('<th>Option</th><th>Latency</th><th>Memory</th>')
+    expect(html).toContain('<tr class="pick"><td><strong>SQLite</strong> <span class="pick-chip">Pick</span></td><td>120ms</td>')
+    expect(html).toContain('<tr><td><strong>Postgres</strong></td>')
+    expect(html).not.toContain('[pick]')
+  })
+
+  it('requires criteria on options', () => {
+    expect(() => render(doc('# T\n\n## S\n\n::: options\n- **A** :: x\n:::\n')))
+      .toThrow('options needs criteria=')
+  })
+
+  it('marks a superseded decision and links its replacement', () => {
+    const html = render(doc('# T\n\n## S\n\n::: callout decision id=d-old superseded-by=d-new\n**Old call.** Rationale.\n:::\n\n::: callout decision id=d-new\n**New call.** Better.\n:::\n'))
+    expect(html).toContain('<div class="callout decision superseded" id="d-old"><span class="label">Superseded</span>')
+    expect(html).toContain('Superseded by <a href="#d-new">d-new</a>.')
+    expect(html).toContain('<div class="callout decision" id="d-new"><span class="label">Decision</span>')
+  })
+
+  it('gives findings and timeline phases stable item anchors', () => {
+    const html = render(doc('# T\n\n## S\n\n::: findings\n- HIGH :: disk full loses draft {#f-disk}\n:::\n\n::: timeline\n1. **Viewer** [next] {#p-viewer} — build it\n:::\n'))
+    expect(html).toContain('<div class="finding" id="f-disk">')
+    expect(html).toContain('href="#f-disk"')
+    expect(html).toContain('<li id="p-viewer">')
+    expect(html).toContain('href="#p-viewer"')
+    expect(html).toContain('<span class="pill">next</span>')
+    expect(html).toContain('<p>build it</p>')
+    expect(html).not.toContain('{#')
+  })
+
+  it('lays out a flow directive as a sanitized figure', () => {
+    const html = render(doc('# T\n\n## S\n\n::: flow aria="plan to render"\nPLAN.md -> CLI -> plan.html\naccent: CLI\n:::\n'))
+    expect(html).toContain('<figure class="diagram" role="img" aria-label="plan to render">')
+    expect(html).toContain('<figcaption>plan to render</figcaption>')
+    expect(html).toContain('class="accentbox"')
+    expect(html).toContain('marker-end="url(#arr)"')
+  })
+
+  it('renders removed stub directives as literal text', () => {
+    const html = render(doc('# T\n\n## S\n\n::: compare\n| a |\n:::\n'))
+    expect(html).toContain('::: compare')
+  })
+
+  it('dots changed TOC sections and appends glance deltas to the changes summary', () => {
+    const p = doc('# T\n\n## Alpha\n\nstable prose\n\n## Beta\n\n::: timeline\n1. **One** [next] — a\n:::\n')
+    fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace('[next]', '[done]'))
+    snapshot(p, { summary: 'phase one done', author: 'test' })
+    const html = render(p)
+    expect(html.match(/class="chg"/g)).toHaveLength(1)
+    const betaEntry = html.split('href="#beta"')[1].split('</li>')[0]
+    expect(betaEntry).toContain('class="chg"')
+    expect(html).toContain('What changed in r002 (vs r001)<span class="delta"> · +1 done · −1 next</span>')
+  })
+
+  it('tracks draft changes against the latest snapshot in the glance layer', () => {
+    const p = doc('# T\n\n## Alpha\n\nstable\n\n## Beta\n\n::: findings\n- HIGH :: risky {#f-1}\n:::\n')
+    fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace('- HIGH :: risky {#f-1}\n', ''))
+    const html = render(p)
+    expect(html).toContain('Draft changes after r001<span class="delta"> · −1 HIGH</span>')
+    const betaEntry = html.split('href="#beta"')[1].split('</li>')[0]
+    expect(betaEntry).toContain('class="chg"')
+  })
+
+  it('shows no change marks on a first revision', () => {
+    const html = render(doc('# T\n\n## Alpha\n\ntext\n'))
+    expect(html).not.toContain('class="chg"')
+    expect(html).not.toContain('class="delta"')
+  })
 })

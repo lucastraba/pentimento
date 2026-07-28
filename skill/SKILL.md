@@ -2,7 +2,7 @@
 name: pentimento-plan
 description: "Produce and serve a plan as a living document: markdown source, versioned history, and a constrained interactive viewer. Use when the user asks for a plan, design doc, brainstorm, audit report, or invokes /pentimento-plan. Also for revising an existing Pentimento plan after feedback."
 metadata:
-  pentimento_skill_revision: "8"
+  pentimento_skill_revision: "9"
 ---
 
 # Pentimento plans
@@ -25,7 +25,7 @@ Check with `command -v pentimento`. Prefer an existing install — it's faster a
 - Never write CSS, `<style>`, `style=""` attributes, or JavaScript. No exceptions.
 - Never hand-write the HTML output. `pentimento render` is the only way to produce it.
 - Rich elements come only from the directive vocabulary in `pentimento guide` — nothing else.
-- One inline-SVG figure is allowed per `::: figure` block, composed only of `theme.css` classes (`nodebox`, `accentbox`, `flow`, `lbl`).
+- Diagrams default to `::: flow` (edge chains, layout computed). One inline-SVG figure is allowed per `::: figure` block, composed only of `theme.css` classes (`nodebox`, `accentbox`, `flow`, `lbl`) — use it only when `flow` can't say it.
 - The markdown plan is what the user approves; the HTML is how they read it.
 - Assume one user and one canonical document. Comments are that user's revision instructions to the agent, not a multi-reviewer thread.
 - Use `--tailscale` only when the agent runs on a VPS and the same user needs the private live viewer on another trusted device. Send that user the printed write link; the plain link is read-only. It is remote access, not a shared workspace.

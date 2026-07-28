@@ -9,6 +9,7 @@ import { readUserConfig } from './config.js'
 import {
   canonicalRevisionState, loadDoc, readMeta, readRevision, slugify, splitRaw, type Doc, type Meta,
 } from './core.js'
+import { renderFlowSvg } from './flow.js'
 import { renderDiffHtml } from './semdiff.js'
 import {
   DEFAULT_PALETTE, isPalette, themeCss, themeInitSnippet, themePicker,
@@ -139,9 +140,21 @@ const CALLOUT_LABELS: Record<string, string> = {
 }
 
 const renderCallout: Handler = (content, attrs, kind) => {
-  const label = CALLOUT_LABELS[kind] ?? 'Note'
+  const supersededBy = attrs['superseded-by']
+  const label = supersededBy ? 'Superseded' : CALLOUT_LABELS[kind] ?? 'Note'
   const id = attrs.id ? ` id="${escapeHtml(attrs.id)}"` : ''
-  return `<div class="callout ${kind}"${id}><span class="label">${label}</span>${renderMarkdown(content)}</div>`
+  // a reversed decision stays visible under the surface, pointing at its replacement
+  const note = supersededBy
+    ? `<p class="supersede-note">Superseded by <a href="#${escapeHtml(supersededBy)}">${escapeHtml(supersededBy)}</a>.</p>`
+    : ''
+  return `<div class="callout ${kind}${supersededBy ? ' superseded' : ''}"${id}><span class="label">${label}</span>${renderMarkdown(content)}${note}</div>`
+}
+
+// optional stable anchor on a list item: `... {#f-disk}` — a comment/link target
+const ITEM_ID_RE = /\s*\{#([a-z][\w-]*)\}\s*/
+const takeItemId = (s: string): { text: string; id?: string } => {
+  const m = ITEM_ID_RE.exec(s)
+  return m ? { text: s.replace(ITEM_ID_RE, ' ').trim(), id: m[1] } : { text: s }
 }
 
 const renderVerdict: Handler = (content) => {
@@ -168,7 +181,9 @@ const renderFindings: Handler = (content) => {
     const m = /^-\s+(CRIT|HIGH|MED|LOW)\s+::\s+(.+)$/.exec(t)
     if (!m) continue
     counts[m[1]]++
-    const html = `<div class="finding"><span class="sev ${SEV_CLASS[m[1]]}">${m[1]}</span><div>${renderInline(m[2])}</div></div>`
+    const { text, id } = takeItemId(m[2])
+    const html = `<div class="finding"${id ? ` id="${escapeHtml(id)}"` : ''}><span class="sev ${SEV_CLASS[m[1]]}">${m[1]}</span>` +
+      `<div>${renderInline(text)}${id ? anchor(id) : ''}</div></div>`
     ;(collapseLabel ? collapsed : open).push(html)
   }
   // computed severity strip — the reader sees the shape before reading a single finding
@@ -198,14 +213,16 @@ const renderTimeline: Handler = (content) => {
   if (current.length) items.push(current.join(' '))
   const counts = { done: 0, next: 0, later: 0 }
   const lis = items.map((item, i) => {
-    const m = /^\*\*(.+?)\*\*(?:\s+\[(next|later|done)\])?(?:\s+—\s+([\s\S]+))?$/.exec(item)
+    const m = /^\*\*(.+?)\*\*(?:\s+\[(next|later|done)\])?(?:\s+\{#([a-z][\w-]*)\})?(?:\s+—\s+([\s\S]+))?$/.exec(item)
     const status = m?.[2]
+    const id = m?.[3]
     if (status && status in counts) counts[status as keyof typeof counts]++
     const title = m ? renderInline(m[1]) : renderInline(item)
     const pill = status ? ` <span class="pill${status === 'next' ? '' : ` ${status}`}">${status}</span>` : ''
-    const desc = m?.[3] ? `<p>${renderInline(m[3])}</p>` : ''
+    const desc = m?.[4] ? `<p>${renderInline(m[4])}</p>` : ''
     const phCls = status === 'done' ? 'ph ph-done' : 'ph'
-    return `<li><span class="${phCls}">${i + 1}</span><div><h3>${title}${pill}</h3>${desc}</div></li>`
+    return `<li${id ? ` id="${escapeHtml(id)}"` : ''}><span class="${phCls}">${i + 1}</span>` +
+      `<div><h3>${title}${pill}${id ? anchor(id) : ''}</h3>${desc}</div></li>`
   })
   // Progress includes the active `next` phase, so a sequence that has started is
   // visibly different from one where every phase is still `later`.
@@ -217,6 +234,46 @@ const renderTimeline: Handler = (content) => {
       `<span>${parts.join(' · ')} · ${total} total</span></div>`
     : ''
   return `${progress}<ol class="timeline">${lis.join('\n')}</ol>`
+}
+
+const renderChecklist: Handler = (content) => {
+  const items = content.split('\n')
+    .map((l) => /^-\s+\[([ xX])\]\s+(.+)$/.exec(l.trim()))
+    .filter((m): m is RegExpExecArray => m !== null)
+  const done = items.filter((m) => m[1] !== ' ').length
+  const lis = items.map((m) => {
+    const checked = m[1] !== ' '
+    const { text, id } = takeItemId(m[2])
+    return `<li class="${checked ? 'done' : 'open'}"${id ? ` id="${escapeHtml(id)}"` : ''}>` +
+      `<span class="cbox" aria-hidden="true">${checked ? '✓' : ''}</span>` +
+      `<div>${renderInline(text)}${id ? anchor(id) : ''}</div></li>`
+  })
+  // computed coverage strip — "done when" becomes checkable state, not prose
+  const progress = items.length
+    ? `<div class="timeline-progress"><meter value="${done}" min="0" max="${items.length}" aria-label="Checklist progress"></meter>` +
+      `<span>${done} of ${items.length} done</span></div>`
+    : ''
+  return `${progress}<ul class="checklist">${lis.join('\n')}</ul>`
+}
+
+/** The brainstorm scorecard: one row per option, criteria as columns, one row marked [pick]. */
+const renderOptions: Handler = (content, attrs) => {
+  const criteria = (attrs.criteria ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+  if (!criteria.length) throw new Error('options needs criteria="A, B, C"')
+  const rows = content.split('\n')
+    .map((l) => /^-\s+(.+)$/.exec(l.trim()))
+    .filter((m): m is RegExpExecArray => m !== null)
+  const trs = rows.map((m) => {
+    const cells = m[1].split(' :: ').map((s) => s.trim())
+    let name = cells.shift() ?? ''
+    const pick = /\s*\[pick\]\s*/.test(name)
+    if (pick) name = name.replace(/\s*\[pick\]\s*/, ' ').trim()
+    const tds = criteria.map((_, i) => `<td>${renderInline(cells[i] ?? '')}</td>`).join('')
+    return `<tr${pick ? ' class="pick"' : ''}><td>${renderInline(name)}` +
+      `${pick ? ' <span class="pick-chip">Pick</span>' : ''}</td>${tds}</tr>`
+  })
+  const head = `<thead><tr><th>Option</th>${criteria.map((c) => `<th>${escapeHtml(c)}</th>`).join('')}</tr></thead>`
+  return `<div class="tablewrap"><table class="options">${head}<tbody>${trs.join('\n')}</tbody></table></div>`
 }
 
 /** Content is a unified diff (optionally fenced); rendered as responsive side-by-side panes. */
@@ -247,16 +304,23 @@ const renderFigure: Handler = (content, attrs) => {
   return `<figure class="diagram"${aria}>${sanitizeFigureSvg(content)}${caption}</figure>`
 }
 
+/** Edge chains in, laid-out diagram out; the generated SVG passes the same figure allowlist. */
+const renderFlow: Handler = (content, attrs) => renderFigure(renderFlowSvg(content), attrs, 'figure')
+
 const HANDLERS: Record<string, Handler> = {
   callout: renderCallout,
   verdict: renderVerdict,
   findings: renderFindings,
   timeline: renderTimeline,
+  checklist: renderChecklist,
+  options: renderOptions,
   diff: renderDiff,
   figure: renderFigure,
-  compare: (content) => renderMarkdown(content),
-  files: (content) => renderMarkdown(content),
+  flow: renderFlow,
 }
+
+/** The directive vocabulary, exported so lint can flag names outside it. */
+export const DIRECTIVE_NAMES: readonly string[] = Object.keys(HANDLERS)
 
 // ---------------------------------------------------------------------------
 // document assembly
@@ -413,6 +477,89 @@ const renderSectionBody = (prepared: Prepared, bodyLines: string[]): string => {
   return out.join('\n')
 }
 
+// ---------------------------------------------------------------------------
+// revision-aware glance layer — where the document moved, computed, never written
+// ---------------------------------------------------------------------------
+
+interface GlanceCounts {
+  done: number; next: number; later: number
+  CRIT: number; HIGH: number; MED: number; LOW: number
+  checked: number
+}
+
+const glanceCounts = (body: string): GlanceCounts => {
+  const counts: GlanceCounts = { done: 0, next: 0, later: 0, CRIT: 0, HIGH: 0, MED: 0, LOW: 0, checked: 0 }
+  let inFence = false
+  let block: string | null = null
+  for (const raw of body.split('\n')) {
+    const line = raw.trim()
+    if (/^```/.test(line)) { inFence = !inFence; continue }
+    if (inFence) continue
+    const open = /^:::\s*([\w-]+)/.exec(line)
+    if (block === null && open) { block = open[1]; continue }
+    if (block !== null && /^:::\s*$/.test(line)) { block = null; continue }
+    if (block === 'timeline') {
+      const m = /\[(next|later|done)\]/.exec(line)
+      if (m) counts[m[1] as 'next' | 'later' | 'done']++
+    } else if (block === 'findings') {
+      const m = /^-\s+(CRIT|HIGH|MED|LOW)\s+::/.exec(line)
+      if (m) counts[m[1] as 'CRIT' | 'HIGH' | 'MED' | 'LOW']++
+    } else if (block === 'checklist') {
+      if (/^-\s+\[[xX]\]/.test(line)) counts.checked++
+    }
+  }
+  return counts
+}
+
+const glanceDelta = (prev: GlanceCounts, cur: GlanceCounts): string => {
+  const parts: string[] = []
+  for (const key of ['done', 'next', 'later', 'CRIT', 'HIGH', 'MED', 'LOW', 'checked'] as const) {
+    const d = cur[key] - prev[key]
+    if (d) parts.push(`${d > 0 ? '+' : '−'}${Math.abs(d)} ${key}`)
+  }
+  return parts.join(' · ')
+}
+
+/** Section content keyed by the same ids prepare() assigns, for cross-revision change marks. */
+const sectionSignatures = (body: string): Map<string, string> => {
+  const sig = new Map<string, string>()
+  const usedIds = new Set<string>()
+  let inFence = false
+  let key = ''
+  let buf: string[] = []
+  const flush = (): void => { if (key) sig.set(key, buf.join('\n').trim()); buf = [] }
+  for (const line of body.split('\n')) {
+    if (/^```/.test(line.trim())) inFence = !inFence
+    const h = inFence ? null : /^##\s+(.+)$/.exec(line)
+    if (h) {
+      flush()
+      let text = h[1]
+      let meta: { id?: string } = {}
+      const c = HEADING_META_RE.exec(text)
+      if (c) { meta = parseHeadingMeta(c[1]); text = text.replace(HEADING_META_RE, '') }
+      const requested = slugify(meta.id ?? text) || `section-${sig.size + 1}`
+      let id = requested
+      let suffix = 2
+      while (usedIds.has(id)) id = `${requested}-${suffix++}`
+      usedIds.add(id)
+      key = id
+      continue
+    }
+    buf.push(line)
+  }
+  flush()
+  return sig
+}
+
+const changedSectionIds = (baseline: string, current: string): Set<string> => {
+  const prev = sectionSignatures(baseline)
+  const changed = new Set<string>()
+  for (const [id, content] of sectionSignatures(current)) {
+    if (prev.get(id) !== content) changed.add(id)
+  }
+  return changed
+}
+
 const ARCHETYPES: Record<string, string> = {
   implementation: 'Implementation plan',
   brainstorm: 'Brainstorm / exploration',
@@ -467,24 +614,35 @@ const chrome = (doc: Doc, meta: Meta, prepared: Prepared, opts: RenderOptions): 
     : ''
 
   // what changed since the previous revision — so a reader never has to ask the agent
-  let changes = ''
+  let baselineBody: string | null = null
+  let baselineLabel = ''
   if (revisionState.dirty && revisionState.latest) {
     try {
-      const savedBody = splitRaw(readRevision(doc.canonicalPath, revisionState.latest)).body
-      changes = `\n  <details class="changes"><summary>Draft changes after ${escapeHtml(revisionState.latest)}</summary><div class="rdiff">${renderDiffHtml(savedBody, doc.body)}</div></details>`
+      baselineBody = splitRaw(readRevision(doc.canonicalPath, revisionState.latest)).body
+      baselineLabel = `Draft changes after ${escapeHtml(revisionState.latest)}`
     } catch { /* verify reports missing or invalid history; rendering stays available */ }
   } else if (meta.revisions.length >= 2) {
     const prev = meta.revisions[meta.revisions.length - 2]
-    const latest = meta.revisions[meta.revisions.length - 1]
     try {
-      const prevBody = splitRaw(readRevision(doc.canonicalPath, prev.id)).body
-      changes = `\n  <details class="changes"><summary>What changed in ${escapeHtml(latest.id)} (vs ${escapeHtml(prev.id)})</summary><div class="rdiff">${renderDiffHtml(prevBody, doc.body)}</div></details>`
+      baselineBody = splitRaw(readRevision(doc.canonicalPath, prev.id)).body
+      baselineLabel = `What changed in ${escapeHtml(latest.id)} (vs ${escapeHtml(prev.id)})`
     } catch { /* verify reports missing or invalid history; rendering stays available */ }
   }
+  let changes = ''
+  let changedSections = new Set<string>()
+  if (baselineBody !== null) {
+    changedSections = changedSectionIds(baselineBody, doc.body)
+    const delta = glanceDelta(glanceCounts(baselineBody), glanceCounts(doc.body))
+    changes = `\n  <details class="changes"><summary>${baselineLabel}` +
+      `${delta ? `<span class="delta"> · ${delta}</span>` : ''}</summary>` +
+      `<div class="rdiff">${renderDiffHtml(baselineBody, doc.body)}</div></details>`
+  }
 
+  // changed sections get a dot in the TOC, so a reviewer rereads only what moved
   const toc = prepared.sections.map((s, i) =>
     `<li><a href="#${escapeHtml(s.heading.id)}"><span class="n">${String(i + 1).padStart(2, '0')}</span>` +
-    `${escapeHtml(plainText(s.heading.title))}</a></li>`).join('\n      ')
+    `${escapeHtml(plainText(s.heading.title))}` +
+    `${changedSections.has(s.heading.id) ? '<span class="chg" title="Changed since the previous revision"></span>' : ''}</a></li>`).join('\n      ')
 
   const sections = prepared.sections.map((s) => {
     const eyebrow = s.heading.eyebrow ? `<span class="eyebrow">${escapeHtml(s.heading.eyebrow)}</span>\n  ` : ''

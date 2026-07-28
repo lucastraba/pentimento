@@ -12,6 +12,16 @@ Directives are fenced with `:::` on their own lines. A leading bare word is the 
 
 Variants: `decision` (accent wash), `info`, `warn`, `risk` (red label). `id` is optional but give decisions stable ids — they're comment/link anchors.
 
+When a decision is reversed, never delete it — mark it and point at its replacement:
+
+```markdown
+::: callout decision id=d-old superseded-by=d-new
+**Old call.** The original rationale stays readable.
+:::
+```
+
+The render dims it, relabels it "Superseded", and links `#d-new`. Old brushwork stays visible under the surface.
+
 ## Verdict banner
 
 Headline answers, 2–4 cells. One `question :: answer` list item per cell.
@@ -41,6 +51,30 @@ Severity is one of `CRIT`, `HIGH`, `MED`, `LOW`. Everything after `@collapse <la
 The render adds a severity count strip above the list (`1 CRIT · 1 HIGH · …`) computed
 from the lines, and appends the collapsed count to the `@collapse` label, so you don't
 write either by hand.
+
+## Options (brainstorm scorecard)
+
+One row per option, criteria as columns, exactly one row marked `[pick]`. The `criteria` attr names the columns; cells are separated by ` :: `.
+
+```markdown
+::: options criteria="Cold start, Memory, Ops burden"
+- **SQLite** [pick] :: 120ms :: 3× RSS :: none
+- **Postgres** :: 800ms :: 1× RSS :: daemon to run
+:::
+```
+
+The picked row gets the accent wash and a Pick chip, so the comparison carries the recommendation instead of ending in "it depends".
+
+## Checklist (verification)
+
+`- [x]` / `- [ ]` items; the render computes a coverage strip (`2 of 3 done` plus a meter). Use it for the Verification / "done when" section so completion is state, not prose.
+
+```markdown
+::: checklist
+- [x] All tests green
+- [ ] npm publish {#c-npm}
+:::
+```
 
 ## Timeline (phases)
 
@@ -73,6 +107,20 @@ Write a plain unified diff (` ` context, `-` removed, `+` added) inside a `txt` 
 :::
 ````
 
+## Flow (diagrams without coordinates)
+
+The default way to draw a box-and-arrow diagram. Write edge chains; the renderer computes the layout and emits the same constrained SVG vocabulary as `::: figure`. Mark emphasized nodes with an `accent:` line. Always set `aria`.
+
+```markdown
+::: flow aria="PLAN.md flows through the pentimento CLI to plan.html"
+PLAN.md -> pentimento CLI -> plan.html
+pentimento CLI -> .history/
+accent: pentimento CLI
+:::
+```
+
+Node names are plain text (no markdown). Reach for `::: figure` only when a diagram needs geometry `flow` can't say.
+
 ## Figure (diagrams)
 
 Inline SVG only, composed from `theme.css` classes: `nodebox` (plain node), `accentbox` (highlighted node), `flow` (arrow path; add `marker-end="url(#arr)"` and define the `arr` marker in `<defs>`), `lbl` (small caption text). The renderer keeps only its SVG tag, attribute, and class allowlists; scripts, event handlers, links, foreign objects, and inline styles are removed. Colors come from CSS variables — never hardcode fills beyond those classes. Always set `aria`.
@@ -98,6 +146,15 @@ Inline SVG only, composed from `theme.css` classes: `nodebox` (plain node), `acc
 
 `id` gives the section a short stable anchor (default: slugified title). `eyebrow` is the small-caps label above the heading. `###` subheadings take `<!-- id: ... -->` too.
 
+## Item anchors
+
+Findings, timeline phases, and checklist items take an optional trailing `{#id}` (before the `—` description in a timeline title). It becomes a stable anchor the user's comments and your `resolve` calls can target:
+
+```markdown
+- HIGH :: `save()` swallows write errors {#f-save}
+1. **Local viewer** [next] {#p-viewer} — Hono daemon.
+```
+
 ## Swatches
 
 `{dot:impl}` `{dot:brain}` `{dot:audit}` `{dot:design}` `{dot:verdigris}` `{dot:mist}` `{dot:iris}` render as colored dots — use in table cells to key rows to accent hues.
@@ -105,6 +162,8 @@ Inline SVG only, composed from `theme.css` classes: `nodebox` (plain node), `acc
 ## Header, TOC, evolution strip, what-changed, footer
 
 Generated — never write them. The header reads `Archetype` and `Current Revision` from frontmatter; the evolution strip reads `meta.yml` (that's why snapshot summaries must be written for the reader); the TOC comes from `##` sections; the collapsible "What changed in rNNN" panel is a word-level diff against the previous snapshot, computed at render time.
+
+From the second revision on, the render also computes where the document moved: sections whose content changed since the previous revision get an accent dot in the TOC, and the "What changed" summary line carries glance deltas (`+1 done · −2 HIGH · +1 checked`) tallied from timeline pills, finding severities, and checklist boxes. Never write these by hand.
 
 ## Frontmatter keys
 

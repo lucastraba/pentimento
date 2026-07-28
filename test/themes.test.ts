@@ -63,20 +63,16 @@ describe('theme registry', () => {
     expect(init).toContain("r.dataset.palette=p||'fjord'")
   })
 
-  it('keeps pre-registry picker markup styled and interactive during a rolling restart', () => {
+  it('serves palette definitions from the registry only, with the pre-0.6 compat chrome gone', () => {
     const css = fs.readFileSync(path.resolve('assets/theme.css'), 'utf8')
     const js = fs.readFileSync(path.resolve('assets/chrome.js'), 'utf8')
     expect(css).toContain('.theme-grid .pbtn')
-    expect(css).not.toMatch(/\n\.pbtn\s*\{/)
-    expect(css).toContain('.palettes .pbtn, .tbtn')
-    expect(css).toContain(':root[data-palette="iris"]')
-    expect(css).toContain(':root[data-palette="mist"]')
-    expect(css).toContain(':root[data-palette="parchment"]')
-    expect(css).toContain(':root[data-palette="fjord"]')
-    expect(css).toContain(':root[data-palette="contrast"]')
+    expect(css).not.toContain('.palettes')
+    expect(css).not.toContain(':root[data-palette=')
+    expect(themeCss()).toContain(':root[data-palette="iris"]')
     expect(js).toContain("t.closest('.tbtn')")
-    expect(js).toContain('upgradeLegacyPicker()')
-    expect(js).toContain("['parchment', 'Parchment']")
+    expect(js).not.toContain('upgradeLegacyPicker')
+    expect(js).not.toContain('.sbtn')
   })
 
   it('keeps text, filled controls, category badges, and control boundaries accessible', () => {

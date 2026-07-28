@@ -48,4 +48,13 @@ describe('lint', () => {
   it('flags emoji in headings', () => {
     expect(rules('## Rocket launch 🚀\n')).toContain('emoji-heading')
   })
+  it('flags directives outside the vocabulary', () => {
+    expect(rules('## S\n\n::: compare\ntext\n:::\n')).toContain('unknown-directive')
+    expect(rules('## S\n\n::: checklist\n- [x] a\n:::\n')).not.toContain('unknown-directive')
+    expect(rules('```\n::: mystery\n```\n')).not.toContain('unknown-directive')
+  })
+
+  it('does not lint flow bodies as prose', () => {
+    expect(rules('## S\n\n::: flow\nRobust Gateway -> B\n:::\n')).toEqual([])
+  })
 })

@@ -1,9 +1,27 @@
 import { splitRaw } from './core.js'
+import { DIRECTIVE_NAMES } from './render.js'
 
 export interface LintFinding {
   line: number
   rule: string
   message: string
+}
+
+/** Directive openings by line, so an unknown name never renders as literal text silently. */
+const directiveOpenings = (raw: string): { line: number; name: string }[] => {
+  const out: { line: number; name: string }[] = []
+  const lines = raw.split('\n')
+  let inFence = false
+  let open = false
+  for (let i = 0; i < lines.length; i++) {
+    const text = lines[i].trim()
+    if (/^```/.test(text)) { inFence = !inFence; continue }
+    if (inFence) continue
+    if (open) { if (/^:::$/.test(text)) open = false; continue }
+    const m = /^:::\s*([\w-]+)/.exec(text)
+    if (m) { out.push({ line: i + 1, name: m[1] }); open = true }
+  }
+  return out
 }
 
 interface ClassifiedLine {
@@ -29,7 +47,7 @@ const classify = (raw: string): ClassifiedLine[] => {
       const open = /^:::\s*([\w-]+)/.exec(text)
       if (open) { block = open[1]; continue }
     } else if (/^:::\s*$/.test(text)) { block = null; continue }
-    if (block === 'figure' || block === 'diff') continue // SVG and diff bodies are not prose
+    if (block === 'figure' || block === 'diff' || block === 'flow') continue // SVG, diff, and edge-chain bodies are not prose
     out.push({ line: i + 1, text, block })
   }
   return out
@@ -67,6 +85,15 @@ const RULES: { rule: string; re: RegExp; message: string }[] = [
 
 export const lintDoc = (raw: string): LintFinding[] => {
   const findings: LintFinding[] = []
+  for (const { line, name } of directiveOpenings(raw)) {
+    if (!DIRECTIVE_NAMES.includes(name)) {
+      findings.push({
+        line,
+        rule: 'unknown-directive',
+        message: `"::: ${name}" is not in the vocabulary (${DIRECTIVE_NAMES.join(', ')}) — it renders as literal text`,
+      })
+    }
+  }
   const prose = classify(raw)
   let emDashes = 0
   let words = 0

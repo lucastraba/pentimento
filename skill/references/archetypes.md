@@ -25,6 +25,7 @@ Archetype: implementation
 ## Risks (opt) <!-- id: risks; eyebrow: Watch out -->
    (::: callout risk per real risk, with mitigation)
 ## Verification <!-- id: verify; eyebrow: Done means -->
+   (::: checklist — each done-when as a `- [ ]` item; the render shows coverage)
 ```
 
 ## brainstorm — compare directions
@@ -40,7 +41,7 @@ Archetype: brainstorm
 ## Recommendation <!-- id: recommendation; eyebrow: Bottom line -->
    (::: verdict — Pick / Why / Closest loser; the reader gets your answer before the comparison)
 ## Comparison <!-- id: comparison; eyebrow: Tradeoffs -->
-   (comparison table first, one row per option, {dot:...} keys)
+   (::: options criteria="..." — one row per option, exactly one [pick])
 ## Options <!-- id: options; eyebrow: Details -->
    (one ### per option; evidence, cost, what it forecloses; be opinionated)
 ## Open questions <!-- id: open; eyebrow: Unresolved -->
@@ -82,7 +83,7 @@ Archetype: design-doc
 ## Decisions <!-- id: decisions; eyebrow: Locked -->
    (::: callout decision per locked decision — these are the doc's spine)
 ## Architecture <!-- id: architecture; eyebrow: System -->
-   (::: figure diagram; ### per component)
+   (::: flow diagram — hand-composed ::: figure only when flow can't say it; ### per component)
 ## Build order <!-- id: build; eyebrow: Sequence -->
    (::: timeline)
 ## Alternatives (opt) <!-- id: alternatives; eyebrow: Rejected -->

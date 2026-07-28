@@ -36,83 +36,6 @@ html { font-size: clamp(16px, 12.5px + 0.3vw, 20px); }
 :root[data-theme="light"] { color-scheme: light; }
 :root[data-theme="dark"] { color-scheme: dark; }
 
-/* Legacy three-palette fallback. A viewer process started before the theme registry
-   still reads this asset live, so its compact picker must remain functional until restart. */
-:root[data-palette="mist"] { --bg:#FAFAFA; --raise:#FFFFFF; --surface-alt:#F3F6F9; --ink:#171717; --soft:#626262;
-  --line:#E4E4E7; --control-line:#626262; --accent:#0066DC; --accent-deep:#0057BC; --on-accent:#FFFFFF;
-  --on-category:#FFFFFF; --wash:rgba(0,102,220,.07); --code-bg:#F2F2F2; --design:#0066DC;
-  --font-display:var(--sans); --standfirst-style:normal; --shadow-color:rgba(17,24,39,.10); }
-:root[data-palette="iris"] { --bg:#F8F7FB; --raise:#FFFFFF; --surface-alt:#F1EDF8; --ink:#241E33; --soft:#6A6284;
-  --line:#E3DEEF; --control-line:#6A6284; --accent:#7653B5; --accent-deep:#583B94; --on-accent:#FFFFFF;
-  --on-category:#FFFFFF; --wash:rgba(118,83,181,.09); --code-bg:#EFEDF6; --design:#7653B5;
-  --font-display:var(--serif); --standfirst-style:italic; --shadow-color:rgba(58,38,90,.12); }
-@media (prefers-color-scheme: dark) {
-  :root[data-palette="mist"] { --bg:#0A0A0A; --raise:#151515; --surface-alt:#101C27; --ink:#EDEDED; --soft:#969696;
-    --line:#292929; --control-line:#969696; --accent:#3291FF; --accent-deep:#66ACFF; --on-accent:#06111D;
-    --on-category:#0B0B0B; --wash:rgba(50,145,255,.10); --code-bg:#1A1A1A; --design:#3291FF; --shadow-color:rgba(0,0,0,.48); }
-  :root[data-palette="iris"] { --bg:#151020; --raise:#1E1830; --surface-alt:#251D3A; --ink:#EAE6F4; --soft:#A9A0C5;
-    --line:#352B50; --control-line:#A9A0C5; --accent:#A78BE0; --accent-deep:#C2ADEE; --on-accent:#160C27;
-    --on-category:#150F20; --wash:rgba(167,139,224,.12); --code-bg:#211A34; --design:#A78BE0; --shadow-color:rgba(4,1,10,.42); }
-}
-:root[data-theme="light"][data-palette="mist"] { --bg:#FAFAFA; --raise:#FFFFFF; --surface-alt:#F3F6F9; --ink:#171717; --soft:#626262;
-  --line:#E4E4E7; --control-line:#626262; --accent:#0066DC; --accent-deep:#0057BC; --on-accent:#FFFFFF;
-  --on-category:#FFFFFF; --wash:rgba(0,102,220,.07); --code-bg:#F2F2F2; --design:#0066DC; }
-:root[data-theme="dark"][data-palette="mist"] { --bg:#0A0A0A; --raise:#151515; --surface-alt:#101C27; --ink:#EDEDED; --soft:#969696;
-  --line:#292929; --control-line:#969696; --accent:#3291FF; --accent-deep:#66ACFF; --on-accent:#06111D;
-  --on-category:#0B0B0B; --wash:rgba(50,145,255,.10); --code-bg:#1A1A1A; --design:#3291FF; }
-:root[data-theme="light"][data-palette="iris"] { --bg:#F8F7FB; --raise:#FFFFFF; --surface-alt:#F1EDF8; --ink:#241E33; --soft:#6A6284;
-  --line:#E3DEEF; --control-line:#6A6284; --accent:#7653B5; --accent-deep:#583B94; --on-accent:#FFFFFF;
-  --on-category:#FFFFFF; --wash:rgba(118,83,181,.09); --code-bg:#EFEDF6; --design:#7653B5; }
-:root[data-theme="dark"][data-palette="iris"] { --bg:#151020; --raise:#1E1830; --surface-alt:#251D3A; --ink:#EAE6F4; --soft:#A9A0C5;
-  --line:#352B50; --control-line:#A9A0C5; --accent:#A78BE0; --accent-deep:#C2ADEE; --on-accent:#160C27;
-  --on-category:#150F20; --wash:rgba(167,139,224,.12); --code-bg:#211A34; --design:#A78BE0; }
-:root[data-theme="light"][data-palette="verdigris"] { --bg:#F7F8F6; --raise:#FFFFFF; --surface-alt:#F0F4F2; --ink:#1E2529; --soft:#5A6670;
-  --line:#DDE3E0; --control-line:#5A6670; --accent:#2E7D6E; --accent-deep:#1F5F54; --on-accent:#FFFFFF;
-  --on-category:#FFFFFF; --wash:rgba(46,125,110,.08); --code-bg:#EEF1EF; --design:#2E7D6E; }
-:root[data-theme="dark"][data-palette="verdigris"] { --bg:#131719; --raise:#1B2124; --surface-alt:#20292B; --ink:#E6E4DC; --soft:#98A29E;
-  --line:#2A3236; --control-line:#98A29E; --accent:#4FB3A0; --accent-deep:#72C9B8; --on-accent:#081513;
-  --on-category:#101416; --wash:rgba(79,179,160,.10); --code-bg:#1F2629; --design:#58BEAA; }
-
-:root[data-palette="parchment"] { --bg:#F6F0E5; --raise:#FFFAF2; --surface-alt:#F0E4D4; --ink:#33271F; --soft:#6F5C4C;
-  --line:#DCCDBB; --control-line:#6F5C4C; --accent:#98492F; --accent-deep:#78341F; --on-accent:#FFFFFF;
-  --on-category:#FFFFFF; --wash:rgba(152,73,47,.09); --code-bg:#EDE3D6; --design:#98492F; --shadow-color:rgba(76,48,28,.13); }
-:root[data-palette="fjord"] { --bg:#F3F7F8; --raise:#FFFFFF; --surface-alt:#E7EFF2; --ink:#17272E; --soft:#52666F;
-  --line:#CBDADF; --control-line:#52666F; --accent:#176B79; --accent-deep:#0E5663; --on-accent:#FFFFFF;
-  --on-category:#FFFFFF; --wash:rgba(23,107,121,.09); --code-bg:#E8EEF0; --design:#176B79; --font-display:var(--sans);
-  --standfirst-style:normal; --shadow-color:rgba(24,58,68,.12); }
-:root[data-palette="contrast"] { --bg:#FFFFFF; --raise:#FFFFFF; --surface-alt:#F0F2F5; --ink:#000000; --soft:#343A40;
-  --line:#73777F; --control-line:#3F444C; --accent:#005FCC; --accent-deep:#003F8F; --on-accent:#FFFFFF;
-  --on-category:#FFFFFF; --wash:rgba(0,95,204,.12); --code-bg:#ECEFF2; --design:#005FCC; --font-display:var(--sans);
-  --standfirst-style:normal; --shadow-color:rgba(0,0,0,.16); }
-@media (prefers-color-scheme: dark) {
-  :root[data-palette="parchment"] { --bg:#18120F; --raise:#241A16; --surface-alt:#2D201A; --ink:#F1E4D4; --soft:#BDAA99;
-    --line:#49372E; --control-line:#BDAA99; --accent:#D98561; --accent-deep:#F0A17D; --on-accent:#1A0D08;
-    --on-category:#190F0A; --wash:rgba(217,133,97,.12); --code-bg:#2A1E19; --design:#D98561; --shadow-color:rgba(0,0,0,.40); }
-  :root[data-palette="fjord"] { --bg:#0C151A; --raise:#132229; --surface-alt:#192B33; --ink:#E5F0F2; --soft:#9BB1B8;
-    --line:#294049; --control-line:#9BB1B8; --accent:#55B6C2; --accent-deep:#7ACBD4; --on-accent:#061316;
-    --on-category:#081317; --wash:rgba(85,182,194,.12); --code-bg:#17272E; --design:#55B6C2; --shadow-color:rgba(0,0,0,.42); }
-  :root[data-palette="contrast"] { --bg:#000000; --raise:#0D0D0D; --surface-alt:#181818; --ink:#FFFFFF; --soft:#D0D4D8;
-    --line:#8B9097; --control-line:#C4C8CD; --accent:#65B5FF; --accent-deep:#9ED0FF; --on-accent:#000000;
-    --on-category:#000000; --wash:rgba(101,181,255,.18); --code-bg:#202020; --design:#65B5FF; --shadow-color:rgba(0,0,0,.72); }
-}
-:root[data-theme="light"][data-palette="parchment"] { --bg:#F6F0E5; --raise:#FFFAF2; --surface-alt:#F0E4D4; --ink:#33271F; --soft:#6F5C4C;
-  --line:#DCCDBB; --control-line:#6F5C4C; --accent:#98492F; --accent-deep:#78341F; --on-accent:#FFFFFF; --on-category:#FFFFFF;
-  --wash:rgba(152,73,47,.09); --code-bg:#EDE3D6; --design:#98492F; }
-:root[data-theme="dark"][data-palette="parchment"] { --bg:#18120F; --raise:#241A16; --surface-alt:#2D201A; --ink:#F1E4D4; --soft:#BDAA99;
-  --line:#49372E; --control-line:#BDAA99; --accent:#D98561; --accent-deep:#F0A17D; --on-accent:#1A0D08; --on-category:#190F0A;
-  --wash:rgba(217,133,97,.12); --code-bg:#2A1E19; --design:#D98561; }
-:root[data-theme="light"][data-palette="fjord"] { --bg:#F3F7F8; --raise:#FFFFFF; --surface-alt:#E7EFF2; --ink:#17272E; --soft:#52666F;
-  --line:#CBDADF; --control-line:#52666F; --accent:#176B79; --accent-deep:#0E5663; --on-accent:#FFFFFF; --on-category:#FFFFFF;
-  --wash:rgba(23,107,121,.09); --code-bg:#E8EEF0; --design:#176B79; }
-:root[data-theme="dark"][data-palette="fjord"] { --bg:#0C151A; --raise:#132229; --surface-alt:#192B33; --ink:#E5F0F2; --soft:#9BB1B8;
-  --line:#294049; --control-line:#9BB1B8; --accent:#55B6C2; --accent-deep:#7ACBD4; --on-accent:#061316; --on-category:#081317;
-  --wash:rgba(85,182,194,.12); --code-bg:#17272E; --design:#55B6C2; }
-:root[data-theme="light"][data-palette="contrast"] { --bg:#FFFFFF; --raise:#FFFFFF; --surface-alt:#F0F2F5; --ink:#000000; --soft:#343A40;
-  --line:#73777F; --control-line:#3F444C; --accent:#005FCC; --accent-deep:#003F8F; --on-accent:#FFFFFF; --on-category:#FFFFFF;
-  --wash:rgba(0,95,204,.12); --code-bg:#ECEFF2; --design:#005FCC; }
-:root[data-theme="dark"][data-palette="contrast"] { --bg:#000000; --raise:#0D0D0D; --surface-alt:#181818; --ink:#FFFFFF; --soft:#D0D4D8;
-  --line:#8B9097; --control-line:#C4C8CD; --accent:#65B5FF; --accent-deep:#9ED0FF; --on-accent:#000000; --on-category:#000000;
-  --wash:rgba(101,181,255,.18); --code-bg:#202020; --design:#65B5FF; }
 body { background: var(--bg); color: var(--ink); font: 1rem/1.65 var(--sans); margin: 0;
   font-synthesis: none; font-optical-sizing: auto; }
 .wrap { max-width: var(--measure); margin: 0 auto; padding: 2.5rem 1.25rem 5rem; }
@@ -173,6 +96,7 @@ header.doc { border-bottom: 1px solid var(--line); padding-bottom: 1.5rem; }
 [id] > .anch { opacity: 0; margin-left: .4rem; font-family: var(--mono); font-size: .7em; font-weight: 600;
   text-decoration: none; color: var(--accent); vertical-align: .12em; }
 h2:hover .anch, h3:hover .anch, .callout:hover .anch { opacity: 1; }
+.finding:hover .anch, .timeline li:hover .anch, .checklist li:hover .anch { opacity: 1; }
 h2:focus-within .anch, h3:focus-within .anch { opacity: 1; }
 .anch:focus { opacity: 1; outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
 
@@ -255,11 +179,10 @@ tr:last-child td { border-bottom: none; }
 .pill.done { border-color: var(--accent); color: var(--on-accent); background: var(--accent); }
 
 /* verdict + findings */
-.verdict { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; margin: 1rem 0; }
+.verdict { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(11rem, 100%), 1fr)); gap: .6rem; margin: 1rem 0; }
 .verdict > div { background: var(--raise); border: 1px solid var(--line); border-radius: 6px; padding: .7rem .9rem; }
 .verdict .q { font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--soft); display: block; }
 .verdict .a { font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; }
-@media (max-width: 700px) { .verdict { grid-template-columns: 1fr; } }
 .finding { display: grid; grid-template-columns: 3.4rem 1fr; gap: .8rem; padding: .55rem 0;
   border-bottom: 1px solid var(--line); font-size: .93rem; }
 .finding:last-child { border-bottom: none; }
@@ -283,9 +206,37 @@ tr:last-child td { border-bottom: none; }
 .timeline-progress meter::-webkit-meter-optimum-value { border-radius: 999px; background: var(--accent); }
 .timeline-progress meter::-moz-meter-bar { border-radius: 999px; background: var(--accent); }
 .ph-done { color: var(--accent); }
+
+/* checklist — verification state with a computed coverage strip */
+.checklist { list-style: none; padding: 0; margin: 1rem 0; }
+.checklist li { display: grid; grid-template-columns: 1.5rem 1fr; gap: .7rem; padding: .45rem 0;
+  border-bottom: 1px solid var(--line); font-size: .93rem; }
+.checklist li:last-child { border-bottom: none; }
+.checklist .cbox { width: 1.15rem; height: 1.15rem; border: 1px solid var(--control-line); border-radius: 4px;
+  display: inline-flex; align-items: center; justify-content: center; font-size: .8rem; font-weight: 700;
+  margin-top: .15rem; color: var(--on-accent); background: var(--bg); }
+.checklist li.done .cbox { background: var(--accent); border-color: var(--accent); }
+.checklist li.done > div { color: var(--soft); }
+
+/* options scorecard — the picked row carries the recommendation */
+table.options tr.pick td { background: var(--wash); }
+table.options tr.pick td:first-child { font-weight: 650; }
+.pick-chip { font-size: .68rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  padding: .1rem .45rem; border-radius: 999px; background: var(--accent); color: var(--on-accent);
+  margin-left: .4rem; white-space: nowrap; }
+
+/* a superseded decision stays visible under the surface */
+.callout.superseded { opacity: .68; border-left-color: var(--line); background: var(--surface-alt); }
+.callout.superseded .label { color: var(--soft); }
+.callout.superseded p strong:first-child { text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--ink) 45%, transparent); }
+.supersede-note { font-size: .85rem; color: var(--soft); }
+.supersede-note a { color: var(--accent-deep); }
+
 details { margin: .75rem 0; }
 summary { cursor: pointer; font-size: .85rem; color: var(--accent-deep); }
 summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+summary .delta { color: var(--soft); font-variant-numeric: tabular-nums; }
 
 /* revision diff (what changed) */
 details.changes { margin: .75rem 0 0; }
@@ -314,6 +265,9 @@ footer.doc code { background: none; padding: 0; }
 .toc a:hover { text-decoration: underline; }
 .toc .n { font-family: var(--mono); font-size: .75em; color: var(--soft); margin-right: .5em;
   font-variant-numeric: tabular-nums; }
+/* changed since the previous revision — reread only what moved */
+.toc .chg { display: inline-block; width: .45em; height: .45em; border-radius: 50%;
+  background: var(--accent); margin-left: .45em; vertical-align: .12em; }
 @media (max-width: 700px) { .toc ol { columns: 1; } }
 /* On wide screens the TOC leaves the flow and rides the left margin as a rail, so the
    reader keeps their place in the document while scanning the structure. */
@@ -371,17 +325,12 @@ footer.doc code { background: none; padding: 0; }
   .theme-grid .pbtn, .theme-trigger, .theme-controls .tbtn { min-height: 2.75rem; }
 }
 
-/* Rolling-upgrade compatibility: a running pre-0.6 viewer can serve its old inline
-   picker markup while reading this newer asset file from disk. Keep that chrome usable
-   until the process is restarted and begins emitting .theme-picker. */
-.palettes { display: flex; gap: .4rem; margin-left: auto; }
-.palettes .pbtn, .tbtn { min-height: 0; display: inline-flex; align-items: center; gap: .35em;
-  width: auto; color: var(--soft); background: var(--raise); border: 1px solid var(--control-line);
-  border-radius: 999px; padding: .24rem .62rem; cursor: pointer; font: 650 .75rem var(--sans); }
-.palettes .pbtn:hover, .tbtn:hover { background: var(--surface-alt); }
-.palettes .pbtn[aria-pressed="true"] { border-color: var(--accent); color: var(--ink); box-shadow: none; }
-.palettes .pbtn:focus-visible, .tbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.palettes .dot { margin: 0; }
+/* scheme cycle button beside the theme picker */
+.tbtn { display: inline-flex; align-items: center; gap: .35em; color: var(--soft); background: var(--raise);
+  border: 1px solid var(--control-line); border-radius: 999px; padding: .24rem .62rem; cursor: pointer;
+  font: 650 .75rem var(--sans); }
+.tbtn:hover { background: var(--surface-alt); }
+.tbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .dot-verdigris { background: #2E7D6E; } .dot-mist { background: #0066DC; } .dot-iris { background: #7653B5; }
 .dot-parchment { background: #98492F; } .dot-fjord { background: #176B79; } .dot-contrast { background: #005FCC; }
 

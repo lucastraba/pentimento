@@ -9,29 +9,8 @@
       else localStorage.removeItem(key)
     } catch (err) {}
   }
-  const upgradeLegacyPicker = () => {
-    const extras = [
-      ['parchment', 'Parchment'], ['fjord', 'Fjord'], ['contrast', 'High Contrast'],
-    ]
-    document.querySelectorAll('.palettes').forEach((group) => {
-      const scheme = group.querySelector('.tbtn')
-      for (const [key, label] of extras) {
-        if (group.querySelector(`[data-p="${key}"]`)) continue
-        const button = document.createElement('button')
-        button.className = 'pbtn'
-        button.type = 'button'
-        button.dataset.p = key
-        button.setAttribute('aria-pressed', 'false')
-        const dot = document.createElement('span')
-        dot.className = `dot dot-${key}`
-        button.append(dot, document.createTextNode(label))
-        group.insertBefore(button, scheme)
-      }
-    })
-  }
   const paletteButtons = () => [...document.querySelectorAll('.pbtn')]
   const sync = () => {
-    upgradeLegacyPicker()
     const valid = paletteButtons().map((b) => b.dataset.p)
     const fallback = root.dataset.documentPalette || valid[0] || 'verdigris'
     const p = valid.includes(root.dataset.palette) ? root.dataset.palette : fallback
@@ -40,9 +19,7 @@
     const selected = paletteButtons().find((b) => b.dataset.p === p)
     const label = selected?.querySelector('.theme-copy strong')?.textContent || 'Theme'
     paletteButtons().forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.p === p)))
-    document.querySelectorAll('.sbtn').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.theme || '') === t)))
     document.querySelectorAll('.theme-name').forEach((el) => { el.textContent = label })
-    document.querySelectorAll('.scheme-name').forEach((el) => { el.textContent = t ? `${t[0].toUpperCase()}${t.slice(1)}` : 'Auto' })
     const schemeLabel = t ? `${t[0].toUpperCase()}${t.slice(1)}` : 'Auto'
     document.querySelectorAll('.tbtn').forEach((b) => { b.textContent = `◐ ${schemeLabel}` })
     const override = Boolean(readStore('pentimento-palette') || readStore('pentimento-theme'))
@@ -69,17 +46,8 @@
       }
       return
     }
-    const sb = t.closest('.sbtn')
-    if (sb) {
-      const next = sb.dataset.theme || ''
-      if (next) root.dataset.theme = next
-      else delete root.dataset.theme
-      writeStore('pentimento-theme', next)
-      sync()
-      return
-    }
     if (t.closest('.tbtn')) {
-      // Compatibility with the compact pre-0.6 picker: auto → dark → light → auto.
+      // scheme cycle: auto → dark → light → auto
       const current = root.dataset.theme || ''
       const next = current === '' ? 'dark' : current === 'dark' ? 'light' : ''
       if (next) root.dataset.theme = next

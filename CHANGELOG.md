@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `::: flow` renders box-and-arrow diagrams from `A -> B` edge chains; the renderer computes the layout, so diagrams need no hand-placed coordinates.
+- `::: checklist` renders `- [x]` verification items with a computed coverage strip.
+- `::: options criteria="..."` renders a brainstorm scorecard; the `[pick]` row carries the recommendation.
+- `superseded-by=` on decision callouts keeps reversed decisions visible, dimmed, and linked to their replacement.
+- Findings, timeline phases, and checklist items accept trailing `{#id}` anchors for comments and links.
+- From the second revision on, sections that changed since the previous revision get an accent dot in the table of contents, and the "What changed" summary carries computed glance deltas such as `+1 done · −2 HIGH`.
+- `pentimento lint` flags `:::` directives outside the vocabulary, which would otherwise render as literal text.
+
+### Changed
+
+- The verdict banner grid now adapts to its cell count instead of forcing three columns.
+
+### Removed
+
+- The `::: compare` and `::: files` placeholder directives, which silently rendered as plain markdown.
+- The pre-0.6 palette fallback CSS and compact-picker compatibility chrome; palette definitions now come from the theme registry alone.
+
 ## 0.6.0 - 2026-07-10
 
 Pentimento 0.6 keeps the product intentionally focused: one person and one agent revising one canonical Markdown document, with private remote viewing when needed.
