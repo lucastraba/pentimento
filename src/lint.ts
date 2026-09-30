@@ -174,7 +174,7 @@ export const lintDoc = (raw: string): LintFinding[] => {
   const { frontmatterRaw } = splitRaw(raw)
   if (frontmatterRaw && /^Palette\s*:/m.test(frontmatterRaw)) {
     const line = lines.findIndex((l) => /^Palette\s*:/.test(l)) + 1
-    findings.push({ line, rule: 'palette', message: 'Palette is ignored since 0.8 (one palette, light and dark) — remove it' })
+    findings.push({ line, rule: 'palette', message: 'Palette is ignored since 0.11 (one palette, light and dark) — remove it' })
   }
 
   if (words > 0 && emDashes >= 3 && emDashes > words / 100) {

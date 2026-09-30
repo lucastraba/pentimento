@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased (0.8.0)
+## 0.11.0 - 2026-09-30
 
-Pentimento 0.8 reframes the tool around rounds of drafts and makes the page much quieter.
+Pentimento 0.11 reframes the tool around rounds of drafts and makes the page much quieter. (0.8.0 through 0.10.0 were published while moving releases to CI and contain the 0.7 code.)
 
 ### Added
 

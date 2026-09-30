@@ -268,8 +268,8 @@ const main = (): void => {
       break
     }
     case 'config': {
-      // Palettes and the personal theme setting were removed in 0.8.
-      console.log('Pentimento has one palette since 0.8; the page follows your system light/dark')
+      // Palettes and the personal theme setting were removed in 0.11.
+      console.log('Pentimento has one palette since 0.11; the page follows your system light/dark')
       console.log('setting, and the toggle in the page header overrides it per browser.')
       console.log(`Any old ${configPath()} can be deleted.`)
       break
