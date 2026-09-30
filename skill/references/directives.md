@@ -119,36 +119,33 @@ Write a plain unified diff (` ` context, `-` removed, `+` added) inside a `txt` 
 :::
 ````
 
-## Flow (diagrams without coordinates)
+## Flow (diagrams)
 
-The default way to draw a box-and-arrow diagram. Write edge chains; the renderer computes the layout and emits the same constrained SVG vocabulary as `::: figure`. Mark emphasized nodes with an `accent:` line. Always set `aria`.
+The way to draw a box-and-arrow diagram. Write edge chains; the renderer computes the layout. Label an arrow by putting the label inside it: `-(label)->`. Mark emphasized nodes with an `accent:` line. Always set `aria`; it becomes the caption.
 
 ```markdown
-::: flow aria="PLAN.md flows through the pentimento CLI to plan.html"
-PLAN.md -> pentimento CLI -> plan.html
-pentimento CLI -> .history/
-accent: pentimento CLI
+::: flow aria="Edits go through an operation log before they sync"
+Editor -(every keystroke)-> Operation log -> Sync
+Sync -(remote edits)-> Editor
+accent: Operation log
 :::
 ```
 
-Node names are plain text (no markdown). Reach for `::: figure` only when a diagram needs geometry `flow` can't say.
+Node names and labels are plain text. Keep diagrams to what a reader needs to follow the prose: a handful of nodes, one direction of flow.
 
-## Figure (diagrams)
+`::: figure` (hand-written SVG) is still rendered for older documents. Don't write new ones: hand-placed coordinates are where diagrams come out misaligned. If `flow` can't express a diagram, describe it in prose.
 
-Inline SVG only, composed from `theme.css` classes: `nodebox` (plain node), `accentbox` (highlighted node), `flow` (arrow path; add `marker-end="url(#arr)"` and define the `arr` marker in `<defs>`), `lbl` (small caption text). The renderer keeps only its SVG tag, attribute, and class allowlists; scripts, event handlers, links, foreign objects, and inline styles are removed. Colors come from CSS variables; never hardcode fills beyond those classes. Always set `aria`.
+## Obsidian syntax
 
-```markdown
-::: figure aria="PLAN.md flows through the pentimento CLI to plan.html"
-<svg viewBox="0 0 640 120" xmlns="http://www.w3.org/2000/svg">
-  <defs><marker id="arr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--soft)"/></marker></defs>
-  <rect class="nodebox" x="8" y="40" width="110" height="36" rx="5"/>
-  <text x="63" y="62" text-anchor="middle">PLAN.md</text>
-  <rect class="accentbox" x="180" y="40" width="120" height="36" rx="5"/>
-  <text x="240" y="62" text-anchor="middle">pentimento CLI</text>
-  <path class="flow" d="M118 58 H176"/>
-</svg>
-:::
-```
+Documents written in Obsidian render the way Obsidian shows them:
+
+- `[[Note]]` and `[[Note|label]]` show as the link text (the page can't open other notes), and `![[file]]` as a marked mention.
+- `==text==` is highlighted.
+- `%% text %%` is hidden, as in Obsidian's reading view. (`%% @c: … %%` is still a comment for the agent, moved into `meta.yml` at snapshot.)
+- `> [!note] Title` callouts use the callout styles; `warning`, `caution`, and `attention` render as warnings, `danger`, `error`, `bug`, and `failure` as risks, everything else as a note. `[!type]-` starts folded.
+- Footnotes: `text[^1]` with `[^1]: the note` anywhere in the file, numbered in order of first use.
+
+Agents writing plans should prefer the directives and plain markdown, but these are safe to use.
 
 ## Headings and ids
 

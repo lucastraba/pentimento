@@ -17,6 +17,9 @@ import { schemeToggle, themeInitSnippet } from './themes.js'
 
 const ASSETS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../assets')
 
+/** Footnote numbering for the document being rendered, set by prepare(). */
+const footnotes: { numbers: Map<string, number>; referenced: Set<string> } = { numbers: new Map(), referenced: new Set() }
+
 // Plans follow CommonMark (a single newline is a space). Personal documents follow Obsidian,
 // where a single newline is a line break, so lyrics and poems keep their lines.
 const makeMd = (breaks: boolean): MarkdownIt => {
@@ -29,6 +32,54 @@ const makeMd = (breaks: boolean): MarkdownIt => {
     return true
   })
   m.renderer.rules.pentimento_dot = (tokens, idx) => `<span class="dot dot-${tokens[idx].content}"></span>`
+  // Obsidian syntax, so notes written there render as they look there
+  m.inline.ruler.before('link', 'obsidian_wikilink', (state, silent) => {
+    const match = /^(!?)\[\[([^\]\n|]+)(?:\|([^\]\n]+))?\]\]/.exec(state.src.slice(state.pos))
+    if (!match) return false
+    if (!silent) {
+      const token = state.push('obsidian_wikilink', '', 0)
+      token.content = (match[3] ?? match[2].replace(/#\^?/, ' › ')).trim()
+      token.meta = { embed: match[1] === '!' }
+    }
+    state.pos += match[0].length
+    return true
+  })
+  m.renderer.rules.obsidian_wikilink = (tokens, idx) => {
+    const t = tokens[idx]
+    return t.meta.embed
+      ? `<span class="embed">${escapeHtml(t.content)}</span>`
+      : `<span class="wikilink">${escapeHtml(t.content)}</span>`
+  }
+  m.inline.ruler.before('emphasis', 'obsidian_mark', (state, silent) => {
+    if (state.src.charCodeAt(state.pos) !== 0x3D || state.src.charCodeAt(state.pos + 1) !== 0x3D) return false
+    const end = state.src.indexOf('==', state.pos + 2)
+    if (end < 0 || end === state.pos + 2 || /\s/.test(state.src[state.pos + 2]) || /\s/.test(state.src[end - 1])) return false
+    if (!silent) {
+      state.push('mark_open', 'mark', 1)
+      const max = state.posMax
+      state.pos += 2
+      state.posMax = end
+      state.md.inline.tokenize(state)
+      state.posMax = max
+      state.push('mark_close', 'mark', -1)
+    }
+    state.pos = end + 2
+    return true
+  })
+  m.inline.ruler.before('link', 'footnote_ref', (state, silent) => {
+    const match = /^\[\^([^\]\s]+)\]/.exec(state.src.slice(state.pos))
+    if (!match || !footnotes.numbers.has(match[1])) return false
+    if (!silent) state.push('footnote_ref', '', 0).content = match[1]
+    state.pos += match[0].length
+    return true
+  })
+  m.renderer.rules.footnote_ref = (tokens, idx) => {
+    const id = tokens[idx].content
+    const n = footnotes.numbers.get(id)!
+    const first = !footnotes.referenced.has(id)
+    footnotes.referenced.add(id)
+    return `<sup class="fnref"><a href="#fn-${escapeHtml(slugify(id) || String(n))}"${first ? ` id="fnref-${escapeHtml(slugify(id) || String(n))}"` : ''}>${n}</a></sup>`
+  }
   // every table scrolls inside its own container; the page never scrolls sideways
   m.renderer.rules.table_open = () => '<div class="tablewrap"><table>\n'
   m.renderer.rules.table_close = () => '</table></div>\n'
@@ -399,6 +450,59 @@ interface Prepared {
   headings: HeadingInfo[]
   /** renderer-built HTML spliced in by the traces view */
   raws: string[]
+  /** footnote definitions by id, in source order */
+  footnotes: Map<string, string>
+}
+
+/** Obsidian `%% … %%` comments are private notes; they never reach the page. Fences keep theirs. */
+/**
+ * Number footnotes by first reference, then any defined but never referenced. Runs before
+ * parsing because directive blocks render during it. Fragments without definitions keep
+ * the enclosing document's numbering.
+ */
+const numberFootnotes = (body: string): void => {
+  const defined = [...body.matchAll(/^\[\^([^\]\s]+)\]:/gm)].map((m) => m[1])
+  if (!defined.length) return
+  footnotes.numbers = new Map()
+  footnotes.referenced = new Set()
+  for (const m of body.matchAll(/\[\^([^\]\s]+)\](?!:)/g)) {
+    if (defined.includes(m[1]) && !footnotes.numbers.has(m[1])) footnotes.numbers.set(m[1], footnotes.numbers.size + 1)
+  }
+  for (const id of defined) if (!footnotes.numbers.has(id)) footnotes.numbers.set(id, footnotes.numbers.size + 1)
+}
+
+const stripObsidianComments = (body: string): string => {
+  const out: string[] = []
+  let chunk: string[] = []
+  let inFence = false
+  const flush = () => { out.push(chunk.join('\n').replace(/%%[\s\S]*?%%/g, '')); chunk = [] }
+  for (const line of body.split('\n')) {
+    if (/^\s*```/.test(line)) {
+      if (!inFence) { chunk.push(line); flush(); inFence = true; continue }
+      inFence = false
+      out.push(line)
+      continue
+    }
+    if (inFence) out.push(line)
+    else chunk.push(line)
+  }
+  flush()
+  return out.join('\n').replace(/\n{3,}/g, '\n\n')
+}
+
+const CALLOUT_KINDS: Record<string, string> = {
+  warning: 'warn', caution: 'warn', attention: 'warn',
+  danger: 'risk', error: 'risk', bug: 'risk', failure: 'risk', fail: 'risk', missing: 'risk',
+}
+
+/** An Obsidian callout (`> [!type] Title`) rendered with the callout styles. */
+const renderObsidianCallout = (type: string, fold: string, title: string, inner: string): string => {
+  const kind = CALLOUT_KINDS[type.toLowerCase()] ?? 'info'
+  const label = title ? renderInline(title) : escapeHtml(type[0].toUpperCase() + type.slice(1).toLowerCase())
+  const body = inner.trim() ? renderMarkdown(inner) : ''
+  return fold
+    ? `<details class="callout ${kind}"${fold === '+' ? ' open' : ''}><summary class="label">${label}</summary>${body}</details>`
+    : `<div class="callout ${kind}"><span class="label">${label}</span>${body}</div>`
 }
 
 const HEADING_META_RE = /\s*<!--\s*([^>]*?)\s*-->\s*$/
@@ -417,8 +521,11 @@ const parseHeadingMeta = (comment: string): { id?: string } => {
   return out
 }
 
-const prepare = (body: string, raws: string[] = []): Prepared => {
-  const lines = body.split('\n')
+const prepare = (source: string, raws: string[] = []): Prepared => {
+  const stripped = stripObsidianComments(source)
+  const lines = stripped.split('\n')
+  const footnoteDefs = new Map<string, string>()
+  numberFootnotes(stripped)
   const blocks: string[] = []
   const headings: HeadingInfo[] = []
   let title = ''
@@ -434,10 +541,27 @@ const prepare = (body: string, raws: string[] = []): Prepared => {
       if (!title && /^#\s+/.test(line)) {
         title = line.replace(/^#\s+/, '').trim()
         i++
-        while (i < lines.length && (lines[i].trim() === '' || lines[i].startsWith('>'))) {
+        while (i < lines.length && (lines[i].trim() === '' || (lines[i].startsWith('>') && !/^>\s*\[!/.test(lines[i])))) {
           if (lines[i].startsWith('>')) standfirstLines.push(lines[i].replace(/^>\s?/, ''))
           i++
         }
+        continue
+      }
+      const fn = /^\[\^([^\]\s]+)\]:\s?(.*)$/.exec(line)
+      if (fn) {
+        const text = [fn[2]]
+        i++
+        while (i < lines.length && /^(?: {2,}|\t)\S/.test(lines[i])) text.push(lines[i++].trim())
+        footnoteDefs.set(fn[1], text.join(' '))
+        continue
+      }
+      const callout = /^>\s*\[!([\w-]+)\]([+-]?)\s*(.*)$/.exec(line)
+      if (callout) {
+        const inner: string[] = []
+        i++
+        while (i < lines.length && lines[i].startsWith('>')) inner.push(lines[i++].replace(/^>\s?/, ''))
+        blocks.push(renderObsidianCallout(callout[1], callout[2], callout[3], inner.join('\n')))
+        out.push('', `\uE000PENTIMENTO-BLOCK-${blocks.length - 1}\uE001`, '')
         continue
       }
       const open = /^:::\s*([\w-]+)\s*(.*)$/.exec(line)
@@ -501,7 +625,7 @@ const prepare = (body: string, raws: string[] = []): Prepared => {
     }
     bucket.push(line)
   }
-  return { title, standfirst: standfirstLines.join(' ').trim(), sections, preamble, blocks, headings, raws }
+  return { title, standfirst: standfirstLines.join(' ').trim(), sections, preamble, blocks, headings, raws, footnotes: footnoteDefs }
 }
 
 const anchor = (id: string): string =>
@@ -538,13 +662,24 @@ const renderSectionBody = (prepared: Prepared, bodyLines: string[]): string => {
   return out.join('\n')
 }
 
+
+const footnotesHtml = (prepared: Prepared): string => {
+  if (!prepared.footnotes.size) return ''
+  const items = [...footnotes.numbers.entries()].sort((a, b) => a[1] - b[1]).map(([id]) => {
+    const anchorId = escapeHtml(slugify(id) || String(footnotes.numbers.get(id)))
+    const back = footnotes.referenced.has(id) ? ` <a class="fnback" href="#fnref-${anchorId}" aria-label="Back to the text">↩</a>` : ''
+    return `<li id="fn-${anchorId}">${renderInline(prepared.footnotes.get(id) ?? '')}${back}</li>`
+  })
+  return `\n<section class="footnotes" aria-label="Footnotes"><ol>${items.join('')}</ol></section>`
+}
+
 const renderSections = (prepared: Prepared): string => {
   const preamble = prepared.preamble.join('\n').trim()
     ? `<div class="preamble">${renderSectionBody(prepared, prepared.preamble)}</div>\n`
     : ''
   return preamble + prepared.sections.map((s) =>
     `<section>\n<h2 id="${escapeHtml(s.heading.id)}">${renderInline(s.heading.title)}${anchor(s.heading.id)}</h2>\n` +
-    renderSectionBody(prepared, s.bodyLines) + '\n</section>').join('\n\n')
+    renderSectionBody(prepared, s.bodyLines) + '\n</section>').join('\n\n') + footnotesHtml(prepared)
 }
 
 /** Render a loose markdown fragment (no sections) to HTML. */
@@ -638,6 +773,15 @@ const changedSectionIds = (baseline: string, current: string): Set<string> => {
 
 /** The traces view: the current body with the baseline showing through, as rendered HTML. */
 const renderTraces = (baseline: string, current: string, baselineLabel: string): string => {
+  // the traces copy numbers its own footnotes; the page's numbering resumes afterwards
+  const saved = { numbers: footnotes.numbers, referenced: footnotes.referenced }
+  try { return renderTracesInner(baseline, current, baselineLabel) } finally {
+    footnotes.numbers = saved.numbers
+    footnotes.referenced = saved.referenced
+  }
+}
+
+const renderTracesInner = (baseline: string, current: string, baselineLabel: string): string => {
   const raws: string[] = []
   const stripIds = (html: string): string => html.replace(/\sid="[^"]*"/g, '')
   const pieces = tracePlan(baseline, current).map((part) => {
@@ -690,6 +834,36 @@ export interface RenderOptions {
   omitCommentsPanel?: boolean
   /** Compare against this revision instead of the previous one ("what changed since I last read"). */
   since?: string
+  /**
+   * Earlier drafts to embed for the in-page scrubber: a count of the most recent ones, or
+   * 'all'. Default 10. The live viewer passes 0; its bar fetches drafts from the server.
+   */
+  drafts?: number | 'all'
+}
+
+const DEFAULT_EMBEDDED_DRAFTS = 10
+
+/** Pre-rendered earlier drafts plus a slider, so a static page can step through its history. */
+const draftScrubber = (drafts: Draft[], currentLabel: string, limit: number | 'all'): string => {
+  const earlier = drafts.slice(0, -1)
+  const kept = limit === 'all' ? earlier : earlier.slice(Math.max(0, earlier.length - limit))
+  if (!kept.length) return ''
+  const saved = { numbers: footnotes.numbers, referenced: footnotes.referenced }
+  let templates = ''
+  try {
+    templates = kept.map((d) => {
+      let html: string
+      try { html = renderSections(prepare(d.body)) } catch { html = `<pre>${escapeHtml(d.body)}</pre>` }
+      return `<template class="draft-tpl" data-rev="${escapeHtml(d.id)}">${html}</template>`
+    }).join('\n')
+  } finally {
+    footnotes.numbers = saved.numbers
+    footnotes.referenced = saved.referenced
+  }
+  const max = kept.length
+  return `<div class="drafts-scrub"><label><span class="drafts-scrub-name">Drafts</span>` +
+    `<input type="range" data-draft-scrub min="0" max="${max}" step="1" value="${max}" aria-label="Draft"></label>` +
+    `<span class="drafts-scrub-label" data-draft-label data-current="${escapeHtml(currentLabel)}">${escapeHtml(currentLabel)}</span></div>\n${templates}`
 }
 
 /** Plans (any Archetype) use CommonMark line joining; personal documents keep their line breaks. */
@@ -819,6 +993,8 @@ const chrome = (doc: Doc, meta: Meta, prepared: Prepared, opts: RenderOptions): 
   const sequence = revisionState.dirty ? [...drafts, { id: 'canonical', body }] : drafts
   const cuttings = collectCuttings(sequence)
   const appendix = [cuttingsHtml(cuttings, !isPlan), historyHtml(meta, drafts)].filter(Boolean).join('\n')
+  const draftLimit = opts.drafts ?? DEFAULT_EMBEDDED_DRAFTS
+  const scrubber = draftLimit === 0 || opts.artifact ? '' : draftScrubber(sequence, currentId === 'canonical' ? 'now' : currentId ?? 'now', draftLimit)
 
   // --- contents ------------------------------------------------------------------------
   const tocItems = prepared.sections.map((s) =>
@@ -862,6 +1038,7 @@ ${rail}
   <h1>${inline(prepared.title || doc.name)}</h1>
   ${prepared.standfirst ? `<p class="standfirst">${inline(prepared.standfirst)}</p>` : ''}
   ${latestLine}${changes}${commentsPanel}
+  ${scrubber}
   ${tocInline}
 </header>
 
@@ -897,10 +1074,17 @@ ${page}</body>
 }
 
 const withDocument = <T>(doc: Doc, meta: Meta, fn: () => T): T => {
-  const previous = { md, context }
+  const previous = { md, context, numbers: footnotes.numbers, referenced: footnotes.referenced }
   md = usesLineBreaks(doc) ? mdVerse : mdPlan
   context = contextFor(meta)
-  try { return fn() } finally { md = previous.md; context = previous.context }
+  footnotes.numbers = new Map()
+  footnotes.referenced = new Set()
+  try { return fn() } finally {
+    md = previous.md
+    context = previous.context
+    footnotes.numbers = previous.numbers
+    footnotes.referenced = previous.referenced
+  }
 }
 
 export const render = (docPath: string, opts: RenderOptions = {}): string => {

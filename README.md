@@ -31,7 +31,7 @@ The page shows the current draft, set in a plain serif with no decoration. Above
 - **Cuttings.** Every passage you removed in an earlier draft, with a copy button. The bridge you cut on Thursday is still there on Friday.
 - **History.** Every draft, with its summary, date, and word count.
 
-In the live viewer, a scrubber at the bottom steps through the drafts, and the page tells you when there are drafts you haven't read yet.
+A scrubber steps through the drafts, and in the live viewer the page tells you when there are drafts you haven't read yet.
 
 ## Install
 
@@ -55,7 +55,7 @@ pentimento cuttings Song.md      # everything you've cut that isn't in the curre
 pentimento revert Song.md r002   # bring back r002, saved as a new draft
 ```
 
-A document without an `Archetype` in its frontmatter is treated as your own writing: single line breaks stay line breaks, as in Obsidian, so lyrics and poems keep their shape. The `.history/` folder is hidden from Obsidian.
+A document without an `Archetype` in its frontmatter is treated as your own writing: single line breaks stay line breaks, as in Obsidian, so lyrics and poems keep their shape. Obsidian syntax renders the way Obsidian shows it: `[[links]]`, `==highlights==`, `> [!note]` callouts, and footnotes, with `%% comments %%` hidden. The `.history/` folder is hidden from Obsidian.
 
 ## Plans with an agent
 
@@ -75,7 +75,7 @@ The loop from there:
 3. **See what it did.** "What changed since r002" opens the diff, and lists each of your comments the new draft answered.
 4. **Approve.** When the plan is right, press Approve. The agent sees the approval and gets to work. If the plan changes after that, the page offers everything that changed since you signed off.
 
-The skill keeps plans quiet on purpose: mostly prose, with a small set of structured blocks (decisions, a phase list with status, findings by severity, an options table, a question for you) used only where they carry information. `pentimento lint` warns when a document leans on them, and flags the usual generated-prose habits.
+The skill keeps plans quiet on purpose: mostly prose, with a small set of structured blocks (decisions, a phase list with status, findings by severity, an options table, a diagram, a question for you) used only where they carry information. `pentimento lint` warns when a document leans on them, and flags the usual generated-prose habits.
 
 If the agent runs on a remote machine, `pentimento serve . --tailscale` binds the viewer to its Tailscale address and prints a private write link and a read-only link. Send the write link only to yourself.
 
@@ -89,7 +89,7 @@ A static page for sharing or printing:
 pentimento render Plan.md
 ```
 
-It has everything except the scrubber and commenting, and makes no outside requests.
+It has everything except commenting and approval. The scrubber works from the last 10 drafts, embedded in the file (`--drafts all` for every one, `--drafts 0` for none), so you can send someone `Song.html` and they can step through how it developed. The page makes no outside requests.
 
 ## Writing reference
 

@@ -150,6 +150,9 @@ export const lintDoc = (raw: string): LintFinding[] => {
     })
   }
   const count = (pred: (o: { name: string; variant: string }) => boolean) => known.filter(pred)
+  for (const o of count((o) => o.name === 'figure')) {
+    findings.push({ line: o.line, rule: 'figure', message: '::: figure is kept for older documents — draw with ::: flow, or describe the diagram in prose' })
+  }
   const verdicts = count((o) => o.name === 'verdict')
   if (verdicts.length > 1) {
     findings.push({ line: verdicts[1].line, rule: 'repeated-verdict', message: 'more than one ::: verdict — one answer block per document' })

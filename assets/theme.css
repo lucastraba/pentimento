@@ -106,6 +106,15 @@ header.doc { padding-bottom: 1.6rem; border-bottom: 1px solid var(--line); }
 .since-note { margin: .6rem 0 0; font-size: .82rem; color: var(--soft); }
 .since-note a { color: var(--accent); }
 
+.drafts-scrub { display: flex; align-items: center; gap: .7rem; margin: .7rem 0 0; font: .8rem var(--sans); color: var(--soft); }
+.drafts-scrub label { display: inline-flex; align-items: center; gap: .6rem; }
+.drafts-scrub input[type="range"] { width: 11rem; accent-color: var(--accent); margin: 0; }
+.drafts-scrub-label { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
+:root[data-viewing-draft] main { position: relative; }
+:root[data-viewing-draft] main::before { content: ""; position: absolute; top: 3rem; bottom: 0; left: -1.3rem;
+  border-left: 2px dotted color-mix(in srgb, var(--trace) 65%, transparent); }
+:root[data-viewing-draft] .drafts-scrub-label { color: var(--trace); }
+.tool:disabled { opacity: .4; cursor: default; }
 details { margin: .75rem 0; }
 summary { cursor: pointer; }
 summary::marker, summary::-webkit-details-marker { color: var(--faint); }
@@ -141,6 +150,19 @@ details.changes { margin: .5rem 0 0; }
   .rail a[aria-current="true"] { color: var(--ink); border-left-color: var(--ink); }
   .rail .rail-appendix { margin-top: .9rem; }
 }
+
+/* Obsidian syntax: links to other notes, embeds, highlights, footnotes */
+.wikilink { color: var(--ink); text-decoration: underline dotted color-mix(in srgb, var(--accent) 60%, transparent);
+  text-underline-offset: .2em; }
+.embed { font: italic .92em var(--serif); color: var(--soft); }
+.embed::before { content: "↳ "; font-style: normal; }
+mark { background: color-mix(in srgb, #F2C94C 38%, transparent); color: inherit; padding: 0 .08em; border-radius: 2px; }
+sup.fnref { font: 600 .7em var(--sans); line-height: 0; margin-left: .05em; }
+sup.fnref a { text-decoration: none; color: var(--accent); }
+.footnotes { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--line); font-size: .9rem; color: var(--soft); }
+.footnotes ol { padding-left: 1.2rem; }
+.fnback { text-decoration: none; color: var(--soft); font-family: var(--sans); }
+details.callout > summary.label { cursor: pointer; }
 
 /* ---- directives ---------------------------------------------------------- */
 
@@ -444,7 +466,7 @@ html[data-scrubbing] main { transition: opacity .12s; }
 /* print: interface gone, every fold open, sections whole */
 @media print {
   :root { --bg: #fff; --raise: #fff; --sunk: #f4f4f4; --ink: #000; --soft: #444; --faint: #777; --line: #ccc; --accent: #000; }
-  .meta-tools, .vbar, .vbar-pad, .vc-drawer, .vc-add, .vc-form, .vc-toast, .vc-hint, .anch, .rail, .toc-inline,
+  .meta-tools, .drafts-scrub, .vbar, .vbar-pad, .vc-drawer, .vc-add, .vc-form, .vc-toast, .vc-hint, .anch, .rail, .toc-inline,
   .viewer-stopped-status, .cut-copy { display: none !important; }
   .wrap { max-width: none; padding: 0; }
   .tablewrap, .diff { width: auto; margin: 1rem 0; transform: none; overflow: visible; }

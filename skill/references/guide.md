@@ -30,6 +30,8 @@ whether a sentence or a plain list would do. Usually it would.
   document at most. Background, caveats, and notes stay in prose.
 - `::: timeline` and `::: checklist` earn their place when items carry status the reader
   will track across drafts. A static list of steps is a markdown list.
+- Draw diagrams with `::: flow`, and only when the prose is hard to follow without one.
+  Label arrows with `-(label)->`. Don't write `::: figure` SVG.
 - `::: ask` is for a question only the user can answer and that changes what you write
   next. Ask at most two per draft.
 - `pentimento lint` warns when a document leans on directives. Take the warning seriously.
@@ -109,7 +111,9 @@ Don't write any of this by hand; the render computes it.
 - A contents rail with a dot beside every section that changed.
 - Cuttings: passages removed in earlier drafts, kept at the bottom of the page.
 - History: every draft with its summary, reason, date, and word count.
-- In the live viewer, a scrubber to step through drafts, and "since you last read" links.
+- A scrubber to step through drafts: in the live viewer's bar, and in the header of a
+  static render (the last 10 drafts are embedded; `--drafts all` embeds every one).
+- "Since you last read" links in the live viewer.
 
 ## Prose
 

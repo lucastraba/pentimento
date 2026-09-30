@@ -202,6 +202,53 @@ describe('render', () => {
     expect(html.match(/<h2 id="[^"]+">/)?.[0]).toMatch(/^<h2 id="[a-z0-9-]+">$/)
   })
 
+  it('renders Obsidian syntax the way Obsidian shows it', () => {
+    const html = render(doc(`# Notes
+
+## Draft
+
+See [[Chord sheet]] and [[Harbor Lights#Chorus|the chorus]], then ![[demo.mp3]].
+The ==second verse== needs work.[^tempo] %% private note %%
+
+> [!warning] Tempo
+> Too slow in the bridge.
+
+> [!tip]- Hidden idea
+> Try a key change.
+
+\`\`\`txt
+%% kept in code %%
+\`\`\`
+
+[^tempo]: Try 92 bpm instead of 84.
+`))
+    expect(html).toContain('<span class="wikilink">Chord sheet</span>')
+    expect(html).toContain('<span class="wikilink">the chorus</span>')
+    expect(html).toContain('<span class="embed">demo.mp3</span>')
+    expect(html).toContain('<mark>second verse</mark>')
+    expect(html).not.toContain('private note')
+    expect(html).toContain('%% kept in code %%')
+    expect(html).toContain('<div class="callout warn"><span class="label">Tempo</span><p>Too slow in the bridge.</p>')
+    expect(html).toContain('<details class="callout info"><summary class="label">Hidden idea</summary>')
+    expect(html).toContain('<sup class="fnref"><a href="#fn-tempo" id="fnref-tempo">1</a></sup>')
+    expect(html).toContain('<li id="fn-tempo">Try 92 bpm instead of 84. <a class="fnback" href="#fnref-tempo"')
+    expect(html).not.toContain('[^tempo]')
+  })
+
+  it('embeds earlier drafts for the static scrubber, capped and optional', () => {
+    const p = doc('# T\n\n## S\n\nversion one\n')
+    for (const v of ['two', 'three']) {
+      fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace(/version \w+/, `version ${v}`))
+      snapshot(p, { summary: v, author: 'test' })
+    }
+    const html = render(p)
+    expect(html.match(/<template class="draft-tpl"/g)).toHaveLength(2)
+    expect(html).toContain('<template class="draft-tpl" data-rev="r001">')
+    expect(html).toContain('data-draft-scrub min="0" max="2"')
+    expect(render(p, { drafts: 1 }).match(/<template class="draft-tpl"/g)).toHaveLength(1)
+    expect(render(p, { drafts: 0 })).not.toContain('<template class="draft-tpl"')
+  })
+
   it('deduplicates generated heading IDs', () => {
     const html = render(doc('# T\n\n## Repeat\n\none\n\n## Repeat\n\ntwo\n'))
     expect(html).toContain('<h2 id="repeat">')

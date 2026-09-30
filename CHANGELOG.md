@@ -14,6 +14,9 @@ Pentimento 0.8 reframes the tool around rounds of drafts and makes the page much
 - Approval: an Approve button in the viewer and `pentimento approve`. The page shows the approval, and when the document changes afterwards, a link to everything changed since sign-off. `pentimento list` and `address` report it.
 - The viewer has a revision scrubber, and it tells you when you have unread drafts, with a link to everything changed since the last one you read (`?since=rNNN`).
 - History at the bottom of every page: each draft's summary, reason, date, word count, and a small words-per-draft chart.
+- Static renders embed the last 10 drafts and a scrubber in the header; `render --drafts N|all` changes the number, and `--drafts 0` leaves them out.
+- `::: flow` arrows take labels: `A -(writes)-> B`.
+- Obsidian syntax: `[[links]]` and `![[embeds]]` render as their text, `==highlights==` as highlights, `> [!type]` callouts (including folded ones) with the callout styles, and footnotes. `%% comments %%` are hidden.
 - Documents without an `Archetype` keep single line breaks, as Obsidian does. `Line Breaks: true|false` overrides it.
 - Lint flags a second layer of generated-prose tells: self-narration ("This document walks…"), stock phrases (load-bearing, "X is the product"), and ", not a Y." slogan endings. Quoted phrases and code spans no longer count.
 - Lint warns about directive-heavy documents, repeated verdicts, more than two asks, more than four decision callouts, and leftover `eyebrow:` and `Palette` settings.
@@ -28,6 +31,7 @@ Pentimento 0.8 reframes the tool around rounds of drafts and makes the page much
 
 ### Removed
 
+- `::: figure` from the authoring guide. It still renders; lint suggests `::: flow` instead.
 - The six palettes, the theme picker, `pentimento config theme`, and `PENTIMENTO_PALETTE`. `Palette` frontmatter is ignored.
 - Eyebrow labels. `eyebrow:` in heading comments is accepted and ignored.
 

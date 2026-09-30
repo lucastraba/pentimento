@@ -9,6 +9,15 @@ describe('parseFlow', () => {
     expect(g.accents).toEqual(new Set(['B', 'D']))
   })
 
+  it('reads arrow labels inside a chain', () => {
+    const g = parseFlow('App -(writes)-> Log -> Sync\nSync -( replays )-> App')
+    expect(g.edges).toEqual([['App', 'Log'], ['Log', 'Sync'], ['Sync', 'App']])
+    expect(g.labels).toEqual(['writes', undefined, 'replays'])
+    const svg = renderFlowSvg('App -(writes every edit)-> Log')
+    expect(svg).toContain('<text class="lbl"')
+    expect(svg).toContain('>writes every edit</text>')
+  })
+
   it('accepts a standalone node line', () => {
     expect(parseFlow('Lonely').nodes).toEqual(['Lonely'])
   })

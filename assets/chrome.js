@@ -50,6 +50,27 @@
   }
   try { if (sessionStorage.getItem('pentimento-traces') === 'on') root.dataset.traces = 'on' } catch (err) {}
 
+  // --- static pages: step through the embedded earlier drafts ---------------
+  let currentMain = null
+  document.addEventListener('input', (e) => {
+    const slider = e.target && e.target.closest && e.target.closest('[data-draft-scrub]')
+    if (!slider) return
+    const main = document.querySelector('main')
+    const templates = [...document.querySelectorAll('template.draft-tpl')]
+    const label = document.querySelector('[data-draft-label]')
+    if (!main) return
+    const i = Number(slider.value)
+    // traces compare the current draft with the one before it, so they switch off here
+    if (root.dataset.traces === 'on') setTraces(false)
+    if (currentMain === null) currentMain = main.innerHTML
+    const tpl = templates[i]
+    main.innerHTML = tpl ? tpl.innerHTML : currentMain
+    if (tpl) root.dataset.viewingDraft = tpl.dataset.rev
+    else delete root.dataset.viewingDraft
+    if (label) label.textContent = tpl ? tpl.dataset.rev + ' · earlier draft' : label.dataset.current
+    document.querySelectorAll('[data-traces-toggle]').forEach((b) => { b.disabled = Boolean(tpl) })
+  })
+
   // --- copy a cutting ------------------------------------------------------
   const copyText = async (text) => {
     try {

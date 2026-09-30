@@ -30,9 +30,10 @@ Usage:
                                        --html renders a readable word-level diff page)
   pentimento verify <doc-or-directory>    (check canonical/history/meta consistency)
   pentimento revert <doc> <rev> [--author name]
-  pentimento render <doc> [-o out.html] [--artifact]
+  pentimento render <doc> [-o out.html] [--artifact] [--drafts N|all]
                                       (--artifact: fragment for claude.ai Artifact publishing;
-                                       default: standalone HTML that works anywhere)
+                                       default: standalone HTML that works anywhere;
+                                       --drafts: earlier drafts the page can step through, default 10)
   pentimento serve [dir] [--port 4820] [--host 127.0.0.1 | --tailscale] [--author name]
                                        (live viewer: document index, revision picker, diffs,
                                        hot reload, comments, and a protected stop control;
@@ -242,7 +243,9 @@ const main = (): void => {
     }
     case 'render': {
       if (!doc) fail('render needs a document path')
-      const out = renderToFile(doc, flags.out, { artifact: flags.artifact === 'true' })
+      const drafts = flags.drafts === undefined ? undefined : flags.drafts === 'all' ? 'all' as const : Number(flags.drafts)
+      if (typeof drafts === 'number' && (!Number.isInteger(drafts) || drafts < 0)) fail('--drafts takes a whole number or "all"')
+      const out = renderToFile(doc, flags.out, { artifact: flags.artifact === 'true', drafts })
       console.log(out)
       break
     }

@@ -46,6 +46,11 @@ describe('lint', () => {
     expect(rules('::: callout decision\nx\n:::\n\n'.repeat(5))).toContain('decision-density')
   })
 
+  it('steers new diagrams to ::: flow', () => {
+    expect(rules('::: figure aria="x"\n<svg viewBox="0 0 1 1"></svg>\n:::\n')).toContain('figure')
+    expect(rules('::: flow aria="x"\nA -(b)-> C\n:::\n')).not.toContain('figure')
+  })
+
   it('points at settings earlier releases used', () => {
     expect(rules('---\nPalette: iris\n---\n# T\n\n## A <!-- id: a; eyebrow: Intro -->\n\ntext\n')).toEqual(['palette', 'eyebrow'])
   })
@@ -70,7 +75,8 @@ describe('lint', () => {
       '::: figure aria="x"', '<svg>robust seamless</svg>', ':::', '',
       '::: diff head="f"', '```txt', '-robust', '+leverage', '```', ':::', '',
     ].join('\n')
-    expect(lintDoc(doc)).toEqual([])
+    // the figure itself earns a steer toward ::: flow; its SVG body is not prose
+    expect(rules(doc)).toEqual(['figure'])
   })
 
   it('flags emoji in headings', () => {

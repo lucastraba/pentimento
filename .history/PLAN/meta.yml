@@ -26,4 +26,9 @@ revisions:
     summary: Rewrote for 0.8 in plain prose
     why: The old draft described 0.6, carried six decision callouts, and read as
       generated
+  - id: r006
+    created_at: 2026-09-30T19:33:30+00:00
+    author: Lucas Traba
+    summary: Recorded the plugin, diagram, and static scrubber decisions
+    why: Answered the three open questions from r005
 comments: []

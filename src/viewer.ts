@@ -296,8 +296,8 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
     try {
       // the viewer replaces the static header panel with its drawer
       html = rev
-        ? renderRevisionHtml(abs, rev, { omitCommentsPanel: true, since })
-        : render(abs, { omitCommentsPanel: true, since })
+        ? renderRevisionHtml(abs, rev, { omitCommentsPanel: true, since, drafts: 0 })
+        : render(abs, { omitCommentsPanel: true, since, drafts: 0 })
     } catch (e) {
       return c.text(e instanceof Error ? e.message : String(e), 500)
     }

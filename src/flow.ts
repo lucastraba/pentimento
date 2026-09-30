@@ -1,12 +1,15 @@
 /**
  * ::: flow — diagrams without coordinates. The author writes edge chains
- * ("A -> B -> C") and the renderer computes a layered left-to-right layout in
- * the same constrained SVG vocabulary as ::: figure (nodebox/accentbox/flow).
+ * ("A -> B -> C", or "A -(writes)-> B" for a labelled arrow) and the renderer
+ * computes a layered left-to-right layout in the same constrained SVG vocabulary
+ * as ::: figure (nodebox/accentbox/flow/lbl).
  */
 
 interface FlowGraph {
   nodes: string[]
   edges: [string, string][]
+  /** arrow labels, aligned with edges */
+  labels: (string | undefined)[]
   accents: Set<string>
 }
 
@@ -16,10 +19,12 @@ const NODE_H = 36
 const ROW_PITCH = 64
 const COL_GAP = 56
 const MARGIN = 12
+const LABEL_CHAR_W = 6.2
 
 export const parseFlow = (content: string): FlowGraph => {
   const nodes: string[] = []
   const edges: [string, string][] = []
+  const labels: (string | undefined)[] = []
   const accents = new Set<string>()
   const addNode = (name: string): void => {
     if (!nodes.includes(name)) nodes.push(name)
@@ -32,16 +37,22 @@ export const parseFlow = (content: string): FlowGraph => {
       accent[1].split(',').map((s) => s.trim()).filter(Boolean).forEach((n) => accents.add(n))
       continue
     }
-    const chain = line.split('->').map((s) => s.trim())
+    // split keeps the captured label between the two nodes it connects
+    const parts = line.split(/-(?:\(([^)]*)\)-)?>/)
+    const chain = parts.filter((_, i) => i % 2 === 0).map((s) => s.trim())
+    const arrowLabels = parts.filter((_, i) => i % 2 === 1).map((s) => s?.trim() || undefined)
     if (chain.some((n) => !n)) throw new Error(`flow: empty node name in "${line}"`)
     chain.forEach(addNode)
-    for (let i = 0; i + 1 < chain.length; i++) edges.push([chain[i], chain[i + 1]])
+    for (let i = 0; i + 1 < chain.length; i++) {
+      edges.push([chain[i], chain[i + 1]])
+      labels.push(arrowLabels[i])
+    }
   }
   if (!nodes.length) throw new Error('flow needs at least one "A -> B" line')
   for (const name of accents) {
     if (!nodes.includes(name)) throw new Error(`flow: accent names unknown node "${name}"`)
   }
-  return { nodes, edges, accents }
+  return { nodes, edges, labels, accents }
 }
 
 /** Longest-path layering; the iteration cap keeps accidental cycles from hanging the render. */
@@ -75,13 +86,22 @@ export const renderFlowSvg = (content: string): string => {
   }
 
   const colWidth = columns.map((col) => Math.max(90, ...col.map((n) => n.length * CHAR_W + NODE_W_PAD)))
+  // a labelled arrow widens the gap after the column it leaves, so the label fits
+  const gaps = columns.map(() => COL_GAP)
+  graph.edges.forEach(([from], i) => {
+    const label = graph.labels[i]
+    if (label) {
+      const c = depth.get(from)!
+      gaps[c] = Math.max(gaps[c], label.length * LABEL_CHAR_W + 28)
+    }
+  })
   const colX: number[] = []
   let x = MARGIN
   for (let c = 0; c < columns.length; c++) {
     colX[c] = x
-    x += colWidth[c] + COL_GAP
+    x += colWidth[c] + gaps[c]
   }
-  const width = x - COL_GAP + MARGIN
+  const width = x - gaps[columns.length - 1] + MARGIN
   const rows = Math.max(...columns.map((col) => col.length))
   const height = MARGIN * 2 + rows * ROW_PITCH - (ROW_PITCH - NODE_H)
 
@@ -113,8 +133,21 @@ export const renderFlowSvg = (content: string): string => {
     return `<path class="flow" d="${d}" marker-end="url(#arr)"/>`
   })
 
+  const labelTexts = graph.edges.map(([from, to], i) => {
+    const label = graph.labels[i]
+    if (!label) return ''
+    const a = pos.get(from)!
+    const b = pos.get(to)!
+    const forward = b.x > a.x
+    const x1 = forward ? a.x + a.w : a.x
+    const x2 = forward ? b.x : b.x + b.w
+    const mx = (x1 + x2) / 2
+    const my = (a.y + b.y) / 2 + NODE_H / 2 - 7
+    return `<text class="lbl" x="${mx}" y="${my}" text-anchor="middle">${escapeXml(label)}</text>`
+  })
+
   return `<svg viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">` +
     '<defs><marker id="arr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">' +
     '<path d="M0 0 L8 4 L0 8 z" fill="var(--soft)"/></marker></defs>' +
-    `${paths.join('')}${boxes.join('')}</svg>`
+    `${paths.join('')}${boxes.join('')}${labelTexts.join('')}</svg>`
 }
