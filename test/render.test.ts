@@ -33,28 +33,40 @@ const doc = (body: string): string => {
 }
 
 describe('render', () => {
-  it('builds the chrome: title, badge, revision chip, TOC, evolution, footer', () => {
-    const p = doc('# My Plan\n\n> A standfirst.\n\n## First <!-- id: first; eyebrow: Intro -->\n\nBody text.\n\n## Second\n\nMore.\n')
+  it('builds the chrome: meta line, title, latest summary, contents, history, footer', () => {
+    const p = doc('---\nArchetype: implementation\n---\n# My Plan\n\n> A standfirst.\n\n## First <!-- id: first; eyebrow: Intro -->\n\nBody text.\n\n## Second\n\nMore.\n\n## Third\n\nLast.\n')
     const html = render(p)
     expect(html).toContain('<title>My Plan</title>')
-    expect(html).toContain('class="badge badge-design-doc"')
-    expect(html).toContain('<span class="chip">r001</span>')
+    expect(html).toContain('<span class="kind">Implementation plan</span>')
+    expect(html).toContain('<span class="rev-label">r001</span>')
     expect(html).toContain('class="standfirst"')
-    expect(html).toContain('<strong>test revision</strong> — testing')
+    expect(html).toContain('<p class="latest"><span class="rev">r001</span>test revision</p>')
+    expect(html).toContain('<strong>test revision</strong>. testing')
+    expect(html).toContain('<nav class="rail" aria-label="Contents">')
     expect(html).toContain('href="#first"')
-    expect(html).toContain('<span class="eyebrow">Intro</span>')
+    // eyebrows from earlier releases are accepted and not rendered
+    expect(html).not.toContain('Intro')
     expect(html).toContain('<h2 id="first">First<a class="anch" href="#first"')
     expect(html).toContain('<h2 id="second">')
-    expect(html).toContain('Rendered by <code>pentimento render</code>')
+    expect(html).toContain('<section class="history" id="history">')
+    expect(html).toContain('<footer class="doc">')
+  })
+
+  it('leaves the contents out of short documents and the label off personal ones', () => {
+    const html = render(doc('# Song\n\n## Verse\n\nline one\nline two\n'))
+    expect(html).not.toContain('class="rail"')
+    expect(html).not.toContain('class="kind"')
+    // no Archetype: single newlines are line breaks, as in Obsidian
+    expect(html).toContain('line one<br>')
   })
 
   it('labels unsnapshotted canonical changes as a draft after the saved revision', () => {
     const p = doc('# Plan\n\n## Section\n\nSaved body.\n')
     fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace('Saved body.', 'Unsaved draft body.'))
     const html = render(p)
-    expect(html).toContain('<span class="chip">Draft after r001</span>')
-    expect(html).toContain('Draft changes after r001')
-    expect(html).not.toContain('What changed in r001')
+    expect(html).toContain('<span class="rev-label">Draft after r001</span>')
+    expect(html).toContain('Unsaved changes since r001')
+    expect(html).not.toContain('What changed since')
   })
 
   it('renders callouts, verdicts, findings, timeline', () => {
@@ -85,47 +97,47 @@ describe('render', () => {
 `)
     const html = render(p)
     expect(html).toContain('<div class="callout decision" id="d-1"><span class="label">Decision</span>')
-    expect(html).toContain('<div class="verdict">')
-    expect(html).toContain('<span class="sev c">CRIT</span>')
+    expect(html).toContain('<dl class="verdict"><dt>Works?</dt><dd>Yes</dd>')
+    expect(html).toContain('<span class="sev c">Critical</span>')
     expect(html).toContain('<summary>More (1)</summary>')
-    expect(html).toContain('<span class="sev m">LOW</span>')
+    expect(html).toContain('<span class="sev l">Low</span>')
     expect(html).toContain('<ol class="timeline">')
-    expect(html).toContain('<span class="pill">next</span>')
-    expect(html).toContain('<span class="pill later">later</span>')
+    expect(html).toContain('<span class="status next">next</span>')
+    expect(html).toContain('<span class="status later">later</span>')
   })
 
   it('computes a severity strip and auto-counts the collapsed group', () => {
     const p = doc('# T\n\n## S\n\n::: findings\n- CRIT :: a\n- HIGH :: b\n- HIGH :: c\n@collapse Lower severity\n- MED :: d\n- LOW :: e\n:::\n')
     const html = render(p)
-    expect(html).toContain('<div class="finding-summary">')
-    expect(html).toContain('<span class="tally c"><b>1</b> CRIT</span>')
-    expect(html).toContain('<span class="tally h"><b>2</b> HIGH</span>')
+    expect(html).toContain('<div class="tally">')
+    expect(html).toContain('<span class="c"><b>1</b> critical</span>')
+    expect(html).toContain('<span class="h"><b>2</b> high</span>')
     // agent omitted the count; renderer appends it
     expect(html).toContain('<summary>Lower severity (2)</summary>')
   })
 
-  it('computes a timeline progress strip with a meter', () => {
+  it('computes a timeline progress line', () => {
     const p = doc('# T\n\n## S\n\n::: timeline\n1. **One** [done] — a\n2. **Two** [done] — b\n3. **Three** [next] — c\n4. **Four** [later] — d\n:::\n')
     const html = render(p)
-    expect(html).toContain('<div class="timeline-progress">')
-    expect(html).toContain('<meter value="3" min="0" max="4"')
-    expect(html).toContain('aria-label="Sequence progress"')
-    expect(html).toContain('2 done · 1 next · 1 later · 4 total')
-    expect(html).toContain('<span class="ph ph-done">1</span>')
+    expect(html).toContain('<div class="progress">')
+    expect(html).toContain('aria-valuemax="4" aria-valuenow="2" aria-label="Sequence progress"')
+    expect(html).toContain('2 of 4 done · 1 next')
+    expect(html).toContain('<li class="is-done"><span class="ph">1</span>')
   })
 
-  it('shows the active next phase as progress even before anything is done', () => {
-    const p = doc('# T\n\n## S\n\n::: timeline\n1. **One** [next] — a\n2. **Two** [later] — b\n3. **Three** [later] — c\n:::\n')
-    const html = render(p)
-    expect(html).toContain('<meter value="1" min="0" max="3"')
-    expect(html).toContain('1 next · 2 later · 3 total')
+  it('shows progress once a phase is next, and none for an unstarted plan', () => {
+    const p = doc('# T\n\n## S\n\n::: timeline\n1. **One** [next] — a\n2. **Two** [later] — b\n:::\n')
+    expect(render(p)).toContain('0 of 2 done · 1 next')
+    fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace('[next]', '[later]'))
+    // the traces template still shows the earlier timeline, so look only at the page body
+    expect(render(p).split('<main>')[1].split('</main>')[0]).not.toContain('class="progress"')
   })
 
   it('renders figure aria as a figcaption and uses a time element for the date', () => {
     const p = doc('# T\n\n## S\n\n::: figure aria="the flow"\n<svg viewBox="0 0 10 10"><rect class="nodebox" width="10" height="10"/></svg>\n:::\n')
     const html = render(p)
     expect(html).toContain('<figcaption>the flow</figcaption>')
-    expect(html).toMatch(/<time class="chip" datetime="\d{4}-\d{2}-\d{2}">/)
+    expect(html).toMatch(/<time datetime="\d{4}-\d{2}-\d{2}">\d{1,2} [A-Z][a-z]{2} \d{4}<\/time>/)
   })
 
   it('renders a unified diff as side-by-side panes', () => {
@@ -157,33 +169,14 @@ describe('render', () => {
     expect(fragment).not.toContain('<!doctype')
   })
 
-  it('defaults the palette to verdigris, overridable via Palette frontmatter', () => {
-    const p = doc('# T\n\n## S\n\nx\n')
+  it('has one palette with a scheme toggle, and ignores legacy Palette frontmatter', () => {
+    const p = path.join(dir, 'Other.md')
+    fs.writeFileSync(p, '---\nPalette: mist\n---\n# T2\n\n## S\n\nx\n')
+    snapshot(p, { summary: 's' })
     const html = render(p)
-    expect(html).toContain("r.dataset.documentPalette='verdigris'")
-    expect(html).toContain("r.dataset.palette=p||'verdigris'")
-    expect(html).toContain('data-p="verdigris" aria-pressed="true"')
-    const p2 = path.join(dir, 'Other.md')
-    fs.writeFileSync(p2, '---\nPalette: mist\n---\n# T2\n\n## S\n\nx\n')
-    snapshot(p2, { summary: 's' })
-    const html2 = render(p2)
-    expect(html2).toContain("r.dataset.documentPalette='mist'")
-    expect(html2).toContain("r.dataset.palette=p||'mist'")
-    expect(html2).toContain('data-p="mist" aria-pressed="true"')
-    expect(html2).toContain('data-p="iris" aria-pressed="false"')
-  })
-
-  it('respects the configured house palette without changing the product default', () => {
-    const previous = process.env.PENTIMENTO_PALETTE
-    process.env.PENTIMENTO_PALETTE = 'iris'
-    try {
-      const html = render(doc('# Configured\n\n## Section\n\ntext\n'))
-      expect(html).toContain("r.dataset.documentPalette='iris'")
-      expect(html).toContain('data-p="iris" aria-pressed="true"')
-    } finally {
-      if (previous === undefined) delete process.env.PENTIMENTO_PALETTE
-      else process.env.PENTIMENTO_PALETTE = previous
-    }
+    expect(html).toContain('data-scheme-toggle')
+    expect(html).not.toContain('data-palette')
+    expect(html).not.toContain('data-p=')
   })
 
   it('passes figures through with aria labels', () => {
@@ -280,7 +273,7 @@ describe('render', () => {
 
   it('renders a checklist with a computed coverage strip', () => {
     const html = render(doc('# T\n\n## S\n\n::: checklist\n- [x] tests green\n- [ ] npm publish {#c-npm}\n- [X] docs updated\n:::\n'))
-    expect(html).toContain('<meter value="2" min="0" max="3" aria-label="Checklist progress">')
+    expect(html).toContain('aria-valuemax="3" aria-valuenow="2" aria-label="Checklist progress"')
     expect(html).toContain('2 of 3 done')
     expect(html).toContain('<ul class="checklist">')
     expect(html).toContain('<li class="done">')
@@ -306,7 +299,7 @@ describe('render', () => {
   it('marks a superseded decision and links its replacement', () => {
     const html = render(doc('# T\n\n## S\n\n::: callout decision id=d-old superseded-by=d-new\n**Old call.** Rationale.\n:::\n\n::: callout decision id=d-new\n**New call.** Better.\n:::\n'))
     expect(html).toContain('<div class="callout decision superseded" id="d-old"><span class="label">Superseded</span>')
-    expect(html).toContain('Superseded by <a href="#d-new">d-new</a>.')
+    expect(html).toContain('Replaced by <a href="#d-new">d-new</a>.')
     expect(html).toContain('<div class="callout decision" id="d-new"><span class="label">Decision</span>')
   })
 
@@ -316,7 +309,7 @@ describe('render', () => {
     expect(html).toContain('href="#f-disk"')
     expect(html).toContain('<li id="p-viewer">')
     expect(html).toContain('href="#p-viewer"')
-    expect(html).toContain('<span class="pill">next</span>')
+    expect(html).toContain('<span class="status next">next</span>')
     expect(html).toContain('<p>build it</p>')
     expect(html).not.toContain('{#')
   })
@@ -335,21 +328,22 @@ describe('render', () => {
   })
 
   it('dots changed TOC sections and appends glance deltas to the changes summary', () => {
-    const p = doc('# T\n\n## Alpha\n\nstable prose\n\n## Beta\n\n::: timeline\n1. **One** [next] — a\n:::\n')
+    const p = doc('# T\n\n## Alpha\n\nstable prose\n\n## Beta\n\n::: timeline\n1. **One** [next] — a\n:::\n\n## Gamma\n\nend\n')
     fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace('[next]', '[done]'))
     snapshot(p, { summary: 'phase one done', author: 'test' })
     const html = render(p)
-    expect(html.match(/class="chg"/g)).toHaveLength(1)
+    // one dot in the rail, one in the narrow-screen contents
+    expect(html.match(/class="chg"/g)).toHaveLength(2)
     const betaEntry = html.split('href="#beta"')[1].split('</li>')[0]
     expect(betaEntry).toContain('class="chg"')
-    expect(html).toContain('What changed in r002 (vs r001)<span class="delta"> · +1 done · −1 next</span>')
+    expect(html).toContain('What changed since r001<span class="delta"> · +1 done · −1 next</span>')
   })
 
   it('tracks draft changes against the latest snapshot in the glance layer', () => {
-    const p = doc('# T\n\n## Alpha\n\nstable\n\n## Beta\n\n::: findings\n- HIGH :: risky {#f-1}\n:::\n')
+    const p = doc('# T\n\n## Alpha\n\nstable\n\n## Beta\n\n::: findings\n- HIGH :: risky {#f-1}\n:::\n\n## Gamma\n\nend\n')
     fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace('- HIGH :: risky {#f-1}\n', ''))
     const html = render(p)
-    expect(html).toContain('Draft changes after r001<span class="delta"> · −1 HIGH</span>')
+    expect(html).toContain('Unsaved changes since r001<span class="delta"> · −1 high</span>')
     const betaEntry = html.split('href="#beta"')[1].split('</li>')[0]
     expect(betaEntry).toContain('class="chg"')
   })

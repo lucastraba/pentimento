@@ -18,30 +18,33 @@ describe('guide', () => {
   it('serves the main guide and named topics', () => {
     expect(readGuide()).toContain('Pentimento authoring guide')
     expect(readGuide('directives')).toContain('directive')
-    expect(readGuide('archetypes')).toContain('archetype')
-    expect(readGuide('style')).toContain('before/after')
+    expect(readGuide('archetypes')).toContain('Archetype: plan')
+    expect(readGuide('style')).toContain('## Example 1')
   })
 
-  it('teaches the prose register in the main guide', () => {
+  it('sets a directive budget and teaches the register by example', () => {
     const guide = readGuide()
+    expect(guide).toContain('## Directive budget')
+    expect(guide).toContain('zero to three directives')
     expect(guide).toContain('## Prose')
-    expect(guide).toContain('No false contrast')
     expect(guide).toContain('pentimento guide style')
+    expect(bundledShim()).toContain('use few of them')
+    // the style page shows whole documents rather than a list of bans
+    expect(readGuide('style').match(/^````markdown$/gm)).toHaveLength(2)
   })
 
   it('makes the live viewer the default plan handoff', () => {
-    expect(bundledShim()).toContain('Serve the plan after the first snapshot')
-    expect(bundledShim()).toContain('tracked background process')
-    expect(readGuide()).toContain('Serve the plan (default)')
-    expect(readGuide()).toContain('give the URL to the user')
+    expect(bundledShim()).toContain('start `pentimento serve .` in the background')
+    expect(readGuide()).toContain('tracked background process')
+    expect(readGuide()).toContain('give it to\n   the user')
   })
 
-  it('frames plans as a single-user loop, including VPS access', () => {
-    expect(bundledShim()).toContain('one user and one canonical document')
-    expect(bundledShim()).toContain('remote access, not a shared workspace')
-    expect(readGuide()).toContain('revision instructions')
-    expect(readGuide()).toContain('same user')
-    expect(readGuide()).toContain('VPS')
+  it('frames plans as a single-user loop with approval, including remote access', () => {
+    expect(bundledShim()).toContain('One user, one document')
+    expect(bundledShim()).toContain('same user opens the page from another trusted device')
+    expect(readGuide()).toContain('pentimento address')
+    expect(readGuide()).toContain('approval')
+    expect(readGuide()).toContain('--tailscale')
   })
 
   it('rejects unknown topics with the available list', () => {

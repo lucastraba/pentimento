@@ -3,559 +3,747 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-1TWc1WoYd8ZfLD8i/U9ISRfJRDXJxgKZOjL/VzYU1Us=' 'sha256-SoKNQgTkT2irgLGuNB8cyaxysG5GbKHEKlipSWMJP4E='; img-src data:; connect-src 'self'; base-uri 'none'; object-src 'none'; form-action 'none'">
 <title>Pentimento: Living Documents</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%23241E33%22%2F%3E%3Cpath%20d%3D%22M14%2046%20C24%2032%2034%2028%2050%2027%22%20stroke%3D%22%234A3F66%22%20stroke-width%3D%227%22%20fill%3D%22none%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M14%2041%20C26%2041%2038%2033%2050%2017%22%20stroke%3D%22%23A78BE0%22%20stroke-width%3D%227%22%20fill%3D%22none%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E">
 <style>
-/* pentimento.css — the entire visual surface of a rendered plan.
-   Agents never write CSS; they compose markdown + directives against this file. */
+/* pentimento.css — the entire visual surface of a rendered document.
+   Agents never write CSS; they compose markdown + directives against this file.
+   One palette, light and dark. Content is set in a serif, interface in the system sans,
+   and monospace is reserved for code. Earlier drafts show through in a warm sepia. */
 
 :root {
-  /* one measure: every element inherits the column width from .wrap; the only
-     sanctioned exception is the centered breakout, sized by --breakout */
-  --measure: 78ch; --breakout: 150ch;
-  --bg: #F7F8F6; --raise: #FFFFFF; --ink: #1E2529; --soft: #5A6670;
-  --line: #DDE3E0; --accent: #2E7D6E; --accent-deep: #1F5F54;
-  --wash: rgba(46,125,110,.08); --code-bg: #EEF1EF;
-  --crit: #B3382E; --high: #A66B12; --med: #5A6670;
-  --add-bg: #E7F2EB; --add-ink: #22593B; --del-bg: #F8E9E7; --del-ink: #7A2C24;
-  --impl: #3B6EA5; --brain: #7A5EA8; --audit: #A66B12; --design: #2E7D6E;
-  --serif: 'Charter','Bitstream Charter','Iowan Old Style',Georgia,serif;
-  --sans: 'Seravek','Segoe UI',Ubuntu,'Helvetica Neue',Arial,sans-serif;
-  --mono: ui-monospace,'Cascadia Code','JetBrains Mono',Menlo,Consolas,monospace;
+  --measure: 40rem; --breakout: 64rem; --rail: 13rem;
+  --bg: #FBFAF8; --raise: #FFFFFF; --sunk: #F3F1ED; --ink: #1D1C1A; --soft: #6B675F; --faint: #9E998F;
+  --line: #E7E3DB; --control-line: #CFCAC0; --accent: #5B45A0; --on-accent: #FFFFFF;
+  --wash: rgba(91,69,160,.075); --trace: #86663F; --trace-wash: rgba(134,102,63,.09);
+  --crit: #B0362B; --high: #955A06; --med: #6B675F;
+  --add-bg: #EAF3EC; --add-ink: #235B38; --del-bg: #F7EAE6; --del-ink: #7D2F24;
+  --shadow: 0 1px 2px rgba(29,28,26,.06), 0 8px 24px rgba(29,28,26,.08);
+  --serif: 'Iowan Old Style','Charter','Bitstream Charter','Sitka Text',Cambria,Georgia,serif;
+  --sans: system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  --mono: ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',Menlo,Consolas,monospace;
+  color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #131719; --raise: #1B2124; --ink: #E6E4DC; --soft: #98A29E;
-    --line: #2A3236; --accent: #4FB3A0; --accent-deep: #6BC7B5;
-    --wash: rgba(79,179,160,.10); --code-bg: #1F2629;
-    --crit: #E0685E; --high: #D9A24A; --med: #98A29E;
-    --add-bg: #1C2E24; --add-ink: #8FCFA9; --del-bg: #33211F; --del-ink: #E39C93;
-    --impl: #7AA5D6; --brain: #A98FD6; --audit: #D9A24A; --design: #4FB3A0;
+  :root:not([data-theme="light"]) {
+    --bg: #151417; --raise: #1C1B1F; --sunk: #211F25; --ink: #E8E5DF; --soft: #A29E97; --faint: #726E68;
+    --line: #2D2B31; --control-line: #46434B; --accent: #B3A0EC; --on-accent: #17131F;
+    --wash: rgba(179,160,236,.10); --trace: #C8A57C; --trace-wash: rgba(200,165,124,.10);
+    --crit: #EF8479; --high: #DFAF5F; --med: #A29E97;
+    --add-bg: #1B2E22; --add-ink: #95D2A8; --del-bg: #33201D; --del-ink: #E9A195;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
   }
 }
-:root[data-theme="light"] {
-  --bg: #F7F8F6; --raise: #FFFFFF; --ink: #1E2529; --soft: #5A6670;
-  --line: #DDE3E0; --accent: #2E7D6E; --accent-deep: #1F5F54;
-  --wash: rgba(46,125,110,.08); --code-bg: #EEF1EF;
-  --crit: #B3382E; --high: #A66B12; --med: #5A6670;
-  --add-bg: #E7F2EB; --add-ink: #22593B; --del-bg: #F8E9E7; --del-ink: #7A2C24;
-  --impl: #3B6EA5; --brain: #7A5EA8; --audit: #A66B12; --design: #2E7D6E;
-}
 :root[data-theme="dark"] {
-  --bg: #131719; --raise: #1B2124; --ink: #E6E4DC; --soft: #98A29E;
-  --line: #2A3236; --accent: #4FB3A0; --accent-deep: #6BC7B5;
-  --wash: rgba(79,179,160,.10); --code-bg: #1F2629;
-  --crit: #E0685E; --high: #D9A24A; --med: #98A29E;
-  --add-bg: #1C2E24; --add-ink: #8FCFA9; --del-bg: #33211F; --del-ink: #E39C93;
-  --impl: #7AA5D6; --brain: #A98FD6; --audit: #D9A24A; --design: #4FB3A0;
+  --bg: #151417; --raise: #1C1B1F; --sunk: #211F25; --ink: #E8E5DF; --soft: #A29E97; --faint: #726E68;
+  --line: #2D2B31; --control-line: #46434B; --accent: #B3A0EC; --on-accent: #17131F;
+  --wash: rgba(179,160,236,.10); --trace: #C8A57C; --trace-wash: rgba(200,165,124,.10);
+  --crit: #EF8479; --high: #DFAF5F; --med: #A29E97;
+  --add-bg: #1B2E22; --add-ink: #95D2A8; --del-bg: #33201D; --del-ink: #E9A195;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+  color-scheme: dark;
 }
-
-/* fluid type: the root size grows with the viewport (16px → 20px), and the ch-based
-   measure grows with it, so wide displays get a wider, larger column instead of a
-   fixed narrow band in whitespace */
-html { font-size: clamp(16px, 12.5px + 0.3vw, 20px); }
-/* native controls (selects, scrollbars, form fields) follow the active scheme */
-:root { color-scheme: light dark; }
 :root[data-theme="light"] { color-scheme: light; }
-:root[data-theme="dark"] { color-scheme: dark; }
-body { background: var(--bg); color: var(--ink); font: 1rem/1.65 var(--sans); margin: 0; }
-.wrap { max-width: var(--measure); margin: 0 auto; padding: 2.5rem 1.25rem 5rem; }
-main section { margin-top: 3rem; }
 
-h1, h2, h3 { font-family: var(--serif); line-height: 1.2; text-wrap: balance; margin: 0; }
-h1 { font-size: clamp(1.9rem, 5vw, 2.6rem); font-weight: 600; letter-spacing: -.01em; }
-h2 { font-size: 1.45rem; font-weight: 600; margin-bottom: 1rem; position: relative; scroll-margin-top: 1.5rem; }
-h3 { font-size: 1.1rem; font-weight: 600; margin: 1.75rem 0 .5rem; scroll-margin-top: 1.5rem; }
-/* clicking a TOC entry or anchor marks where you landed, then fades */
-section:target h2, h3:target { animation: target-flash 2s ease-out; }
-@keyframes target-flash {
-  0%, 30% { background: var(--wash); box-shadow: -.6rem 0 0 var(--wash), .6rem 0 0 var(--wash); }
-  100% { background: transparent; box-shadow: none; }
-}
-p { margin: .75rem 0; text-wrap: pretty; }
-a { color: var(--accent-deep); }
-code { font-family: var(--mono); font-size: .86em; background: var(--code-bg); padding: .1em .35em; border-radius: 3px; }
-pre.block { background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px;
-  padding: .8rem 1rem; overflow-x: auto; font: .82rem/1.55 var(--mono); }
-pre.block code { background: none; padding: 0; }
-ul, ol.plain { padding-left: 1.2rem; margin: .75rem 0; }
-li { margin: .35rem 0; }
-li::marker { color: var(--accent); }
-hr { border: none; border-top: 1px solid var(--line); margin: 2rem 0; }
+html { font-size: clamp(16px, 14.5px + .25vw, 19px); -webkit-text-size-adjust: 100%; }
+body { background: var(--bg); color: var(--ink); font: 1.0625rem/1.62 var(--serif); margin: 0;
+  font-synthesis: none; font-optical-sizing: auto; font-kerning: normal; }
+::selection { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.wrap { max-width: var(--measure); margin: 0 auto; padding: 3.5rem 1.4rem 6rem; }
+main > section, main > .preamble { margin-top: 3.25rem; }
+
+/* ---- type ------------------------------------------------------------ */
+h1, h2, h3 { font-family: var(--serif); line-height: 1.2; text-wrap: balance; margin: 0; font-weight: 600;
+  letter-spacing: -.012em; }
+h1 { font-size: clamp(2rem, 4.6vw, 2.55rem); letter-spacing: -.02em; line-height: 1.1; }
+h2 { font-size: 1.45rem; margin-bottom: .85rem; scroll-margin-top: 2rem; }
+h3 { font-size: 1.12rem; margin: 2rem 0 .4rem; scroll-margin-top: 2rem; }
+p { margin: .8rem 0; text-wrap: pretty; hanging-punctuation: first; }
+a { color: var(--ink); text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  text-decoration-thickness: 1px; text-underline-offset: .18em; }
+a:hover { text-decoration-color: var(--accent); }
 strong { font-weight: 650; }
+em { font-style: italic; }
+code { font-family: var(--mono); font-size: .84em; overflow-wrap: anywhere; }
+pre.block { background: var(--sunk); border-radius: 8px; padding: .9rem 1.1rem; overflow-x: auto;
+  font: .8rem/1.6 var(--mono); margin: 1.1rem 0; }
+pre.block code { font-size: inherit; }
+ul, ol { padding-left: 1.3rem; margin: .8rem 0; }
+li { margin: .3rem 0; padding-left: .15rem; }
+li::marker { color: var(--faint); }
+blockquote { margin: 1.1rem 0; padding: 0 0 0 1.1rem; border-left: 2px solid var(--line); color: var(--soft); }
+hr { border: none; height: 1px; background: var(--line); margin: 2.5rem 0; }
+img { max-width: 100%; }
+section:target h2, h3:target, [id]:target { animation: target-flash 1.8s ease-out; }
+@keyframes target-flash { 0%, 35% { background: var(--wash); } 100% { background: transparent; } }
 
-.eyebrow { font-family: var(--sans); font-size: .72rem; font-weight: 600; letter-spacing: .14em;
-  text-transform: uppercase; color: var(--accent-deep); display: block; margin-bottom: .5rem; }
+/* hover anchors: the comment substrate, invisible until wanted */
+.anch { opacity: 0; margin-left: .35rem; font: 500 .72em var(--sans); text-decoration: none;
+  color: var(--faint); vertical-align: .08em; }
+h2:hover .anch, h3:hover .anch, .callout:hover .anch, .finding:hover .anch,
+.timeline li:hover .anch, .checklist li:hover .anch, .ask:hover .anch { opacity: 1; }
+.ask-q .anch { text-decoration: none; }
+.anch:focus-visible { opacity: 1; outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
 
-/* header ribbon */
-header.doc { border-bottom: 1px solid var(--line); padding-bottom: 1.5rem; }
-.meta-row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-bottom: 1rem; }
-.badge { font-size: .72rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
-  padding: .2rem .6rem; border-radius: 3px; color: var(--bg); background: var(--design); }
-.badge-implementation { background: var(--impl); }
-.badge-brainstorm { background: var(--brain); }
-.badge-audit { background: var(--audit); }
-.badge-design-doc { background: var(--design); }
-.chip { font-family: var(--mono); font-size: .75rem; padding: .2rem .55rem; border: 1px solid var(--line);
-  border-radius: 999px; color: var(--soft); background: var(--raise); }
-.standfirst { font-family: var(--serif); font-size: 1.15rem; font-style: italic; color: var(--soft);
-  margin-top: .75rem; }
+/* ---- interface text: everything that isn't the document itself ----------- */
+.meta, .latest, .changes > summary, .toc-inline > summary, .rail, .appendix h2, .history, .cuttings-meta,
+footer.doc, .tally, .progress, .sev, .callout .label, .verdict dt, .pick-chip, .status, th, figcaption,
+.ask-options, .ask-state, .diff-head, .pane-label, .rdiff-ctx, .rdiff-skip, .receipts, .since-note {
+  font-family: var(--sans); }
 
-/* evolution strip */
-.evolution { display: flex; gap: .9rem; align-items: baseline; background: var(--wash);
-  border: 1px solid var(--line); border-radius: 6px; padding: .8rem 1rem; margin-top: 1.5rem; }
-.evolution + .evolution { margin-top: .5rem; }
-.evolution .rev { font-family: var(--mono); font-size: .8rem; font-weight: 700; color: var(--accent-deep); flex: none; }
-.evolution .what { font-size: .88rem; color: var(--soft); }
-.evolution .what strong { color: var(--ink); font-weight: 600; }
+/* ---- header ------------------------------------------------------------- */
+header.doc { padding-bottom: 1.6rem; border-bottom: 1px solid var(--line); }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: .15rem .55rem; font-size: .78rem;
+  color: var(--soft); margin-bottom: 1.4rem; font-variant-numeric: tabular-nums; }
+.meta > * + *:not(.meta-tools)::before { content: "·"; margin-right: .55rem; color: var(--faint); }
+.meta .kind { color: var(--ink); font-weight: 550; }
+.meta .approved { color: var(--accent); font-weight: 550; }
+.meta-tools { margin-left: auto; display: flex; gap: .35rem; }
+.tool { font: 500 .75rem var(--sans); color: var(--soft); background: none; border: 1px solid transparent;
+  border-radius: 6px; padding: .22rem .5rem; cursor: pointer; line-height: 1.2; }
+.tool:hover { color: var(--ink); background: var(--sunk); }
+.tool.stop { display: inline-flex; align-items: center; gap: .3rem; }
+.tool.stop:hover { color: var(--crit); }
+.tool[aria-pressed="true"] { color: var(--trace); border-color: color-mix(in srgb, var(--trace) 40%, transparent);
+  background: var(--trace-wash); }
+.tool:focus-visible, button:focus-visible, summary:focus-visible, select:focus-visible, input:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px; }
+.standfirst { font-size: 1.2rem; line-height: 1.5; color: var(--soft); margin: .9rem 0 0; }
+.latest { margin: 1.4rem 0 0; font-size: .82rem; color: var(--soft); line-height: 1.5; }
+.latest .rev, .history .rev { font-variant-numeric: tabular-nums; color: var(--ink); font-weight: 600; margin-right: .4rem; }
+.since-note { margin: .6rem 0 0; font-size: .82rem; color: var(--soft); }
+.since-note a { color: var(--accent); }
 
-/* block anchors — the comment substrate */
-[id] > .anch { opacity: 0; margin-left: .4rem; font-family: var(--mono); font-size: .7em; font-weight: 600;
-  text-decoration: none; color: var(--accent); vertical-align: .12em; }
-h2:hover .anch, h3:hover .anch, .callout:hover .anch { opacity: 1; }
-h2:focus-within .anch, h3:focus-within .anch { opacity: 1; }
-.anch:focus { opacity: 1; outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+details { margin: .75rem 0; }
+summary { cursor: pointer; }
+summary::marker, summary::-webkit-details-marker { color: var(--faint); }
+details.changes { margin: .5rem 0 0; }
+.changes > summary { font-size: .82rem; color: var(--accent); }
+.changes > summary .delta { color: var(--soft); font-variant-numeric: tabular-nums; }
 
-/* callouts */
-.callout { border: 1px solid var(--line); border-radius: 6px; padding: .8rem 1rem; margin: 1rem 0; background: var(--raise); }
-.callout .label { font-size: .7rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; display: block; margin-bottom: .3rem; }
-.callout.decision { background: var(--wash); }
-.callout.decision .label, .callout.info .label { color: var(--accent-deep); }
+/* receipts: the reader's notes this draft answered */
+.receipts { margin: .9rem 0 .4rem; font-size: .84rem; }
+.receipts h4 { margin: 0 0 .4rem; font-size: .72rem; font-weight: 600; color: var(--soft); letter-spacing: .02em; }
+.receipt { display: grid; grid-template-columns: 1fr; gap: .1rem; padding: .5rem 0; border-top: 1px solid var(--line); }
+.receipt q { color: var(--soft); font-style: italic; font-family: var(--serif); quotes: "“" "”"; }
+.receipt .ask-text { color: var(--ink); }
+.receipt .reply { color: var(--soft); }
+
+/* contents: a quiet rail on wide screens, a one-line fold on narrow ones */
+.toc-inline { margin: 1.2rem 0 0; }
+.toc-inline > summary { font-size: .8rem; color: var(--soft); }
+.toc-inline ol, .rail ol { list-style: none; padding: 0; margin: .5rem 0 0; }
+.toc-inline li { margin: .25rem 0; font-family: var(--sans); font-size: .85rem; }
+.toc-inline a, .rail a { text-decoration: none; color: var(--soft); }
+.toc-inline a:hover, .rail a:hover { color: var(--ink); }
+.chg { display: inline-block; width: .38rem; height: .38rem; border-radius: 50%; background: var(--trace);
+  margin-left: .4rem; vertical-align: .1em; }
+.rail { display: none; }
+@media (min-width: 76rem) {
+  .toc-inline { display: none; }
+  .rail { display: block; position: fixed; top: 3.6rem; width: var(--rail); font-size: .8rem; line-height: 1.35;
+    left: max(1.5rem, calc(50vw - var(--measure) / 2 - var(--rail) - 3.5rem));
+    max-height: calc(100vh - 8rem); overflow-y: auto; }
+  .rail li { margin: 0; }
+  .rail a { display: block; padding: .28rem 0 .28rem .8rem; border-left: 1px solid var(--line); }
+  .rail a[aria-current="true"] { color: var(--ink); border-left-color: var(--ink); }
+  .rail .rail-appendix { margin-top: .9rem; }
+}
+
+/* ---- directives ---------------------------------------------------------- */
+
+/* callouts: a rule and a label, no box */
+.callout { margin: 1.4rem 0; padding: .05rem 0 .05rem 1.1rem; border-left: 2px solid var(--line); }
+.callout .label { display: block; font-size: .72rem; font-weight: 600; color: var(--soft); margin-bottom: .1rem;
+  letter-spacing: .01em; }
+.callout p { margin: .3rem 0; }
+.callout.decision { border-left-color: var(--accent); }
+.callout.decision .label { color: var(--accent); }
+.callout.risk, .callout.warn { border-left-color: color-mix(in srgb, var(--crit) 70%, transparent); }
 .callout.risk .label, .callout.warn .label { color: var(--crit); }
-.callout p { margin: .25rem 0; font-size: .95rem; }
+.callout.superseded { border-left-color: var(--line); color: var(--soft); }
+.callout.superseded .label { color: var(--faint); }
+.callout.superseded p strong:first-child { text-decoration: line-through; text-decoration-color: var(--trace); }
+.supersede-note { font: .8rem var(--sans); color: var(--soft); }
+
+/* verdict: the answer as a two-column definition list */
+.verdict { display: grid; grid-template-columns: minmax(8rem, max-content) 1fr; gap: 0; margin: 1.1rem 0 1.4rem;
+  border-top: 1px solid var(--line); }
+.verdict dt, .verdict dd { padding: .6rem 0; border-bottom: 1px solid var(--line); margin: 0; }
+.verdict dt { font-size: .82rem; color: var(--soft); padding: .78rem 1.6rem 0 0; }
+.verdict dd { font-weight: 600; }
+@media (max-width: 34rem) {
+  .verdict { grid-template-columns: 1fr; }
+  .verdict dt { border-bottom: none; padding-bottom: 0; }
+  .verdict dd { padding-top: .1rem; }
+}
+
+/* computed glance lines above findings, timelines, checklists */
+.tally, .progress { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .9rem; margin: .4rem 0 .6rem;
+  font-size: .78rem; color: var(--soft); font-variant-numeric: tabular-nums; }
+.tally b { font-weight: 600; color: var(--ink); }
+.tally .c b { color: var(--crit); } .tally .h b { color: var(--high); }
+.progress .bar { position: relative; width: 6rem; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.progress .bar i { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 2px; }
+
+/* findings */
+.finding { display: grid; grid-template-columns: 4.6rem 1fr; gap: .9rem; padding: .7rem 0; border-top: 1px solid var(--line); }
+.finding > div { min-width: 0; }
+.sev { font-size: .74rem; font-weight: 600; padding-top: .22rem; color: var(--med); }
+.sev.c { color: var(--crit); } .sev.h { color: var(--high); }
+.findings-list { border-bottom: 1px solid var(--line); }
+.findings-more > summary { font: .8rem var(--sans); color: var(--soft); margin-top: .6rem; }
+
+/* timeline */
+.timeline { list-style: none; padding: 0; margin: .6rem 0 1.2rem; counter-reset: none; }
+.timeline li { display: grid; grid-template-columns: 1.6rem 1fr; gap: .7rem; padding: .75rem 0; margin: 0;
+  border-top: 1px solid var(--line); }
+.timeline li:last-child { border-bottom: 1px solid var(--line); }
+.timeline li > * { min-width: 0; }
+.ph { font: 500 .8rem/1.9 var(--sans); color: var(--soft); font-variant-numeric: tabular-nums; }
+.timeline h3 { margin: 0; font-size: 1.02rem; display: flex; align-items: baseline; flex-wrap: wrap; gap: .1rem .65rem; }
+.timeline p { margin: .2rem 0 0; color: var(--soft); font-size: .96rem; }
+.status { display: inline-flex; align-items: center; gap: .32rem; font-size: .72rem; font-weight: 500;
+  color: var(--soft); white-space: nowrap; letter-spacing: 0; }
+.status::before { content: ""; width: .5rem; height: .5rem; border-radius: 50%; border: 1.5px solid var(--faint);
+  box-sizing: border-box; }
+.status.next { color: var(--accent); }
+.status.next::before { border-color: var(--accent); }
+.status.done::before { background: var(--accent); border-color: var(--accent); }
+.timeline li.is-done h3 { color: var(--soft); }
+
+/* checklist */
+.checklist { list-style: none; padding: 0; margin: .6rem 0 1.2rem; }
+.checklist li { display: grid; grid-template-columns: 1.3rem 1fr; gap: .55rem; padding: .35rem 0; margin: 0; }
+.cbox { width: .9rem; height: .9rem; margin-top: .32rem; border: 1.5px solid var(--control-line); border-radius: 3px;
+  box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center;
+  font: 700 .62rem/1 var(--sans); color: var(--on-accent); }
+.checklist li.done .cbox { background: var(--accent); border-color: var(--accent); }
+.checklist li.done > div { color: var(--soft); }
 
 /* tables */
-.tablewrap { overflow-x: auto; margin: 1rem 0; }
-table { border-collapse: collapse; width: 100%; font-size: .92rem; background: var(--raise);
-  border: 1px solid var(--line); border-radius: 6px; }
-th { font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--soft);
-  text-align: left; padding: .6rem .8rem; border-bottom: 1px solid var(--line);
-  position: sticky; top: 0; background: var(--raise); z-index: 1; }
-td { padding: .6rem .8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
-tr:last-child td { border-bottom: none; }
-.dot { display: inline-block; width: .65em; height: .65em; border-radius: 50%; margin-right: .45em; vertical-align: baseline; }
-.dot-impl { background: var(--impl); } .dot-brain { background: var(--brain); }
-.dot-audit { background: var(--audit); } .dot-design { background: var(--design); }
-.dot-verdigris { background: #2E7D6E; } .dot-mist { background: #0070F3; } .dot-iris { background: #7C5CBF; }
+.tablewrap { overflow-x: auto; margin: 1.2rem 0; }
+table { border-collapse: collapse; width: 100%; font-size: .94rem; }
+th { font-size: .74rem; font-weight: 600; color: var(--soft); text-align: left; padding: .5rem .8rem .45rem 0;
+  border-bottom: 1px solid var(--control-line); position: sticky; top: 0; background: var(--bg); }
+td { padding: .55rem .8rem .55rem 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+td:last-child, th:last-child { padding-right: 0; }
+table.options tr.pick td { background: var(--wash); }
+table.options tr.pick td:first-child { box-shadow: inset 2px 0 0 var(--accent); padding-left: .6rem; }
+table.options td:first-child, table.options th:first-child { padding-left: .6rem; }
+.pick-chip { font-size: .7rem; font-weight: 600; color: var(--accent); margin-left: .45rem; }
+.dot { display: inline-block; width: .55em; height: .55em; border-radius: 50%; margin-right: .45em; vertical-align: .05em;
+  background: var(--faint); }
+.dot-impl, .dot-verdigris { background: #3E7C6F; } .dot-brain, .dot-iris { background: var(--accent); }
+.dot-audit, .dot-parchment { background: var(--high); } .dot-design, .dot-mist, .dot-fjord { background: #3F6D9C; }
 
-/* figures / diagrams */
-.diagram { background: var(--raise); border: 1px solid var(--line); border-radius: 6px;
-  padding: 1rem; overflow-x: auto;
-  /* breakout, same pattern and token as .diff */
-  width: min(var(--breakout), calc(100vw - 3rem)); margin: 1rem 0 1rem 50%; transform: translateX(-50%); }
-.diagram svg { display: block; min-width: 560px; width: 100%; max-width: 60rem; height: auto; margin: 0 auto; }
-.diagram figcaption { margin-top: .6rem; font-size: .78rem; color: var(--soft); text-align: center; }
-.diagram text { font-family: var(--mono); font-size: 12px; fill: var(--ink); }
-.diagram .nodebox { fill: var(--bg); stroke: var(--line); }
+/* diagrams */
+.diagram { margin: 1.6rem 0; overflow-x: auto; }
+.diagram svg { display: block; min-width: 520px; width: 100%; max-width: 44rem; height: auto; margin: 0 auto; }
+.diagram figcaption { margin-top: .5rem; font-size: .75rem; color: var(--soft); text-align: center; }
+.diagram text { font-family: var(--sans); font-size: 12px; fill: var(--ink); }
+.diagram .nodebox { fill: var(--raise); stroke: var(--control-line); }
 .diagram .accentbox { fill: var(--wash); stroke: var(--accent); }
-.diagram .flow { stroke: var(--soft); fill: none; marker-end: url(#arr); }
+.diagram .flow { stroke: var(--faint); fill: none; marker-end: url(#arr); }
 .diagram .lbl { fill: var(--soft); font-size: 10.5px; }
 
-/* diff */
-.diff { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--raise); container-type: inline-size;
-  /* The sanctioned breakout: wider than the column so side-by-side code has room,
-     centred so it reads as deliberate. Any future wide component uses the same token and pattern. */
-  width: min(var(--breakout), calc(100vw - 3rem)); margin: 1rem 0 1rem 50%; transform: translateX(-50%); }
-.diff-head { font-family: var(--mono); font-size: .78rem; color: var(--soft); padding: .5rem .9rem;
-  border-bottom: 1px solid var(--line); background: var(--code-bg); }
+/* proposed code changes */
+.diff { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; container-type: inline-size;
+  width: min(var(--breakout), calc(100vw - 2.8rem)); margin: 1.2rem 0 1.2rem 50%; transform: translateX(-50%); }
+.diff-head { font-size: .75rem; color: var(--soft); padding: .5rem .9rem; border-bottom: 1px solid var(--line); background: var(--sunk); }
 .diff-cols { display: grid; grid-template-columns: 1fr 1fr; }
 .diff-pane { min-width: 0; overflow-x: auto; }
 .diff-pane + .diff-pane { border-left: 1px solid var(--line); }
-.diff-pane .pane-label { font-size: .68rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--soft); padding: .45rem .9rem .1rem; }
-.diff pre { margin: 0; padding: .5rem 0 .8rem; font: .78rem/1.55 var(--mono); }
+.pane-label { font-size: .7rem; font-weight: 600; color: var(--faint); padding: .45rem .9rem 0; }
+.diff pre { margin: 0; padding: .4rem 0 .8rem; font: .76rem/1.6 var(--mono); }
 .diff pre span { display: block; padding: 0 .9rem; white-space: pre; }
 .diff .add { background: var(--add-bg); color: var(--add-ink); }
 .diff .del { background: var(--del-bg); color: var(--del-ink); }
-/* Stack before/after unless the block is wide enough for comfortable panes.
-   Keyed to the block's own width, so a narrow artifact column on a wide screen
-   stacks too. Below this, one full-width column reads long code without clipping. */
-@container (max-width: 1330px) {
+@container (max-width: 900px) {
   .diff-cols { grid-template-columns: 1fr; }
   .diff-pane + .diff-pane { border-left: none; border-top: 1px solid var(--line); }
 }
 
-/* timeline */
-.timeline { list-style: none; padding: 0; margin: 1rem 0; }
-.timeline li { display: grid; grid-template-columns: 2.2rem 1fr; gap: .9rem; padding: .9rem 0;
-  border-bottom: 1px solid var(--line); margin: 0; }
-.timeline li:last-child { border-bottom: none; }
-.ph { font-family: var(--serif); font-size: 1.3rem; font-weight: 600; color: var(--accent-deep);
-  font-variant-numeric: tabular-nums; }
-.timeline h3 { margin: 0 0 .25rem; display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
-.timeline p { font-size: .93rem; color: var(--soft); margin: 0; }
-.pill { font-size: .68rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
-  padding: .12rem .5rem; border-radius: 999px; border: 1px solid var(--accent); color: var(--accent-deep); }
-.pill.later { border-color: var(--line); color: var(--soft); }
-.pill.done { border-color: var(--accent); color: var(--bg); background: var(--accent); }
+/* ask: a question the reader answers in the page */
+.ask { margin: 1.5rem 0; padding: 1rem 1.1rem; border: 1px solid var(--line); border-radius: 10px; background: var(--raise); }
+.ask-q { margin: 0 0 .7rem; font-weight: 600; }
+.ask-q p { margin: 0; }
+.ask-options { display: flex; flex-wrap: wrap; gap: .45rem; }
+.ask-opt { font: 500 .84rem var(--sans); color: var(--ink); background: var(--bg); border: 1px solid var(--control-line);
+  border-radius: 999px; padding: .38rem .85rem; cursor: pointer; }
+.ask-opt:disabled { cursor: default; }
+.ask-opt:not(:disabled):hover { border-color: var(--accent); }
+.ask-opt .rec { color: var(--soft); font-weight: 400; margin-left: .35rem; font-size: .75rem; }
+.ask-opt[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.ask-opt[aria-pressed="true"] .rec { color: inherit; opacity: .8; }
+.ask-state { margin: .6rem 0 0; font-size: .76rem; color: var(--soft); }
+.ask-state:empty { display: none; }
 
-/* verdict + findings */
-.verdict { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; margin: 1rem 0; }
-.verdict > div { background: var(--raise); border: 1px solid var(--line); border-radius: 6px; padding: .7rem .9rem; }
-.verdict .q { font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: var(--soft); display: block; }
-.verdict .a { font-family: var(--serif); font-size: 1.05rem; font-weight: 600; }
-@media (max-width: 700px) { .verdict { grid-template-columns: 1fr; } }
-.finding { display: grid; grid-template-columns: 3.4rem 1fr; gap: .8rem; padding: .55rem 0;
-  border-bottom: 1px solid var(--line); font-size: .93rem; }
-.finding:last-child { border-bottom: none; }
-.sev { font-family: var(--mono); font-size: .7rem; font-weight: 700; letter-spacing: .05em; padding-top: .15rem; }
-.sev.c { color: var(--crit); } .sev.h { color: var(--high); } .sev.m { color: var(--med); }
-/* computed severity strip above the findings */
-.finding-summary { display: flex; flex-wrap: wrap; gap: .4rem; margin: .5rem 0 .75rem; }
-.tally { font: .72rem/1 var(--mono); letter-spacing: .04em; border: 1px solid var(--line);
-  border-radius: 999px; padding: .3rem .6rem; color: var(--soft); background: var(--raise); }
-.tally b { font-weight: 700; color: var(--ink); }
-.tally.c { border-color: color-mix(in srgb, var(--crit) 45%, var(--line)); }
-.tally.c b { color: var(--crit); }
-.tally.h { border-color: color-mix(in srgb, var(--high) 45%, var(--line)); }
-.tally.h b { color: var(--high); }
-/* computed progress strip above the timeline */
-.timeline-progress { display: flex; align-items: center; gap: .7rem; margin: .5rem 0 .75rem;
-  font: .78rem var(--mono); color: var(--soft); }
-.timeline-progress meter { width: 8rem; height: .55rem; }
-.ph-done { color: var(--accent); }
-details { margin: .75rem 0; }
-summary { cursor: pointer; font-size: .85rem; color: var(--accent-deep); }
-summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* ---- revisions: what changed, traces, cuttings, history -------------------- */
+.rdiff { margin: .7rem 0 0; padding: .2rem 0 .4rem; border-top: 1px solid var(--line); }
+.rdiff-block { font-size: .95rem; line-height: 1.6; margin: .7rem 0; white-space: pre-wrap; overflow-wrap: break-word; }
+.rdiff-block.codey { font: .76rem/1.6 var(--mono); overflow-x: auto; }
+.rdiff-skip { color: var(--soft); font-size: .74rem; margin: .6rem 0; }
+.rdiff-ctx { color: var(--soft); font-weight: 600; font-size: .78rem; margin: 1rem 0 .1rem; }
+ins, .rdiff ins { text-decoration: none; background: var(--wash); box-shadow: inset 0 -1.5px 0 color-mix(in srgb, var(--accent) 45%, transparent);
+  color: inherit; }
+del, .rdiff del { color: var(--trace); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--trace) 70%, transparent);
+  text-decoration-thickness: 1px; }
 
-/* revision diff (what changed) */
-details.changes { margin: .75rem 0 0; }
-.rdiff { border: 1px solid var(--line); border-radius: 6px; background: var(--raise); padding: .4rem 1rem .7rem; margin-top: .5rem; }
-.rdiff-block { font-size: .9rem; line-height: 1.55; margin: .65rem 0; white-space: pre-wrap; overflow-wrap: break-word; }
-.rdiff-block.codey { font-family: var(--mono); font-size: .76rem; overflow-x: auto; }
-.rdiff ins { background: var(--add-bg); color: var(--add-ink); text-decoration: none; border-radius: 2px; padding: 0 .08em; }
-.rdiff del { background: var(--del-bg); color: var(--del-ink); border-radius: 2px; padding: 0 .08em; }
-.rdiff-skip { color: var(--soft); font-size: .76rem; letter-spacing: .04em; margin: .55rem 0; }
-.rdiff-ctx { color: var(--soft); font-weight: 600; font-size: .82rem; margin: .9rem 0 .15rem; }
+/* traces: the current draft with the previous one showing through */
+main.traces del.tr { opacity: .8; }
+del.tr + ins.tr { margin-left: .3em; }
+main.traces .tr-old { color: var(--trace); position: relative; margin: .9rem 0; padding-left: 1.1rem;
+  border-left: 2px dotted color-mix(in srgb, var(--trace) 60%, transparent); }
+main.traces .tr-old * { color: inherit !important; border-color: color-mix(in srgb, var(--trace) 35%, transparent) !important;
+  text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--trace) 55%, transparent);
+  text-decoration-thickness: 1px; background: none !important; box-shadow: none !important; }
+main.traces .tr-old::before { content: attr(data-label); display: block; font: 500 .68rem var(--sans); text-decoration: none;
+  color: var(--trace); margin-bottom: .1rem; }
+main.traces .tr-new { margin: .9rem 0; padding-left: 1.1rem; border-left: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); }
+main.traces .tr-new > :first-child, main.traces .tr-old > :first-child { margin-top: 0; }
+main.traces .tr-new > :last-child, main.traces .tr-old > :last-child { margin-bottom: 0; }
+/* in the live viewer the bar carries the traces switch */
+:root:has(.vbar) .meta-tools [data-traces-toggle] { display: none; }
+main.traces .tr-new[data-label]::before { content: attr(data-label); display: block; font: 500 .68rem var(--sans); color: var(--accent); }
+main.traces .tr-prev { margin: .2rem 0 1rem; }
+main.traces .tr-prev > summary { font: .74rem var(--sans); color: var(--trace); }
+main.traces .tr-heading { font: 600 1.1rem var(--serif); color: var(--trace); text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--trace) 55%, transparent); margin: 2rem 0 .4rem; }
+.traces-banner { font: .8rem var(--sans); color: var(--trace); margin: 2rem 0 -1.4rem; }
 
-/* footer */
-footer.doc { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--line);
-  font-size: .8rem; color: var(--soft); }
-footer.doc code { background: none; padding: 0; }
+.appendix { margin-top: 4.5rem; }
+.appendix > section { margin-top: 2.2rem; padding-top: 1.4rem; border-top: 1px solid var(--line); }
+.appendix summary { list-style: none; }
+.appendix summary::-webkit-details-marker { display: none; }
+.appendix summary h2 { display: inline; }
+.appendix summary h2::after { content: " ▸"; color: var(--faint); font-weight: 400; }
+.appendix details[open] > summary h2::after { content: " ▾"; }
+.appendix h2 { font-size: .82rem; font-weight: 600; color: var(--soft); letter-spacing: .01em; margin: 0 0 .7rem; }
+.cutting { margin: 1rem 0 0; }
+.cutting-text { margin: 0; padding-left: 1.1rem; border-left: 2px dotted color-mix(in srgb, var(--trace) 60%, transparent);
+  white-space: pre-wrap; font: inherit; font-size: .98rem; color: var(--ink); }
+.cuttings-meta { display: flex; gap: .7rem; align-items: baseline; margin: .3rem 0 0 1.1rem; font-size: .74rem; color: var(--soft); }
+.cuttings-more > summary { font: .8rem var(--sans); color: var(--soft); }
+.history { font-size: .82rem; color: var(--soft); }
+.history ol { list-style: none; padding: 0; margin: 0; }
+.history li { display: grid; grid-template-columns: 3rem 1fr auto; gap: .2rem .6rem; padding: .45rem 0; margin: 0;
+  border-bottom: 1px solid var(--line); }
+.history li:last-child { border-bottom: none; }
+.history .what strong { color: var(--ink); font-weight: 500; }
+.history .when { white-space: nowrap; font-variant-numeric: tabular-nums; text-align: right; }
+.history .words { color: var(--soft); }
+.history .approved { color: var(--accent); }
+.spark { display: block; height: 1.6rem; width: auto; max-width: 100%; margin: 0 0 .6rem; }
+.spark rect { fill: var(--line); }
+.spark rect.cur { fill: var(--accent); }
 
-/* table of contents */
-.toc { background: var(--raise); border: 1px solid var(--line); border-radius: 6px;
-  padding: .6rem 1rem; margin: 1.5rem 0 0; }
-.toc summary { font-size: .72rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
-  color: var(--accent-deep); cursor: pointer; }
-.toc summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.toc ol { list-style: none; padding: .4rem 0 .3rem; margin: 0; columns: 2; column-gap: 2rem; }
-.toc li { margin: .3rem 0; break-inside: avoid; }
-.toc a { text-decoration: none; font-size: .92rem; }
-.toc a:hover { text-decoration: underline; }
-.toc .n { font-family: var(--mono); font-size: .75em; color: var(--soft); margin-right: .5em;
-  font-variant-numeric: tabular-nums; }
-@media (max-width: 700px) { .toc ol { columns: 1; } }
-/* On wide screens the TOC leaves the flow and rides the left margin as a rail, so the
-   reader keeps their place in the document while scanning the structure. */
-@media (min-width: 1500px) {
-  .toc { position: fixed; top: 2rem; left: 1.5rem; width: 13.5rem; margin: 0; z-index: 5;
-    max-height: calc(100vh - 4rem); overflow-y: auto; }
-  .toc[open] summary { margin-bottom: .3rem; }
-  .toc ol { columns: 1; }
-  .toc li { margin: .45rem 0; }
-}
+footer.doc { margin-top: 3.5rem; font-size: .74rem; color: var(--soft); }
+footer.doc code { font-size: .95em; }
 
-/* palette + scheme switchers — fixed chrome, not agent-writable */
-.palettes { display: flex; gap: .4rem; margin-left: auto; }
-.pbtn, .tbtn { font: 600 .75rem var(--sans); color: var(--soft); background: var(--raise);
-  border: 1px solid var(--line); border-radius: 999px; padding: .2rem .6rem; cursor: pointer;
-  display: inline-flex; align-items: center; gap: .35em; }
-.pbtn .dot { margin: 0; }
-.pbtn[aria-pressed="true"] { border-color: var(--accent); color: var(--ink); }
-.pbtn:focus-visible, .tbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* ---- live viewer --------------------------------------------------------- */
+::highlight(vc-open) { background-color: color-mix(in srgb, var(--high) 20%, transparent);
+  text-decoration: underline dotted color-mix(in srgb, var(--high) 70%, transparent); }
+::highlight(vc-flash) { background-color: color-mix(in srgb, var(--accent) 35%, transparent); }
 
-/* palettes: Mist (apple/vercel) and Iris (violet); Verdigris is the default token set above */
-:root[data-palette="mist"] { --bg:#FAFAFA; --raise:#FFFFFF; --ink:#171717; --soft:#666666; --line:#E4E4E7;
-  --accent:#0070F3; --accent-deep:#0761D1; --wash:rgba(0,112,243,.06); --code-bg:#F2F2F2; --design:#0070F3; }
-@media (prefers-color-scheme: dark) {
-  :root[data-palette="mist"] { --bg:#0A0A0A; --raise:#151515; --ink:#EDEDED; --soft:#8A8A8A; --line:#262626;
-    --accent:#3291FF; --accent-deep:#52A8FF; --wash:rgba(50,145,255,.10); --code-bg:#1A1A1A; --design:#3291FF; }
-}
-:root[data-theme="light"][data-palette="mist"] { --bg:#FAFAFA; --raise:#FFFFFF; --ink:#171717; --soft:#666666;
-  --line:#E4E4E7; --accent:#0070F3; --accent-deep:#0761D1; --wash:rgba(0,112,243,.06); --code-bg:#F2F2F2; --design:#0070F3; }
-:root[data-theme="dark"][data-palette="mist"] { --bg:#0A0A0A; --raise:#151515; --ink:#EDEDED; --soft:#8A8A8A;
-  --line:#262626; --accent:#3291FF; --accent-deep:#52A8FF; --wash:rgba(50,145,255,.10); --code-bg:#1A1A1A; --design:#3291FF; }
-[data-palette="mist"] h1, [data-palette="mist"] h2, [data-palette="mist"] h3, [data-palette="mist"] .ph {
-  font-family: var(--sans); letter-spacing: -.015em; }
-[data-palette="mist"] .standfirst { font-family: var(--sans); font-style: normal; font-size: 1.02rem; }
+.vbar-pad { height: calc(var(--vbar-height, 3rem) + 1.5rem); }
+.vbar { position: fixed; bottom: .9rem; left: 50%; transform: translateX(-50%); z-index: 10;
+  display: flex; align-items: center; gap: .25rem; padding: .3rem .35rem; max-width: calc(100vw - 1.2rem); box-sizing: border-box;
+  background: color-mix(in srgb, var(--raise) 92%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); font: .8rem var(--sans); color: var(--soft); }
+.vbar a { text-decoration: none; color: var(--soft); }
+.vbar .vb, .vbar > a { display: inline-flex; align-items: center; gap: .35rem; height: 2rem; padding: 0 .6rem; border-radius: 8px;
+  border: none; background: none; color: var(--soft); font: 500 .8rem var(--sans); cursor: pointer; white-space: nowrap; box-sizing: border-box; }
+.vbar .vb:hover, .vbar > a:hover { background: var(--sunk); color: var(--ink); }
+.vbar .vb[aria-pressed="true"], .vbar .vb[aria-expanded="true"] { color: var(--ink); background: var(--sunk); }
+.vbar .vb.traces-on { color: var(--trace); background: var(--trace-wash); }
+.vbar .sep { width: 1px; height: 1.2rem; background: var(--line); margin: 0 .2rem; }
+.vbar .vb.approve { color: var(--accent); }
+.vbar .vb.approved { color: var(--accent); cursor: default; }
+.vbar .vb.stop:hover { color: var(--crit); }
+.scrub { display: inline-flex; align-items: center; gap: .55rem; padding: 0 .5rem; }
+.scrub input[type="range"] { width: clamp(5rem, 14vw, 11rem); accent-color: var(--accent); margin: 0; }
+.scrub-label { min-width: 5.2rem; font-variant-numeric: tabular-nums; color: var(--ink); font-weight: 500; }
+.scrub-label small { color: var(--soft); font-weight: 400; }
+.vbar-note { font-size: .74rem; color: var(--soft); padding: 0 .5rem; }
+.icon { width: 1rem; height: 1rem; flex: none; fill: none; stroke: currentColor; stroke-width: 1.5;
+  stroke-linecap: round; stroke-linejoin: round; }
+.icon .dots { stroke-width: 2.1; }
+html[data-scrubbing] main { transition: opacity .12s; }
 
-:root[data-palette="iris"] { --bg:#F8F7FB; --raise:#FFFFFF; --ink:#241E33; --soft:#6A6284; --line:#E3DEEF;
-  --accent:#7C5CBF; --accent-deep:#5E44A0; --wash:rgba(124,92,191,.08); --code-bg:#EFEDF6; --design:#7C5CBF; }
-@media (prefers-color-scheme: dark) {
-  :root[data-palette="iris"] { --bg:#151020; --raise:#1E1830; --ink:#EAE6F4; --soft:#A29AC0; --line:#332A4D;
-    --accent:#A78BE0; --accent-deep:#BCA8EA; --wash:rgba(167,139,224,.12); --code-bg:#241D38; --design:#A78BE0; }
-}
-:root[data-theme="light"][data-palette="iris"] { --bg:#F8F7FB; --raise:#FFFFFF; --ink:#241E33; --soft:#6A6284;
-  --line:#E3DEEF; --accent:#7C5CBF; --accent-deep:#5E44A0; --wash:rgba(124,92,191,.08); --code-bg:#EFEDF6; --design:#7C5CBF; }
-:root[data-theme="dark"][data-palette="iris"] { --bg:#151020; --raise:#1E1830; --ink:#EAE6F4; --soft:#A29AC0;
-  --line:#332A4D; --accent:#A78BE0; --accent-deep:#BCA8EA; --wash:rgba(167,139,224,.12); --code-bg:#241D38; --design:#A78BE0; }
-
-/* comments */
-details.comments { margin: .75rem 0 0; }
-.vcomment { border: 1px solid var(--line); border-left: 3px solid var(--high); border-radius: 6px;
-  background: var(--raise); padding: .6rem .9rem; margin: .5rem 0; font-size: .9rem; }
-.vcomment blockquote { margin: .3rem 0; padding: .1rem .6rem; border-left: 2px solid var(--line);
-  color: var(--soft); font-style: italic; }
-.vcomment p { margin: .3rem 0; }
-.vc-anchor { font-family: var(--mono); font-size: .75rem; }
-.vc-meta { font-size: .72rem; color: var(--soft); }
-
-/* live viewer: quote highlights (CSS Custom Highlight API) */
-::highlight(vc-open) { background-color: color-mix(in srgb, var(--high) 25%, transparent);
-  text-decoration: underline dotted var(--high); }
-::highlight(vc-flash) { background-color: color-mix(in srgb, var(--accent) 45%, transparent); }
-
-/* live viewer: selection button + comment form */
-.vc-add { position: absolute; z-index: 30; font: 600 .78rem var(--sans); color: var(--bg); background: var(--accent);
-  border: none; border-radius: 999px; padding: .3rem .7rem; cursor: pointer; }
-.vc-hint { position: absolute; z-index: 30; font: 600 .75rem var(--sans); color: var(--soft);
-  background: var(--raise); border: 1px solid var(--line); border-radius: 999px; padding: .3rem .7rem; }
-.vc-form { position: absolute; width: min(34rem, calc(100vw - 2rem)); background: var(--raise);
-  border: 1px solid var(--line); border-radius: 8px; padding: .8rem; z-index: 40;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, .18); box-sizing: border-box; }
-.vc-form-fallback { position: fixed; top: auto; bottom: 3.8rem; left: 50%; transform: translateX(-50%); }
-.vc-form blockquote { margin: 0 0 .5rem; padding: .1rem .6rem; border-left: 2px solid var(--accent);
-  color: var(--soft); font-size: .85rem; font-style: italic; max-height: 4.5rem; overflow: hidden; }
-.vc-form textarea { width: 100%; min-height: 4rem; font: inherit; color: var(--ink); background: var(--bg);
-  border: 1px solid var(--line); border-radius: 6px; padding: .5rem; box-sizing: border-box; }
-.vc-form textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.vc-row { display: flex; gap: .5rem; justify-content: flex-end; margin-top: .5rem; }
-.vc-form button, .vc-act { font: 600 .78rem var(--sans); border-radius: 6px; padding: .3rem .8rem;
-  cursor: pointer; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
-.vc-form .vc-save { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.vc-add { position: absolute; z-index: 30; display: inline-flex; align-items: center; gap: .35rem;
+  font: 500 .78rem var(--sans); color: var(--on-accent); background: var(--accent); border: none; border-radius: 8px;
+  padding: .35rem .7rem; cursor: pointer; box-shadow: var(--shadow); }
+.vc-add[hidden] { display: none; }
+.vc-hint { position: absolute; z-index: 30; font: .75rem var(--sans); color: var(--soft); background: var(--raise);
+  border: 1px solid var(--line); border-radius: 8px; padding: .35rem .7rem; box-shadow: var(--shadow); }
+.vc-form { position: absolute; width: min(32rem, calc(100vw - 2rem)); background: var(--raise); border: 1px solid var(--line);
+  border-radius: 12px; padding: .8rem; z-index: 40; box-shadow: var(--shadow); box-sizing: border-box; font-family: var(--sans); }
+.vc-form-fallback { position: fixed; top: auto; bottom: 4.5rem; left: 50%; transform: translateX(-50%); }
+.vc-form blockquote { margin: 0 0 .55rem; padding: 0 0 0 .7rem; border-left: 2px solid var(--accent); font: italic .9rem var(--serif);
+  max-height: 4.5rem; overflow: hidden; }
+.vc-form textarea, .vc-replybox textarea { width: 100%; min-height: 4.2rem; font: .9rem/1.45 var(--sans); color: var(--ink);
+  background: var(--bg); border: 1px solid var(--control-line); border-radius: 8px; padding: .55rem .6rem; box-sizing: border-box; resize: vertical; }
+.vc-row { display: flex; gap: .45rem; justify-content: flex-end; margin-top: .55rem; }
+.vc-form button, .vc-act { font: 500 .78rem var(--sans); border-radius: 7px; padding: .32rem .75rem; cursor: pointer;
+  border: 1px solid var(--control-line); background: var(--bg); color: var(--ink); }
+.vc-form .vc-save { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .vc-form button:disabled { opacity: .6; cursor: default; }
 .vc-err { margin: .4rem 0 0; font-size: .8rem; color: var(--crit); }
 .vc-note { margin: .3rem 0 0; font-size: .75rem; color: var(--soft); }
-.vc-form button:focus-visible, .vc-act:focus-visible, .vc-add:focus-visible, .vc-toggle:focus-visible {
-  outline: 2px solid var(--accent); outline-offset: 2px; }
-
-/* live viewer: save/undo toast */
-.vc-toast { position: fixed; bottom: 4.2rem; left: 50%; transform: translateX(-50%);
-  display: flex; align-items: center; gap: .6rem; background: var(--raise); border: 1px solid var(--line);
-  border-radius: 8px; padding: .5rem .9rem; font-size: .85rem; z-index: 50;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, .18); }
+.vc-toast { position: fixed; bottom: 4.8rem; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: .6rem;
+  background: var(--raise); border: 1px solid var(--line); border-radius: 10px; padding: .5rem .85rem; font: .82rem var(--sans);
+  z-index: 50; box-shadow: var(--shadow); }
 .vc-toast.anchored { position: absolute; bottom: auto; left: auto; transform: none; }
 
-/* live viewer: comments drawer */
-.vc-drawer { position: fixed; top: 0; right: 0; bottom: 3.2rem; width: min(23rem, 92vw);
-  background: var(--raise); border-left: 1px solid var(--line); z-index: 20; overflow-y: auto;
-  padding: .9rem 1rem; box-sizing: border-box; }
-.vc-drawer-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem; }
-.vc-h { font: 600 .72rem var(--sans); letter-spacing: .12em; text-transform: uppercase;
-  color: var(--soft); margin: 1rem 0 .4rem; }
-.vc-empty { font-size: .85rem; color: var(--soft); }
-.vc-card { border: 1px solid var(--line); border-left: 3px solid var(--high); border-radius: 6px;
-  background: var(--bg); padding: .6rem .8rem; margin: .5rem 0; font-size: .88rem; }
-.vc-card[data-status="resolved"] { border-left-color: var(--line); opacity: .85; }
-.vc-card.vc-focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--wash); }
-.vc-card blockquote { margin: 0 0 .4rem; padding: .05rem .55rem; border-left: 2px solid var(--line);
-  color: var(--soft); font-style: italic; display: -webkit-box; -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical; overflow: hidden; }
-.vc-card .vc-text { margin: .3rem 0; }
-.vc-card .vc-meta { display: block; margin-top: .2rem; }
-.vc-reply { margin: .35rem 0 0 .6rem; padding-left: .5rem; border-left: 2px solid var(--accent); font-size: .84rem; }
+.vc-drawer { position: fixed; top: .9rem; right: .9rem; bottom: calc(var(--vbar-height, 3rem) + 1.8rem); width: min(23rem, calc(100vw - 1.8rem));
+  background: var(--raise); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); z-index: 20;
+  overflow-y: auto; padding: .9rem 1rem; box-sizing: border-box; font-family: var(--sans); font-size: .86rem; }
+.vc-drawer-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: .3rem; }
+.vc-h { font: 600 .72rem var(--sans); color: var(--soft); margin: 1rem 0 .3rem; }
+.vc-empty { color: var(--soft); }
+.vc-card { padding: .65rem 0; border-top: 1px solid var(--line); }
+.vc-card[data-status="resolved"] { color: var(--soft); }
+.vc-card.vc-focus { background: var(--wash); border-radius: 6px; }
+.vc-card blockquote { margin: 0 0 .35rem; padding-left: .6rem; border-left: 2px solid var(--high); font: italic .88rem var(--serif);
+  color: var(--soft); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.vc-card .vc-text { margin: .25rem 0; }
+.vc-meta { display: block; font-size: .72rem; color: var(--faint); margin-top: .2rem; }
+.vc-reply { margin: .35rem 0 0 .2rem; padding-left: .6rem; border-left: 2px solid var(--accent); }
 .vc-replybox { margin-top: .5rem; display: flex; gap: .4rem; align-items: flex-end; }
-.vc-replybox textarea { flex: 1; min-height: 2.6rem; font: inherit; font-size: .85rem; color: var(--ink);
-  background: var(--raise); border: 1px solid var(--line); border-radius: 6px; padding: .4rem; box-sizing: border-box; }
-.vc-resolved { display: inline-block; margin-top: .3rem; font-size: .78rem; color: var(--accent-deep); }
-.vc-actions { display: flex; gap: .4rem; margin-top: .5rem; flex-wrap: wrap; }
-.vc-toggle { margin-left: auto; font: 600 .78rem var(--sans); border: 1px solid var(--line);
-  background: var(--bg); color: var(--ink); border-radius: 999px; padding: .25rem .7rem; cursor: pointer; }
-.vc-toggle[aria-expanded="true"] { border-color: var(--accent); }
-.vbar-note { font-size: .72rem; color: var(--soft); }
-.chip-comments { border-color: var(--accent); color: var(--accent-deep); }
+.vc-replybox textarea { min-height: 2.6rem; }
+.vc-resolved { display: inline-block; margin-top: .3rem; font-size: .75rem; color: var(--accent); }
+.vc-actions { display: flex; gap: .35rem; margin-top: .45rem; flex-wrap: wrap; }
+.cut-copy { font: 500 .72rem var(--sans); color: var(--soft); background: none; border: none; padding: 0; cursor: pointer;
+  text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: .2em; }
+.cut-copy:hover { color: var(--ink); }
+.viewer-stopped-status { position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); z-index: 40;
+  max-width: calc(100vw - 2rem); box-sizing: border-box; padding: .7rem 1rem; border: 1px solid var(--line);
+  border-radius: 10px; background: var(--raise); box-shadow: var(--shadow); font: 500 .82rem var(--sans); text-align: center; }
 
-/* viewer chrome (pentimento serve) */
-.vbar-pad { height: 3.2rem; }
-.vbar { position: fixed; bottom: 0; left: 0; right: 0; display: flex; align-items: center; gap: .8rem;
-  padding: .5rem 1rem; background: var(--raise); border-top: 1px solid var(--line);
-  font-size: .82rem; z-index: 10; flex-wrap: wrap; }
-.vbar a { text-decoration: none; }
-.vbar-name { font-family: var(--mono); font-size: .75rem; color: var(--soft);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 40%; }
-.vbar select { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
-  border-radius: 4px; padding: .15rem .4rem; max-width: 16rem; }
-.vbar select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.vcards { display: grid; gap: .8rem; margin-top: 2rem; }
-.vcard { display: block; background: var(--raise); border: 1px solid var(--line); border-radius: 6px;
-  padding: .9rem 1.1rem; text-decoration: none; color: var(--ink); }
-.vcard:hover { border-color: var(--accent); }
-.vcard h3 { margin: .4rem 0 .2rem; }
-.vcard p { margin: 0; font-size: .88rem; color: var(--soft); }
+/* index page */
+.doclist { list-style: none; padding: 0; margin: .6rem 0 0; }
+.doclist li { margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.doclist li:first-child { border-top: none; }
+.doclist li:last-child { border-bottom: 1px solid var(--line); }
+.doclist a { display: block; padding: 1rem 0; text-decoration: none; color: var(--ink); }
+.doclist a:hover h3 { text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: .18em; }
+.doclist h3 { margin: 0; font-size: 1.15rem; }
+.doclist .meta { margin: 0 0 .3rem; }
+.doclist p { margin: .25rem 0 0; color: var(--soft); font-size: .95rem; }
+.empty-state { margin-top: 2rem; color: var(--soft); }
+.empty-state code { display: inline-block; max-width: 100%; }
+
+@media (max-width: 40rem) {
+  .wrap { padding-top: 2rem; }
+  .vbar { bottom: 0; left: 0; right: 0; transform: none; max-width: none; border-radius: 0; border-width: 1px 0 0;
+    overflow-x: auto; justify-content: flex-start; }
+  .vbar .label-long, .scrub-label small { display: none; }
+  .scrub input[type="range"] { width: 5.5rem; }
+  .scrub-label { min-width: 0; }
+  .vbar .vb, .vbar > a { height: 2.6rem; }
+  .vc-drawer { top: auto; left: 0; right: 0; bottom: var(--vbar-height, 3rem); width: auto; max-height: 70vh; border-radius: 12px 12px 0 0; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
 
-/* Print: drop the interactive chrome, open every fold, keep sections whole. Static
-   renders are meant to open (and print) anywhere. */
+/* print: interface gone, every fold open, sections whole */
 @media print {
-  :root { --bg: #fff; --raise: #fff; --ink: #000; --soft: #333; --line: #bbb; }
-  .palettes, .vbar, .vbar-pad, .vc-drawer, .vc-toggle, .vc-add, .vc-form, .vc-toast,
-  .vc-hint, .anch { display: none !important; }
-  .wrap { max-width: none; }
-  .toc { position: static; width: auto; max-height: none; }
-  details { break-inside: avoid; }
-  details > summary { list-style: none; }
-  section, .finding, .timeline li, .callout, .diff, .diagram { break-inside: avoid; }
+  :root { --bg: #fff; --raise: #fff; --sunk: #f4f4f4; --ink: #000; --soft: #444; --faint: #777; --line: #ccc; --accent: #000; }
+  .meta-tools, .vbar, .vbar-pad, .vc-drawer, .vc-add, .vc-form, .vc-toast, .vc-hint, .anch, .rail, .toc-inline,
+  .viewer-stopped-status, .cut-copy { display: none !important; }
+  .wrap { max-width: none; padding: 0; }
+  .tablewrap, .diff { width: auto; margin: 1rem 0; transform: none; overflow: visible; }
+  section, .finding, .timeline li, .callout, .diff, .diagram, .ask { break-inside: avoid; }
   h1, h2, h3 { break-after: avoid; }
-  a { color: inherit; text-decoration: underline; }
   a[href^="http"]::after { content: " (" attr(href) ")"; font-size: .8em; color: #555; word-break: break-all; }
 }
 </style>
 </head>
 <body>
-<script>(()=>{let p=null,t=null;try{p=localStorage.getItem('pentimento-palette');t=localStorage.getItem('pentimento-theme')}catch(e){}p=p||'iris';if(p!=='verdigris')document.documentElement.dataset.palette=p;if(t==='dark'||t==='light')document.documentElement.dataset.theme=t})()</script>
+<script>(()=>{let t=null;try{t=localStorage.getItem('pentimento-theme')}catch(e){}if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;else{try{localStorage.removeItem('pentimento-theme')}catch(e){}}})()</script>
 
 <div class="wrap">
+<nav class="rail" aria-label="Contents"><ol><li><a href="#why">Why</a></li><li><a href="#decisions">Decisions</a></li><li><a href="#shipped">Shipped</a></li><li><a href="#release">Release roadmap</a></li><li><a href="#open">Open questions</a></li></ol><ol class="rail-appendix"><li><a href="#history">History</a></li></ol></nav>
 <header class="doc">
-  <div class="meta-row">
-    <span class="badge badge-design-doc">Design doc · PRD</span>
-    <span class="chip">r002</span>
-    <time class="chip" datetime="2026-07-09">2026-07-09</time>
-    <span class="chip">Personal/pentimento/PLAN.md</span>
-    <div class="palettes" role="group" aria-label="Color theme">
-      <button class="pbtn" type="button" data-p="verdigris" aria-pressed="false"><span class="dot dot-verdigris"></span>Verdigris</button>
-      <button class="pbtn" type="button" data-p="mist" aria-pressed="false"><span class="dot dot-mist"></span>Mist</button>
-      <button class="pbtn" type="button" data-p="iris" aria-pressed="true"><span class="dot dot-iris"></span>Iris</button>
-      <button class="tbtn" type="button" aria-label="Color scheme">◐ Auto</button>
-    </div>
-  </div>
+  <div class="meta"><span class="kind">Design doc</span><span class="rev-label">r004</span><time datetime="2026-09-30">30 Sep 2026</time><span class="meta-tools"><button class="tool" type="button" data-traces-toggle aria-pressed="false" title="Show the previous draft under this one (T)">Traces</button><button class="tool scheme-toggle" type="button" data-scheme-toggle aria-label="Color scheme: auto">Auto</button></span></div>
   <h1>Pentimento: Living Documents</h1>
   <p class="standfirst">One canonical markdown file, hidden revision history, deterministic rendering. The author writes content; the system owns the pixels.</p>
-  <div class="evolution"><span class="rev">r002</span><span class="what"><strong>Clean prose to pass the new lint (em-dashes to periods and colons)</strong> — Dogfooding pentimento lint on the project's own plan</span></div>
-  <div class="evolution"><span class="rev">r001</span><span class="what"><strong>Public release baseline: renamed to Pentimento, history restarted clean</strong> — Prior plan history contained private environment details</span></div>
-  <details class="changes"><summary>What changed in r002 (vs r001)</summary><div class="rdiff"><div class="rdiff-block"># Pentimento<del> —</del><ins>:</ins> Living Documents</div>
-<div class="rdiff-skip">⋯ 2 unchanged blocks</div>
-<div class="rdiff-ctx">## Why</div>
-<div class="rdiff-block">Agent-generated HTML is slop because the agent is handed a *paint palette*. Plans revised three times are unreviewable because nothing records what moved, or why. Pentimento inverts both: a deterministic renderer, a fixed design system, a small directive vocabulary, and numbered snapshots with an append-only decision log. Any agent<del> —</del><ins>,</ins> or any human<del> —</del><ins>,</ins> produces markdown plus directives; the toolchain produces the view and the history.</div>
-<div class="rdiff-skip">⋯ 3 unchanged blocks</div>
-<div class="rdiff-ctx">## Decisions</div>
-<div class="rdiff-block codey">::: callout decision id=d-plain-files
-**History is plain files.** `.history/&lt;doc&gt;/rNNN.md` + `meta.yml`, readable by grep, git, agents, and humans<del> —</del><ins>, with</ins> no database<del>,</del><ins> and</ins> no proprietary blob.
-:::</div>
-<div class="rdiff-skip">⋯ 6 unchanged blocks</div>
-<div class="rdiff-ctx">## Open questions</div>
-<div class="rdiff-block">- Comment transport from *published* pages (the local viewer has an obvious path; a static page doesn't).
-- Whether directive nesting is worth the renderer complexity it invites.
-- Mermaid: deferred<del> — diagrams</del><ins>. Diagrams</ins> are constrained inline SVG via `::: figure`; revisit if hand-composed SVG becomes the bottleneck.</div></div></details>
+  <p class="latest"><span class="rev">r004</span>Drop eyebrow labels and the palette setting</p><details class="changes"><summary>What changed since r003</summary><div class="rdiff"><div class="rdiff-skip">2 unchanged blocks</div>
+<div class="rdiff-ctx">Pentimento: Living Documents</div>
+<div class="rdiff-block">## Why &lt;!-- id: why<del>; eyebrow: Diagnosis</del> --&gt;</div>
+<div class="rdiff-skip">1 unchanged block</div>
+<div class="rdiff-block">## Decisions &lt;!-- id: decisions<del>; eyebrow: Locked</del> --&gt;</div>
+<div class="rdiff-skip">6 unchanged blocks</div>
+<div class="rdiff-block">## Shipped &lt;!-- id: shipped<del>; eyebrow: Done</del> --&gt;</div>
+<div class="rdiff-skip">1 unchanged block</div>
+<div class="rdiff-block">## Release roadmap &lt;!-- id: release<del>; eyebrow: Next</del> --&gt;</div>
+<div class="rdiff-skip">1 unchanged block</div>
+<div class="rdiff-block">## Open questions &lt;!-- id: open<del>; eyebrow: Unresolved</del> --&gt;</div>
+<div class="rdiff-skip">1 unchanged block</div></div></details>
+  <details class="toc-inline"><summary>Contents</summary><nav aria-label="Contents"><ol><li><a href="#why">Why</a></li><li><a href="#decisions">Decisions</a></li><li><a href="#shipped">Shipped</a></li><li><a href="#release">Release roadmap</a></li><li><a href="#open">Open questions</a></li><li><a href="#history">History</a></li></ol></nav></details>
 </header>
 
-<details class="toc" open>
-  <summary>Contents</summary>
-  <nav aria-label="Contents">
-    <ol>
-      <li><a href="#why"><span class="n">01</span>Why</a></li>
-      <li><a href="#decisions"><span class="n">02</span>Decisions</a></li>
-      <li><a href="#shipped"><span class="n">03</span>Shipped</a></li>
-      <li><a href="#release"><span class="n">04</span>Release roadmap</a></li>
-      <li><a href="#open"><span class="n">05</span>Open questions</a></li>
-    </ol>
-  </nav>
-</details>
-
 <main>
-
 <section>
-  <span class="eyebrow">Diagnosis</span>
-  <h2 id="why">Why<a class="anch" href="#why" aria-label="Link to this section">#</a></h2>
+<h2 id="why">Why<a class="anch" href="#why" aria-label="Link to this section">#</a></h2>
 <p>Agent-generated HTML is slop because the agent is handed a <em>paint palette</em>. Plans revised three times are unreviewable because nothing records what moved, or why. Pentimento inverts both: a deterministic renderer, a fixed design system, a small directive vocabulary, and numbered snapshots with an append-only decision log. Any agent, or any human, produces markdown plus directives; the toolchain produces the view and the history.</p>
 
 </section>
 
 <section>
-  <span class="eyebrow">Locked</span>
-  <h2 id="decisions">Decisions<a class="anch" href="#decisions" aria-label="Link to this section">#</a></h2>
+<h2 id="decisions">Decisions<a class="anch" href="#decisions" aria-label="Link to this section">#</a></h2>
+
 <div class="callout decision" id="d-source-of-truth"><span class="label">Decision</span><p><strong>Markdown is the source of truth.</strong> HTML is a build product. Reviews approve the markdown; the render is how readers read it.</p>
 </div>
+
 <div class="callout decision" id="d-vocabulary"><span class="label">Decision</span><p><strong>Vocabulary, not palette.</strong> Agents never write CSS, inline styles, or scripts. Rich elements come from <code>:::</code> directives; if the vocabulary can't say it, the vocabulary grows per release, not per document.</p>
 </div>
+
 <div class="callout decision" id="d-plain-files"><span class="label">Decision</span><p><strong>History is plain files.</strong> <code>.history/&lt;doc&gt;/rNNN.md</code> + <code>meta.yml</code>, readable by grep, git, agents, and humans, with no database and no proprietary blob.</p>
 </div>
+
+<div class="callout decision" id="d-single-user"><span class="label">Decision</span><p><strong>One user owns the revision loop.</strong> An agent writes or revises the canonical markdown; the user leaves instructions and approves saved versions. Pentimento does not add accounts, simultaneous writers, reviewer presence, or team approvals.</p>
+</div>
+
+<div class="callout decision" id="d-tailscale"><span class="label">Decision</span><p><strong>Tailscale carries the same private loop across machines.</strong> An agent on a VPS sends one protected viewer link to the user, who opens it from a trusted computer or phone. Remote access does not turn the document into a shared workspace.</p>
+</div>
+
 <div class="callout decision" id="d-name"><span class="label">Decision</span><p><strong>Renamed from Vellum to Pentimento.</strong> The Vellum namespace is crowded (a funded AI platform, a book-formatting tool, and a since-rebranded artifact host all share it). Legacy <code>Vellum: true</code> docs are read transparently and migrated on their next snapshot.</p>
 </div>
 
 </section>
 
 <section>
-  <span class="eyebrow">Done</span>
-  <h2 id="shipped">Shipped<a class="anch" href="#shipped" aria-label="Link to this section">#</a></h2>
-<div class="timeline-progress"><meter value="4" min="0" max="4" aria-label="Phases done"></meter><span>4 done · 4 total</span></div><ol class="timeline"><li><span class="ph ph-done">1</span><div><h3>CLI core + design system + renderer + skill <span class="pill done">done</span></h3><p><code>snapshot</code>/<code>list</code>/<code>diff</code>/<code>revert</code>/<code>render</code>/<code>verify</code>, one stylesheet with three palettes, deterministic markdown→HTML with embedded &quot;what changed&quot; word-diffs.</p></div></li>
-<li><span class="ph ph-done">2</span><div><h3>Local viewer <span class="pill done">done</span></h3><p><code>pentimento serve</code>: document index, revision picker, per-revision rendering, diff pages, SSE hot reload. Binds 127.0.0.1 by default; refuses 0.0.0.0.</p></div></li>
-<li><span class="ph ph-done">3</span><div><h3>Anchored comments <span class="pill done">done</span></h3><p>select text in the viewer → comment saved to <code>meta.yml</code> with quote + context (survives revisions). <code>pentimento address</code> / <code>resolve</code> close the loop for agents.</p></div></li>
-<li><span class="ph ph-done">4</span><div><h3>Public release prep <span class="pill done">done</span></h3><p>renamed to Pentimento, <code>npm i -g</code> install story, author defaults from git config, legacy-marker migration.</p></div></li></ol>
+<h2 id="shipped">Shipped<a class="anch" href="#shipped" aria-label="Link to this section">#</a></h2>
+
+<div class="progress"><span class="bar" role="meter" aria-valuemin="0" aria-valuemax="4" aria-valuenow="4" aria-label="Sequence progress"><i style="width:100%"></i></span><span>4 of 4 done</span></div><ol class="timeline"><li class="is-done"><span class="ph">1</span><div><h3>CLI core + design system + renderer + skill<span class="status done">done</span></h3><p><code>snapshot</code>/<code>list</code>/<code>diff</code>/<code>revert</code>/<code>render</code>/<code>verify</code>, one stylesheet with six palettes, deterministic markdown→HTML with embedded &quot;what changed&quot; word-diffs.</p></div></li>
+<li class="is-done"><span class="ph">2</span><div><h3>Local viewer<span class="status done">done</span></h3><p><code>pentimento serve</code>: document index, revision picker, per-revision rendering, diff pages, SSE hot reload. Binds 127.0.0.1 by default; refuses 0.0.0.0.</p></div></li>
+<li class="is-done"><span class="ph">3</span><div><h3>Anchored comments<span class="status done">done</span></h3><p>select text in the viewer → comment saved to <code>meta.yml</code> with quote + context (survives revisions). <code>pentimento address</code> / <code>resolve</code> close the loop for agents.</p></div></li>
+<li class="is-done"><span class="ph">4</span><div><h3>Public release prep<span class="status done">done</span></h3><p>renamed to Pentimento, <code>npm i -g</code> install story, author defaults from git config, legacy-marker migration.</p></div></li></ol>
 
 </section>
 
 <section>
-  <span class="eyebrow">Next</span>
-  <h2 id="release">Release roadmap<a class="anch" href="#release" aria-label="Link to this section">#</a></h2>
-<div class="timeline-progress"><meter value="0" min="0" max="3" aria-label="Phases done"></meter><span>2 next · 1 later · 3 total</span></div><ol class="timeline"><li><span class="ph">1</span><div><h3>Publish <span class="pill">next</span></h3><p>npm publish, GitHub repo public, CI green on macOS + Linux (+ Windows leg).</p></div></li>
-<li><span class="ph">2</span><div><h3>Demo surface <span class="pill">next</span></h3><p>GitHub Pages rendering this plan; a 30-second snapshot→render→what-changed GIF in the README.</p></div></li>
-<li><span class="ph">3</span><div><h3>Distribution <span class="pill later">later</span></h3><p>Claude Code plugin packaging for the skill; Show HN framed against free-form agent HTML; Obsidian community post for the writer audience.</p></div></li></ol>
+<h2 id="release">Release roadmap<a class="anch" href="#release" aria-label="Link to this section">#</a></h2>
+
+<div class="progress"><span class="bar" role="meter" aria-valuemin="0" aria-valuemax="3" aria-valuenow="0" aria-label="Sequence progress"><i style="width:0%"></i></span><span>0 of 3 done · 1 next</span></div><ol class="timeline"><li><span class="ph">1</span><div><h3>Harden 0.6<span class="status next">next</span></h3><p>safe rendering and paths, protected Tailscale mode, transactional revision state, and accurate draft labels.</p></div></li>
+<li><span class="ph">2</span><div><h3>Prove the package<span class="status later">later</span></h3><p>browser and accessibility checks, Node and OS coverage, tarball installation smoke tests, and reproducible npm provenance.</p></div></li>
+<li><span class="ph">3</span><div><h3>Publish 0.6.0<span class="status later">later</span></h3><p>align npm, GitHub, README, skill, tag, and release notes on one verified commit.</p></div></li></ol>
 
 </section>
 
 <section>
-  <span class="eyebrow">Unresolved</span>
-  <h2 id="open">Open questions<a class="anch" href="#open" aria-label="Link to this section">#</a></h2>
+<h2 id="open">Open questions<a class="anch" href="#open" aria-label="Link to this section">#</a></h2>
 <ul>
-<li>Comment transport from <em>published</em> pages (the local viewer has an obvious path; a static page doesn't).</li>
+<li>Whether a future read-only bundle should include more revision history than today's standalone render.</li>
 <li>Whether directive nesting is worth the renderer complexity it invites.</li>
 <li>Mermaid: deferred. Diagrams are constrained inline SVG via <code>::: figure</code>; revisit if hand-composed SVG becomes the bottleneck.</li>
 </ul>
 
 </section>
 </main>
+<template id="traces-tpl"><p class="traces-banner">Traces of r003 under the current text. Press T to hide.</p>
+<section>
+<h2 id="why">Why<a class="anch" href="#why" aria-label="Link to this section">#</a></h2>
+<p>Agent-generated HTML is slop because the agent is handed a <em>paint palette</em>. Plans revised three times are unreviewable because nothing records what moved, or why. Pentimento inverts both: a deterministic renderer, a fixed design system, a small directive vocabulary, and numbered snapshots with an append-only decision log. Any agent, or any human, produces markdown plus directives; the toolchain produces the view and the history.</p>
 
+</section>
+
+<section>
+<h2 id="decisions">Decisions<a class="anch" href="#decisions" aria-label="Link to this section">#</a></h2>
+
+<div class="callout decision" id="d-source-of-truth"><span class="label">Decision</span><p><strong>Markdown is the source of truth.</strong> HTML is a build product. Reviews approve the markdown; the render is how readers read it.</p>
+</div>
+
+<div class="callout decision" id="d-vocabulary"><span class="label">Decision</span><p><strong>Vocabulary, not palette.</strong> Agents never write CSS, inline styles, or scripts. Rich elements come from <code>:::</code> directives; if the vocabulary can't say it, the vocabulary grows per release, not per document.</p>
+</div>
+
+<div class="callout decision" id="d-plain-files"><span class="label">Decision</span><p><strong>History is plain files.</strong> <code>.history/&lt;doc&gt;/rNNN.md</code> + <code>meta.yml</code>, readable by grep, git, agents, and humans, with no database and no proprietary blob.</p>
+</div>
+
+<div class="callout decision" id="d-single-user"><span class="label">Decision</span><p><strong>One user owns the revision loop.</strong> An agent writes or revises the canonical markdown; the user leaves instructions and approves saved versions. Pentimento does not add accounts, simultaneous writers, reviewer presence, or team approvals.</p>
+</div>
+
+<div class="callout decision" id="d-tailscale"><span class="label">Decision</span><p><strong>Tailscale carries the same private loop across machines.</strong> An agent on a VPS sends one protected viewer link to the user, who opens it from a trusted computer or phone. Remote access does not turn the document into a shared workspace.</p>
+</div>
+
+<div class="callout decision" id="d-name"><span class="label">Decision</span><p><strong>Renamed from Vellum to Pentimento.</strong> The Vellum namespace is crowded (a funded AI platform, a book-formatting tool, and a since-rebranded artifact host all share it). Legacy <code>Vellum: true</code> docs are read transparently and migrated on their next snapshot.</p>
+</div>
+
+</section>
+
+<section>
+<h2 id="shipped">Shipped<a class="anch" href="#shipped" aria-label="Link to this section">#</a></h2>
+
+<div class="progress"><span class="bar" role="meter" aria-valuemin="0" aria-valuemax="4" aria-valuenow="4" aria-label="Sequence progress"><i style="width:100%"></i></span><span>4 of 4 done</span></div><ol class="timeline"><li class="is-done"><span class="ph">1</span><div><h3>CLI core + design system + renderer + skill<span class="status done">done</span></h3><p><code>snapshot</code>/<code>list</code>/<code>diff</code>/<code>revert</code>/<code>render</code>/<code>verify</code>, one stylesheet with six palettes, deterministic markdown→HTML with embedded &quot;what changed&quot; word-diffs.</p></div></li>
+<li class="is-done"><span class="ph">2</span><div><h3>Local viewer<span class="status done">done</span></h3><p><code>pentimento serve</code>: document index, revision picker, per-revision rendering, diff pages, SSE hot reload. Binds 127.0.0.1 by default; refuses 0.0.0.0.</p></div></li>
+<li class="is-done"><span class="ph">3</span><div><h3>Anchored comments<span class="status done">done</span></h3><p>select text in the viewer → comment saved to <code>meta.yml</code> with quote + context (survives revisions). <code>pentimento address</code> / <code>resolve</code> close the loop for agents.</p></div></li>
+<li class="is-done"><span class="ph">4</span><div><h3>Public release prep<span class="status done">done</span></h3><p>renamed to Pentimento, <code>npm i -g</code> install story, author defaults from git config, legacy-marker migration.</p></div></li></ol>
+
+</section>
+
+<section>
+<h2 id="release">Release roadmap<a class="anch" href="#release" aria-label="Link to this section">#</a></h2>
+
+<div class="progress"><span class="bar" role="meter" aria-valuemin="0" aria-valuemax="3" aria-valuenow="0" aria-label="Sequence progress"><i style="width:0%"></i></span><span>0 of 3 done · 1 next</span></div><ol class="timeline"><li><span class="ph">1</span><div><h3>Harden 0.6<span class="status next">next</span></h3><p>safe rendering and paths, protected Tailscale mode, transactional revision state, and accurate draft labels.</p></div></li>
+<li><span class="ph">2</span><div><h3>Prove the package<span class="status later">later</span></h3><p>browser and accessibility checks, Node and OS coverage, tarball installation smoke tests, and reproducible npm provenance.</p></div></li>
+<li><span class="ph">3</span><div><h3>Publish 0.6.0<span class="status later">later</span></h3><p>align npm, GitHub, README, skill, tag, and release notes on one verified commit.</p></div></li></ol>
+
+</section>
+
+<section>
+<h2 id="open">Open questions<a class="anch" href="#open" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>Whether a future read-only bundle should include more revision history than today's standalone render.</li>
+<li>Whether directive nesting is worth the renderer complexity it invites.</li>
+<li>Mermaid: deferred. Diagrams are constrained inline SVG via <code>::: figure</code>; revisit if hand-composed SVG becomes the bottleneck.</li>
+</ul>
+
+</section></template>
+<div class="appendix">
+<section class="history" id="history"><h2>History · 4 drafts</h2><svg class="spark" viewBox="0 0 26 24" width="26" height="24" role="img" aria-label="Words per draft"><rect x="0" y="5.7" width="5" height="18.3" rx="1"><title>r001: 424 words</title></rect><rect x="7" y="5.6" width="5" height="18.4" rx="1"><title>r002: 426 words</title></rect><rect x="14" y="2.0" width="5" height="22.0" rx="1"><title>r003: 509 words</title></rect><rect class="cur" x="21" y="2.0" width="5" height="22.0" rx="1"><title>r004: 509 words</title></rect></svg><ol><li><span class="rev">r004</span><span class="what"><strong>Drop eyebrow labels and the palette setting</strong>. 0.8 renders neither</span><span class="when"><time datetime="2026-09-30T13:14:09+00:00">30 Sep 2026</time> <span class="words">· 509 words</span></span></li>
+<li><span class="rev">r003</span><span class="what"><strong>Locked the single-user 0.6 direction</strong>. Tailscale extends one user's agent loop from a VPS rather than creating collaboration</span><span class="when"><time datetime="2026-07-10T16:32:55+02:00">10 Jul 2026</time> <span class="words">· 509 words</span></span></li>
+<li><span class="rev">r002</span><span class="what"><strong>Clean prose to pass the new lint (em-dashes to periods and colons)</strong>. Dogfooding pentimento lint on the project's own plan</span><span class="when"><time datetime="2026-07-09T14:56:47+02:00">9 Jul 2026</time> <span class="words">· 426 words</span></span></li>
+<li><span class="rev">r001</span><span class="what"><strong>Public release baseline: renamed to Pentimento, history restarted clean</strong>. Prior plan history contained private environment details</span><span class="when"><time datetime="2026-07-07T16:05:01+02:00">7 Jul 2026</time> <span class="words">· 424 words</span></span></li></ol></section>
+</div>
 <footer class="doc">
-  Source: <code>Personal/pentimento/PLAN.md</code> · history: <code>.history/PLAN/</code> (r002) · Rendered by <code>pentimento render</code>.
+  <code>repos/pentimento/PLAN.md</code>
 </footer>
 </div>
 <script>
 (() => {
   const root = document.documentElement
-  const syncPalette = () => {
-    const p = root.dataset.palette || 'verdigris'
-    document.querySelectorAll('.pbtn').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.p === p)))
+  const readStore = (key) => {
+    try { return localStorage.getItem(key) } catch (err) { return null }
   }
-  const syncTheme = () => {
+  const writeStore = (key, value) => {
+    try {
+      if (value) localStorage.setItem(key, value)
+      else localStorage.removeItem(key)
+    } catch (err) {}
+  }
+
+  // --- color scheme: auto → dark → light → auto -----------------------------
+  const syncScheme = () => {
     const t = root.dataset.theme || ''
-    const label = t === 'dark' ? '◐ Dark' : t === 'light' ? '◐ Light' : '◐ Auto'
-    document.querySelectorAll('.tbtn').forEach((b) => { b.textContent = label })
+    const label = t ? t[0].toUpperCase() + t.slice(1) : 'Auto'
+    document.querySelectorAll('[data-scheme-toggle]').forEach((b) => {
+      b.textContent = label
+      b.setAttribute('aria-label', 'Color scheme: ' + (t || 'auto'))
+    })
   }
-  // delegated so buttons re-rendered by the live viewer's morph keep working
-  document.addEventListener('click', (e) => {
+
+  // --- traces: swap the document for the version with the last draft showing through
+  const stash = new WeakMap()
+  const applyTraces = () => {
+    const main = document.querySelector('main')
+    const tpl = document.getElementById('traces-tpl')
+    if (!main) return
+    const want = root.dataset.traces === 'on' && Boolean(tpl)
+    const has = main.classList.contains('traces')
+    if (want && !has) {
+      stash.set(main, main.innerHTML)
+      main.innerHTML = tpl.innerHTML
+      main.classList.add('traces')
+    } else if (!want && has) {
+      main.innerHTML = stash.get(main) ?? main.innerHTML
+      main.classList.remove('traces')
+    }
+    document.querySelectorAll('[data-traces-toggle]').forEach((b) => {
+      b.setAttribute('aria-pressed', String(want))
+      b.classList.toggle('traces-on', want)
+    })
+    if (want !== has) document.dispatchEvent(new CustomEvent('pentimento:content'))
+  }
+  const setTraces = (on) => {
+    if (on) root.dataset.traces = 'on'
+    else delete root.dataset.traces
+    try { sessionStorage.setItem('pentimento-traces', on ? 'on' : '') } catch (err) {}
+    applyTraces()
+  }
+  try { if (sessionStorage.getItem('pentimento-traces') === 'on') root.dataset.traces = 'on' } catch (err) {}
+
+  // --- copy a cutting ------------------------------------------------------
+  const copyText = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      return true
+    } catch (err) {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.setAttribute('readonly', '')
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      let ok = false
+      try { ok = document.execCommand('copy') } catch (e) {}
+      ta.remove()
+      return ok
+    }
+  }
+
+  // delegated so controls re-rendered by the live viewer keep working
+  document.addEventListener('click', async (e) => {
     const t = e.target
     if (!t || !t.closest) return
-    const pb = t.closest('.pbtn')
-    if (pb) {
-      const p = pb.dataset.p
-      if (p === 'verdigris') delete root.dataset.palette
-      else root.dataset.palette = p
-      try { localStorage.setItem('pentimento-palette', p) } catch (err) {}
-      syncPalette()
-      return
-    }
-    if (t.closest('.tbtn')) {
-      // cycle: auto → dark → light → auto
-      const cur = root.dataset.theme || ''
-      const next = cur === '' ? 'dark' : cur === 'dark' ? 'light' : ''
+    if (t.closest('[data-scheme-toggle]')) {
+      const current = root.dataset.theme || ''
+      const next = current === '' ? 'dark' : current === 'dark' ? 'light' : ''
       if (next) root.dataset.theme = next
       else delete root.dataset.theme
-      try {
-        if (next) localStorage.setItem('pentimento-theme', next)
-        else localStorage.removeItem('pentimento-theme')
-      } catch (err) {}
-      syncTheme()
+      writeStore('pentimento-theme', next)
+      syncScheme()
+      return
+    }
+    if (t.closest('[data-traces-toggle]')) {
+      setTraces(root.dataset.traces !== 'on')
+      return
+    }
+    const copy = t.closest('[data-copy]')
+    if (copy) {
+      const text = copy.closest('.cutting')?.querySelector('.cutting-text')?.textContent ?? ''
+      const ok = await copyText(text)
+      const before = copy.textContent
+      copy.textContent = ok ? 'Copied' : 'Copy failed'
+      setTimeout(() => { copy.textContent = before }, 1400)
     }
   })
-  window.__pSyncPalette = () => { syncPalette(); syncTheme() }
-  syncPalette()
-  syncTheme()
 
-  // print with every fold open, then restore — CSS alone can't force <details> open
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 't' || e.metaKey || e.ctrlKey || e.altKey) return
+    const tag = (e.target && e.target.tagName) || ''
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag) || e.target.isContentEditable) return
+    if (!document.getElementById('traces-tpl')) return
+    setTraces(root.dataset.traces !== 'on')
+  })
+
+  // --- contents rail: mark the section being read ----------------------------
+  let ticking = false
+  const syncRail = () => {
+    ticking = false
+    const links = [...document.querySelectorAll('.rail a[href^="#"]')]
+    if (!links.length) return
+    const line = innerHeight * 0.28
+    let current = null
+    for (const a of links) {
+      const target = document.getElementById(decodeURIComponent(a.getAttribute('href').slice(1)))
+      if (target && target.getBoundingClientRect().top <= line) current = a
+    }
+    links.forEach((a) => a.setAttribute('aria-current', String(a === current)))
+  }
+  addEventListener('scroll', () => {
+    if (!ticking) { ticking = true; requestAnimationFrame(syncRail) }
+  }, { passive: true })
+
+  window.__pSyncChrome = () => { syncScheme(); applyTraces(); syncRail() }
+  window.__pSyncChrome()
+
+  // print with every fold open, then restore; CSS alone can't force <details> open
   let reopened = []
   addEventListener('beforeprint', () => {
     reopened = [...document.querySelectorAll('details:not([open])')]

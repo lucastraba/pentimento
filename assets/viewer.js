@@ -6,6 +6,10 @@
 
   // --- state ------------------------------------------------------------
   const state = { comments: cfg.comments || [], revisions: cfg.revisions || [] }
+  const canWrite = cfg.canWrite !== undefined ? cfg.canWrite : cfg.canComment
+  // the revision on screen, or null for the current document; the scrubber changes it
+  let viewingRev = cfg.rev || null
+  const canCommentNow = () => canWrite && !viewingRev && !main.classList.contains('traces')
   const ownedKey = 'vc-owned:' + cfg.rel
   let session = ''
   let owned = new Set()
@@ -126,7 +130,8 @@
     if (!canHighlight) return
     const hl = new Highlight()
     for (const c of state.comments) {
-      if (c.status !== 'open') continue
+      // answers show on their question block, not as highlights
+      if (c.status !== 'open' || c.answer !== undefined) continue
       const r = findRange(c)
       if (!r) continue
       rangesById.set(c.id, r)
@@ -310,7 +315,7 @@
     }
     const row = el('div', 'vc-actions')
     if (rangesById.has(c.id)) row.appendChild(action('Jump', () => jumpTo(c.id)))
-    if (cfg.canComment) {
+    if (canWrite) {
       if (c.status === 'open') {
         row.appendChild(action('Resolve', () => doResolve(c)))
         row.appendChild(action('Reply', () => replyBox(div, c)))
@@ -329,7 +334,7 @@
     const head = el('div', 'vc-drawer-head')
     head.appendChild(el('strong', '', 'Comments'))
     const controls = el('div', 'vc-actions')
-    if (cfg.canComment) {
+    if (canCommentNow()) {
       controls.appendChild(action('New comment', () => openForm({
         quote: '', prefix: '', suffix: '', anchor: location.hash || '', rect: null,
       })))
@@ -345,7 +350,7 @@
     const resolved = state.comments.filter((c) => c.status === 'resolved')
     drawer.appendChild(el('h3', 'vc-h', open.length + ' open'))
     if (!open.length) {
-      drawer.appendChild(el('p', 'vc-empty', cfg.canComment ? 'Select text in the document to leave one.' : 'None.'))
+      drawer.appendChild(el('p', 'vc-empty', canWrite ? 'Select text in the document to leave one.' : 'None.'))
     }
     open.forEach((c) => drawer.appendChild(card(c)))
     if (resolved.length) {
@@ -422,8 +427,7 @@
       const bar = document.querySelector('.vbar')
       if (newBar && bar) bar.innerHTML = newBar.innerHTML
       if (doc.title) document.title = doc.title
-      if (window.__pSyncPalette) window.__pSyncPalette()
-      rerender()
+      afterSwap()
       if (focusSelector) document.querySelector(focusSelector)?.focus()
     } catch (e) { /* keep the current view */ }
   }
@@ -438,7 +442,9 @@
     let msg
     try { msg = JSON.parse(e.data) } catch (err) { return }
     if (msg.metas && msg.metas.length) refreshComments()
-    if (!cfg.rev && msg.docs && msg.docs.indexOf(cfg.rel) >= 0) queueMorph()
+    if (!viewingRev && msg.docs && msg.docs.indexOf(cfg.rel) >= 0) queueMorph()
+    // approvals and answers live in meta.yml and change what the page shows
+    else if (!viewingRev && msg.metas && msg.metas.length) queueMorph()
   }
 
   // --- global delegated listeners (survive morphs) ---------------------------
@@ -463,10 +469,147 @@
     if (id) openDrawer(id)
   })
 
-  document.addEventListener('change', (e) => {
-    if (e.target && e.target.id === 'vrev') {
-      const v = e.target.value
-      location.href = v === 'canonical' ? location.pathname : location.pathname + '?rev=' + v
+  // --- after any content swap: rebind everything that reads the page --------
+  const syncTracesButton = () => {
+    const has = Boolean(document.getElementById('traces-tpl'))
+    document.querySelectorAll('.vbar [data-traces-toggle]').forEach((b) => { b.hidden = !has })
+  }
+  const syncAsk = () => {
+    document.querySelectorAll('.ask-opt').forEach((b) => { b.disabled = !canCommentNow() })
+  }
+  function afterSwap() {
+    main = document.querySelector('main')
+    if (window.__pSyncChrome) window.__pSyncChrome()
+    syncTracesButton()
+    syncAsk()
+    syncSinceNote()
+    rerender()
+  }
+  document.addEventListener('pentimento:content', () => {
+    main = document.querySelector('main')
+    syncAsk()
+    rerender()
+  })
+
+  // --- scrubber: drag through the drafts ----------------------------------
+  const stops = cfg.stops || []
+  const pageCache = new Map()
+  const urlFor = (id) => location.pathname + (id && id !== stops[stops.length - 1]?.id ? '?rev=' + id : '')
+  const fetchPage = (id) => {
+    if (!pageCache.has(id)) {
+      pageCache.set(id, fetch(location.pathname + (id === 'canonical' ? '' : '?rev=' + id)).then((r) => {
+        if (!r.ok) throw new Error('HTTP ' + r.status)
+        return r.text()
+      }).catch((e) => { pageCache.delete(id); throw e }))
+    }
+    return pageCache.get(id)
+  }
+  let scrubSeq = 0
+  const showStop = async (index) => {
+    const stop = stops[index]
+    if (!stop) return
+    const label = document.getElementById('vscrub-label')
+    if (label) {
+      label.textContent = stop.label + ' '
+      label.appendChild(el('small', '', stop.note))
+    }
+    const seq = ++scrubSeq
+    let html
+    try { html = await fetchPage(stop.id) } catch (e) { return }
+    if (seq !== scrubSeq) return
+    const doc = new DOMParser().parseFromString(html, 'text/html')
+    const newWrap = doc.querySelector('.wrap')
+    const wrap = document.querySelector('.wrap')
+    if (!newWrap || !wrap) return
+    const isLatest = index === stops.length - 1
+    viewingRev = isLatest ? null : stop.id
+    wrap.innerHTML = newWrap.innerHTML
+    history.replaceState(null, '', isLatest ? location.pathname : location.pathname + '?rev=' + stop.id)
+    btn && (btn.hidden = true)
+    afterSwap()
+  }
+  document.addEventListener('input', (e) => {
+    if (e.target && e.target.id === 'vscrub') showStop(Number(e.target.value))
+  })
+  void urlFor
+
+  // --- since you last read -------------------------------------------------
+  const SEEN_KEY = 'pentimento-seen:' + cfg.rel
+  const latestRev = state.revisions[state.revisions.length - 1] || null
+  let seenAtBoot = null
+  try { seenAtBoot = localStorage.getItem(SEEN_KEY) } catch (e) {}
+  const markSeen = () => {
+    if (!viewingRev && latestRev) { try { localStorage.setItem(SEEN_KEY, latestRev) } catch (e) {} }
+  }
+  addEventListener('pagehide', markSeen)
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') markSeen() })
+  function syncSinceNote() {
+    const header = document.querySelector('header.doc')
+    if (!header || header.querySelector('.since-note')) return
+    const params = new URLSearchParams(location.search)
+    if (viewingRev || params.get('since')) return
+    // approved earlier than the latest draft: offer the diff since sign-off
+    const approved = header.querySelector('.approved[data-approved]')
+    const approvedRev = approved?.getAttribute('data-approved')
+    const seen = seenAtBoot
+    const previous = state.revisions[state.revisions.length - 2]
+    let rev = null
+    let text = ''
+    if (approvedRev && approvedRev !== latestRev && state.revisions.includes(approvedRev)) {
+      rev = approvedRev
+      text = 'You approved ' + approvedRev + '. '
+    } else if (seen && seen !== latestRev && seen !== previous && state.revisions.includes(seen)) {
+      rev = seen
+      text = 'You last read ' + seen + '. '
+    }
+    if (!rev) return
+    const note = el('p', 'since-note', text)
+    const a = el('a', '', 'Show everything that changed since then')
+    a.href = location.pathname + '?since=' + rev
+    note.appendChild(a)
+    const after = header.querySelector('.latest') || header.querySelector('.standfirst') || header.querySelector('h1')
+    after.after(note)
+  }
+
+  // --- approve -----------------------------------------------------------------
+  document.addEventListener('click', async (e) => {
+    const t = e.target
+    const approveBtn = t.closest && t.closest('#vapprove')
+    if (approveBtn) {
+      if (!confirm('Approve ' + approveBtn.dataset.rev + '? The agent sees this as your sign-off.')) return
+      approveBtn.disabled = true
+      try {
+        await api('/api/approve', { rel: cfg.rel, rev: approveBtn.dataset.rev })
+        await morph()
+        toastAt(null, 'Approved ' + approveBtn.dataset.rev)
+      } catch (err) {
+        approveBtn.disabled = false
+        toastAt(null, "Couldn't approve: " + err.message)
+      }
+      return
+    }
+    // --- ask: answer a question in the page -------------------------------------
+    const opt = t.closest && t.closest('.ask-opt')
+    if (!opt || opt.disabled || !canCommentNow()) return
+    const box = opt.closest('.ask')
+    if (!box) return
+    const question = box.querySelector('.ask-q')?.textContent.replace(/#$/, '').trim() || ''
+    const anchorId = '#' + box.dataset.ask
+    if (opt.hasAttribute('data-other')) {
+      openForm({ quote: question, prefix: '', suffix: '', anchor: anchorId, rect: opt.getBoundingClientRect() })
+      return
+    }
+    const choice = opt.dataset.choice
+    box.querySelectorAll('.ask-opt').forEach((b) => b.setAttribute('aria-pressed', String(b === opt)))
+    try {
+      const entry = await api('/api/answer', { rel: cfg.rel, anchor: anchorId, question, choice })
+      state.comments = state.comments.filter((c) => !(c.answer !== undefined && c.anchor === anchorId && c.status === 'open'))
+      state.comments.push(entry)
+      const stateLine = box.querySelector('.ask-state')
+      if (stateLine) stateLine.textContent = 'You answered “' + choice + '” · waiting for the next draft'
+      syncCount()
+    } catch (err) {
+      toastAt(null, "Couldn't save the answer: " + err.message)
     }
   })
 
@@ -477,37 +620,44 @@
     new ResizeObserver(syncBarHeight).observe(viewerBar)
     syncBarHeight()
   }
+  let btn = null
   applyHighlights()
   syncCount()
+  syncTracesButton()
+  syncAsk()
+  syncSinceNote()
 
-  if (!cfg.canComment) {
-    // read-only revision: selecting text explains itself instead of doing nothing
-    if (cfg.rev) {
-      const hint = el('div', 'vc-hint')
-      hint.hidden = true
-      hint.appendChild(document.createTextNode('read-only revision — '))
-      const link = el('a', '', 'comment on the current version')
-      link.href = location.pathname
-      hint.appendChild(link)
-      document.body.appendChild(hint)
-      let ht = null
-      document.addEventListener('selectionchange', () => {
-        if (ht) clearTimeout(ht)
-        ht = setTimeout(() => {
-          const s = getSelection()
-          if (!s || s.isCollapsed || !s.rangeCount || !s.getRangeAt(0).intersectsNode(main)) { hint.hidden = true; return }
-          const r = s.getRangeAt(0).getBoundingClientRect()
-          hint.style.top = (scrollY + r.bottom + 8) + 'px'
-          hint.style.left = (scrollX + Math.max(8, Math.min(r.left, innerWidth - 300))) + 'px'
-          hint.hidden = false
-        }, 180)
-      })
-    }
-    return
-  }
+  // an old draft or the traces view: selecting text explains why it can't be commented
+  const hint = el('div', 'vc-hint')
+  hint.hidden = true
+  document.body.appendChild(hint)
+  let ht = null
+  document.addEventListener('selectionchange', () => {
+    if (ht) clearTimeout(ht)
+    ht = setTimeout(() => {
+      const s = getSelection()
+      const blocked = viewingRev || main.classList.contains('traces')
+      if (!blocked || !s || s.isCollapsed || !s.rangeCount || !s.getRangeAt(0).intersectsNode(main)) { hint.hidden = true; return }
+      hint.textContent = ''
+      if (viewingRev) {
+        hint.appendChild(document.createTextNode(viewingRev + ' is read-only. '))
+        const link = el('a', '', 'Comment on the current draft')
+        link.href = location.pathname
+        hint.appendChild(link)
+      } else {
+        hint.appendChild(document.createTextNode('Hide traces (T) to comment.'))
+      }
+      const r = s.getRangeAt(0).getBoundingClientRect()
+      hint.style.top = (scrollY + r.bottom + 8) + 'px'
+      hint.style.left = (scrollX + Math.max(8, Math.min(r.left, innerWidth - 300))) + 'px'
+      hint.hidden = false
+    }, 180)
+  })
+
+  if (!canWrite) return
 
   // --- select text → comment button → popover form -------------------------
-  const btn = el('button', 'vc-add')
+  btn = el('button', 'vc-add')
   btn.append(commentIcon(), document.createTextNode('Comment'))
   btn.type = 'button'
   btn.hidden = true
@@ -529,6 +679,7 @@
   }
 
   const captureSelection = () => {
+    if (!canCommentNow()) { btn.hidden = true; pending = null; return }
     const s = getSelection()
     if (!s || s.isCollapsed || !s.rangeCount) { btn.hidden = true; pending = null; return }
     const range = s.getRangeAt(0)

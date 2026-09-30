@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { parseDocument, parse as parseYaml, stringify as stringifyYaml } from 'yaml'
+import { describeChanges } from './semdiff.js'
 
 export interface RevisionEntry {
   id: string
@@ -30,6 +31,8 @@ export interface CommentEntry {
   author: string
   resolved_in: string | null
   replies?: ReplyEntry[]
+  /** set when the comment is the reader's answer to a `::: ask` question */
+  answer?: string
 }
 
 export interface NewComment {
@@ -41,9 +44,17 @@ export interface NewComment {
   author?: string
 }
 
+export interface Approval {
+  rev: string
+  created_at: string
+  author: string
+}
+
 export interface Meta {
   revisions: RevisionEntry[]
   comments: CommentEntry[]
+  /** the reader's sign-offs, oldest first; absent until the first approval */
+  approvals?: Approval[]
 }
 
 export interface Doc {
@@ -232,7 +243,7 @@ const validateMeta = (value: unknown, metaPath: string): Meta => {
         metadataError(metaPath, `comments[${index}].resolved_in must name an existing revision`)
       }
     }
-    for (const field of ['quote', 'prefix', 'suffix'] as const) {
+    for (const field of ['quote', 'prefix', 'suffix', 'answer'] as const) {
       if (comment[field] !== undefined && typeof comment[field] !== 'string') {
         metadataError(metaPath, `comments[${index}].${field} must be a string`)
       }
@@ -254,6 +265,21 @@ const validateMeta = (value: unknown, metaPath: string): Meta => {
       })
     }
   })
+  if (record.approvals !== undefined) {
+    if (!Array.isArray(record.approvals)) metadataError(metaPath, '`approvals` must be an array')
+    ;(record.approvals as unknown[]).forEach((entry, index) => {
+      if (!isRecord(entry)) metadataError(metaPath, `approvals[${index}] must be an object`)
+      const approval = entry as Record<string, unknown>
+      if (typeof approval.rev !== 'string' || !revisionIds.has(approval.rev)) {
+        metadataError(metaPath, `approvals[${index}].rev must name an existing revision`)
+      }
+      for (const field of ['created_at', 'author'] as const) {
+        if (typeof approval[field] !== 'string' || !approval[field]) {
+          metadataError(metaPath, `approvals[${index}].${field} must be a non-empty string`)
+        }
+      }
+    })
+  }
   return record as unknown as Meta
 }
 
@@ -272,7 +298,11 @@ export const readMeta = (historyDir: string): Meta => {
 export const writeMeta = (historyDir: string, meta: Meta): void => {
   const metaPath = path.join(historyDir, 'meta.yml')
   validateMeta(meta, metaPath)
-  atomicWrite(metaPath, stringifyYaml({ revisions: meta.revisions, comments: meta.comments }))
+  atomicWrite(metaPath, stringifyYaml({
+    revisions: meta.revisions,
+    comments: meta.comments,
+    ...(meta.approvals?.length ? { approvals: meta.approvals } : {}),
+  }))
 }
 
 const withLock = <T>(historyDir: string, fn: () => T): T => {
@@ -294,7 +324,8 @@ const withLock = <T>(historyDir: string, fn: () => T): T => {
 }
 
 export interface SnapshotOptions {
-  summary: string
+  /** what changed; computed from the diff (headings name the parts) when omitted */
+  summary?: string
   why?: string
   source?: string
   author?: string
@@ -335,11 +366,19 @@ const snapshotWithBody = (docPath: string, opts: SnapshotOptions, replacementBod
       'History Folder': historyRel,
     })
     const meta = readMeta(doc.historyDir)
+    let summary = opts.summary?.trim()
+    if (!summary) {
+      const latest = meta.revisions[meta.revisions.length - 1]
+      const previousBody = latest && fs.existsSync(path.join(doc.historyDir, `${latest.id}.md`))
+        ? splitRaw(fs.readFileSync(path.join(doc.historyDir, `${latest.id}.md`), 'utf8')).body
+        : null
+      summary = describeChanges(previousBody, splitRaw(stamped).body)
+    }
     meta.revisions.push({
       id: next,
       created_at: nowStamp(),
       author: opts.author ?? 'unknown',
-      summary: opts.summary,
+      summary,
       ...(opts.why ? { why: opts.why } : {}),
       ...(opts.source ? { source: opts.source } : {}),
     })
@@ -475,6 +514,54 @@ export const addReply = (docPath: string, id: string, input: { text: string; aut
     return c
   })
 }
+
+export interface AnswerInput {
+  /** the `::: ask` block's anchor, e.g. `#q-db` */
+  anchor: string
+  question: string
+  choice: string
+  author?: string
+}
+
+/** Record the reader's answer to a question; a new answer replaces their earlier open one. */
+export const answerQuestion = (docPath: string, input: AnswerInput): CommentEntry => {
+  const doc = loadDoc(docPath)
+  return withLock(doc.historyDir, () => {
+    const meta = readMeta(doc.historyDir)
+    meta.comments = meta.comments.filter((c) => !(c.answer !== undefined && c.anchor === input.anchor && c.status === 'open'))
+    const entry: CommentEntry = {
+      ...makeComment(meta, {
+        text: `Answer: ${input.choice}`,
+        anchor: input.anchor,
+        quote: input.question,
+        author: input.author,
+      }),
+      answer: input.choice,
+    }
+    meta.comments.push(entry)
+    writeMeta(doc.historyDir, meta)
+    return entry
+  })
+}
+
+/** Sign off on a saved revision (the latest by default). */
+export const approve = (docPath: string, rev?: string, author?: string): Approval => {
+  const doc = loadDoc(docPath)
+  return withLock(doc.historyDir, () => {
+    const meta = readMeta(doc.historyDir)
+    const target = rev ?? meta.revisions[meta.revisions.length - 1]?.id
+    if (!target) throw new Error(`${doc.name} has no saved revision to approve`)
+    if (!meta.revisions.some((r) => r.id === target)) throw new Error(`No revision ${target} for ${doc.name}`)
+    const entry: Approval = { rev: target, created_at: nowStamp(), author: author ?? 'reader' }
+    meta.approvals = [...(meta.approvals ?? []), entry]
+    writeMeta(doc.historyDir, meta)
+    return entry
+  })
+}
+
+/** The most recent approval, if any. */
+export const latestApproval = (meta: Meta): Approval | null =>
+  meta.approvals?.length ? meta.approvals[meta.approvals.length - 1] : null
 
 export const readRevision = (docPath: string, rev: string): string => {
   const doc = loadDoc(docPath)

@@ -1,5 +1,35 @@
 # Changelog
 
+## Unreleased (0.8.0)
+
+Pentimento 0.8 reframes the tool around rounds of drafts and makes the page much quieter.
+
+### Added
+
+- Traces: press T (or the Traces button) to see the previous draft showing through the current one, with cut words struck in sepia and new ones underlined. Verse and lists are traced line by line; changed directives show the new version with the old one behind a fold.
+- Cuttings: every passage cut or rewritten beyond recognition in an earlier draft, listed at the bottom of the page with a copy button, and printed by `pentimento cuttings`.
+- `pentimento snapshot` no longer needs `--summary`. Without one it writes a summary from the diff, named by headings: `Rewrote Chorus`, `Removed Bridge`.
+- Receipts: "What changed" lists the comments the new draft answered.
+- `::: ask`: a question with options the reader answers in the page. Answers are stored as comments with an `answer` field, and `pentimento address` prints them.
+- Approval: an Approve button in the viewer and `pentimento approve`. The page shows the approval, and when the document changes afterwards, a link to everything changed since sign-off. `pentimento list` and `address` report it.
+- The viewer has a revision scrubber, and it tells you when you have unread drafts, with a link to everything changed since the last one you read (`?since=rNNN`).
+- History at the bottom of every page: each draft's summary, reason, date, word count, and a small words-per-draft chart.
+- Documents without an `Archetype` keep single line breaks, as Obsidian does. `Line Breaks: true|false` overrides it.
+- Lint warns about directive-heavy documents, repeated verdicts, more than two asks, more than four decision callouts, and leftover `eyebrow:` and `Palette` settings.
+
+### Changed
+
+- A new design: one palette with light and dark schemes, a serif reading face, the system sans for the interface, and monospace only for code. Callouts are a rule and a label, the verdict is a two-column list, statuses are small dots, and inline code has no background.
+- The header is a single line (label, revision, date, approval) above the title, followed by the latest summary. The contents move to a quiet side rail on wide screens and a fold on narrow ones, and appear only for documents with three or more sections.
+- The viewer bar is a compact floating toolbar: documents, scrubber, traces, comments, approve, stop.
+- Block diffs are line-level for verse and lists, and headings always diff as their own block.
+- The authoring skill was rewritten: a directive budget, a `plan` archetype as the default, outlines presented as suggestions, and two complete example documents in place of the list of bans.
+
+### Removed
+
+- The six palettes, the theme picker, `pentimento config theme`, and `PENTIMENTO_PALETTE`. `Palette` frontmatter is ignored.
+- Eyebrow labels. `eyebrow:` in heading comments is accepted and ignored.
+
 ## 0.7.0 - 2026-07-28
 
 ### Added

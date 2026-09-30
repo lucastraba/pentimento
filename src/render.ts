@@ -5,39 +5,43 @@ import { fileURLToPath } from 'node:url'
 import MarkdownIt from 'markdown-it'
 import sanitizeHtml from 'sanitize-html'
 import { parse as parseYaml } from 'yaml'
-import { readUserConfig } from './config.js'
 import {
-  canonicalRevisionState, loadDoc, readMeta, readRevision, slugify, splitRaw, type Doc, type Meta,
+  canonicalRevisionState, latestApproval, loadDoc, readMeta, readRevision, slugify, splitRaw,
+  type CommentEntry, type Doc, type Meta,
 } from './core.js'
 import { renderFlowSvg } from './flow.js'
-import { renderDiffHtml } from './semdiff.js'
 import {
-  DEFAULT_PALETTE, isPalette, themeCss, themeInitSnippet, themePicker,
-} from './themes.js'
+  collectCuttings, renderDiffHtml, TRACE, tracePlan, wordCount, type Cutting,
+} from './semdiff.js'
+import { schemeToggle, themeInitSnippet } from './themes.js'
 
 const ASSETS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../assets')
 
-const md: MarkdownIt = new MarkdownIt({ html: false, linkify: false, typographer: false })
+// Plans follow CommonMark (a single newline is a space). Personal documents follow Obsidian,
+// where a single newline is a line break, so lyrics and poems keep their lines.
+const makeMd = (breaks: boolean): MarkdownIt => {
+  const m = new MarkdownIt({ html: false, linkify: false, typographer: false, breaks })
+  m.inline.ruler.before('text', 'pentimento_dot', (state, silent) => {
+    const match = /^\{dot:([\w-]+)\}/.exec(state.src.slice(state.pos))
+    if (!match) return false
+    if (!silent) state.push('pentimento_dot', '', 0).content = match[1]
+    state.pos += match[0].length
+    return true
+  })
+  m.renderer.rules.pentimento_dot = (tokens, idx) => `<span class="dot dot-${tokens[idx].content}"></span>`
+  // every table scrolls inside its own container; the page never scrolls sideways
+  m.renderer.rules.table_open = () => '<div class="tablewrap"><table>\n'
+  m.renderer.rules.table_close = () => '</table></div>\n'
+  const defaultFence = m.renderer.rules.fence!
+  m.renderer.rules.fence = (tokens, idx, options, env, self) =>
+    defaultFence(tokens, idx, options, env, self).replace(/^<pre>/, '<pre class="block">')
+  return m
+}
+const mdPlan = makeMd(false)
+const mdVerse = makeMd(true)
+let md: MarkdownIt = mdPlan
 // Reader comments arrive over HTTP. Both renderers reject raw HTML and javascript: links.
 const mdUntrusted: MarkdownIt = new MarkdownIt({ html: false, linkify: false, typographer: false })
-
-md.inline.ruler.before('text', 'pentimento_dot', (state, silent) => {
-  const match = /^\{dot:([\w-]+)\}/.exec(state.src.slice(state.pos))
-  if (!match) return false
-  if (!silent) state.push('pentimento_dot', '', 0).content = match[1]
-  state.pos += match[0].length
-  return true
-})
-md.renderer.rules.pentimento_dot = (tokens, idx) => `<span class="dot dot-${tokens[idx].content}"></span>`
-
-// every table scrolls inside its own container; the page never scrolls sideways
-md.renderer.rules.table_open = () => '<div class="tablewrap"><table>\n'
-md.renderer.rules.table_close = () => '</table></div>\n'
-const defaultFence = md.renderer.rules.fence!
-md.renderer.rules.fence = (tokens, idx, options, env, self) => {
-  const rendered = defaultFence(tokens, idx, options, env, self)
-  return rendered.replace(/^<pre>/, '<pre class="block">')
-}
 
 const escapeHtml = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -70,12 +74,12 @@ export const secureHtml = (html: string): string => {
   return clean.replace(/(<meta name="viewport"[^>]*>)/i, `$1\n${meta}`)
 }
 
-/** Re-apply the reader's stored palette/scheme before first paint on pages without doc frontmatter (index, diff). */
+
+/** Re-apply the reader's stored light/dark choice before first paint. */
 export const RESTORE_SNIPPET = themeInitSnippet()
 
-/** The fixed design system plus generated palette definitions, shared by every rendered surface. */
-export const renderStylesheet = (): string =>
-  `${fs.readFileSync(path.join(ASSETS, 'theme.css'), 'utf8')}\n${themeCss()}`
+/** The fixed design system, shared by every rendered surface. */
+export const renderStylesheet = (): string => fs.readFileSync(path.join(ASSETS, 'theme.css'), 'utf8')
 
 const SVG_TAGS = ['svg', 'g', 'defs', 'marker', 'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'text', 'tspan', 'title', 'desc']
 const SVG_ATTRIBUTES = [
@@ -129,6 +133,23 @@ const parseAttrs = (s: string): Record<string, string> => {
   return attrs
 }
 
+// Private-use characters mark renderer-internal lines. Source text never gets to use them.
+const INTERNAL_CHARS_RE = /[-]/g
+const scrubInternal = (s: string): string => s.replace(INTERNAL_CHARS_RE, '�')
+
+/** Per-render facts directive handlers need: the reader's answers to `::: ask` questions. */
+interface RenderContext {
+  answers: Map<string, CommentEntry>
+  revisions: string[]
+}
+let context: RenderContext = { answers: new Map(), revisions: [] }
+
+const contextFor = (meta: Meta): RenderContext => {
+  const answers = new Map<string, CommentEntry>()
+  for (const c of meta.comments) if (c.answer !== undefined && c.anchor) answers.set(c.anchor, c)
+  return { answers, revisions: meta.revisions.map((r) => r.id) }
+}
+
 // ---------------------------------------------------------------------------
 // directive handlers — the agent's entire expressive surface
 // ---------------------------------------------------------------------------
@@ -136,7 +157,7 @@ const parseAttrs = (s: string): Record<string, string> => {
 type Handler = (content: string, attrs: Record<string, string>, kind: string) => string
 
 const CALLOUT_LABELS: Record<string, string> = {
-  decision: 'Decision', info: 'Info', warn: 'Warning', risk: 'Risk',
+  decision: 'Decision', info: 'Note', warn: 'Warning', risk: 'Risk',
 }
 
 const renderCallout: Handler = (content, attrs, kind) => {
@@ -145,9 +166,9 @@ const renderCallout: Handler = (content, attrs, kind) => {
   const id = attrs.id ? ` id="${escapeHtml(attrs.id)}"` : ''
   // a reversed decision stays visible under the surface, pointing at its replacement
   const note = supersededBy
-    ? `<p class="supersede-note">Superseded by <a href="#${escapeHtml(supersededBy)}">${escapeHtml(supersededBy)}</a>.</p>`
+    ? `<p class="supersede-note">Replaced by <a href="#${escapeHtml(supersededBy)}">${escapeHtml(supersededBy)}</a>.</p>`
     : ''
-  return `<div class="callout ${kind}${supersededBy ? ' superseded' : ''}"${id}><span class="label">${label}</span>${renderMarkdown(content)}${note}</div>`
+  return `<div class="callout ${escapeHtml(kind)}${supersededBy ? ' superseded' : ''}"${id}><span class="label">${label}</span>${renderMarkdown(content)}${note}</div>`
 }
 
 // optional stable anchor on a list item: `... {#f-disk}` — a comment/link target
@@ -158,15 +179,16 @@ const takeItemId = (s: string): { text: string; id?: string } => {
 }
 
 const renderVerdict: Handler = (content) => {
-  const cells = content
+  const rows = content
     .split('\n')
     .map((l) => /^-\s+(.+?)\s+::\s+(.+)$/.exec(l.trim()))
     .filter((m): m is RegExpExecArray => m !== null)
-    .map(([, q, a]) => `<div><span class="q">${renderInline(q)}</span><span class="a">${renderInline(a)}</span></div>`)
-  return `<div class="verdict">${cells.join('')}</div>`
+    .map(([, q, a]) => `<dt>${renderInline(q)}</dt><dd>${renderInline(a)}</dd>`)
+  return `<dl class="verdict">${rows.join('')}</dl>`
 }
 
-const SEV_CLASS: Record<string, string> = { CRIT: 'c', HIGH: 'h', MED: 'm', LOW: 'm' }
+const SEV_CLASS: Record<string, string> = { CRIT: 'c', HIGH: 'h', MED: 'm', LOW: 'l' }
+const SEV_LABEL: Record<string, string> = { CRIT: 'Critical', HIGH: 'High', MED: 'Medium', LOW: 'Low' }
 
 const renderFindings: Handler = (content) => {
   const open: string[] = []
@@ -182,26 +204,30 @@ const renderFindings: Handler = (content) => {
     if (!m) continue
     counts[m[1]]++
     const { text, id } = takeItemId(m[2])
-    const html = `<div class="finding"${id ? ` id="${escapeHtml(id)}"` : ''}><span class="sev ${SEV_CLASS[m[1]]}">${m[1]}</span>` +
+    const html = `<div class="finding"${id ? ` id="${escapeHtml(id)}"` : ''}><span class="sev ${SEV_CLASS[m[1]]}">${SEV_LABEL[m[1]]}</span>` +
       `<div>${renderInline(text)}${id ? anchor(id) : ''}</div></div>`
     ;(collapseLabel ? collapsed : open).push(html)
   }
-  // computed severity strip — the reader sees the shape before reading a single finding
+  // computed severity line: the reader sees the shape before reading a single finding
   const total = counts.CRIT + counts.HIGH + counts.MED + counts.LOW
   const tally = (['CRIT', 'HIGH', 'MED', 'LOW'] as const)
     .filter((k) => counts[k])
-    .map((k) => `<span class="tally ${SEV_CLASS[k]}"><b>${counts[k]}</b> ${k}</span>`)
+    .map((k) => `<span class="${SEV_CLASS[k]}"><b>${counts[k]}</b> ${SEV_LABEL[k].toLowerCase()}</span>`)
     .join('')
-  const summary = total ? `<div class="finding-summary">${tally}</div>` : ''
+  const summary = total ? `<div class="tally">${tally}</div>` : ''
   // auto-label the collapsed group with its count when the agent didn't
   const label = collapseLabel
     ? (/\(\d+\)/.test(collapseLabel) ? collapseLabel : `${collapseLabel} (${collapsed.length})`)
     : null
   const details = label
-    ? `<details><summary>${escapeHtml(label)}</summary>${collapsed.join('\n')}</details>`
+    ? `<details class="findings-more"><summary>${escapeHtml(label)}</summary><div class="findings-list">${collapsed.join('\n')}</div></details>`
     : ''
-  return `${summary}<div>${open.join('\n')}</div>${details}`
+  return `${summary}<div class="findings-list">${open.join('\n')}</div>${details}`
 }
+
+const progressLine = (reached: number, total: number, label: string, text: string): string =>
+  `<div class="progress"><span class="bar" role="meter" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${reached}" aria-label="${label}">` +
+  `<i style="width:${total ? Math.round((reached / total) * 100) : 0}%"></i></span><span>${text}</span></div>`
 
 const renderTimeline: Handler = (content) => {
   const items: string[] = []
@@ -218,21 +244,18 @@ const renderTimeline: Handler = (content) => {
     const id = m?.[3]
     if (status && status in counts) counts[status as keyof typeof counts]++
     const title = m ? renderInline(m[1]) : renderInline(item)
-    const pill = status ? ` <span class="pill${status === 'next' ? '' : ` ${status}`}">${status}</span>` : ''
+    const pill = status ? `<span class="status ${status}">${status}</span>` : ''
     const desc = m?.[4] ? `<p>${renderInline(m[4])}</p>` : ''
-    const phCls = status === 'done' ? 'ph ph-done' : 'ph'
-    return `<li${id ? ` id="${escapeHtml(id)}"` : ''}><span class="${phCls}">${i + 1}</span>` +
+    return `<li${id ? ` id="${escapeHtml(id)}"` : ''}${status === 'done' ? ' class="is-done"' : ''}><span class="ph">${i + 1}</span>` +
       `<div><h3>${title}${pill}${id ? anchor(id) : ''}</h3>${desc}</div></li>`
   })
-  // Progress includes the active `next` phase, so a sequence that has started is
-  // visibly different from one where every phase is still `later`.
   const total = items.length
-  const reached = counts.done + counts.next
   const parts = (['done', 'next', 'later'] as const).filter((k) => counts[k]).map((k) => `${counts[k]} ${k}`)
-  const progress = total && (counts.done || counts.next || counts.later)
-    ? `<div class="timeline-progress"><meter value="${reached}" min="0" max="${total}" aria-label="Sequence progress"></meter>` +
-      `<span>${parts.join(' · ')} · ${total} total</span></div>`
+  // shown only when the sequence has actually started; an all-later plan needs no meter
+  const progress = total && (counts.done || counts.next)
+    ? progressLine(counts.done, total, 'Sequence progress', `${counts.done} of ${total} done${counts.next ? ` · ${counts.next} next` : ''}`)
     : ''
+  void parts
   return `${progress}<ol class="timeline">${lis.join('\n')}</ol>`
 }
 
@@ -248,11 +271,7 @@ const renderChecklist: Handler = (content) => {
       `<span class="cbox" aria-hidden="true">${checked ? '✓' : ''}</span>` +
       `<div>${renderInline(text)}${id ? anchor(id) : ''}</div></li>`
   })
-  // computed coverage strip — "done when" becomes checkable state, not prose
-  const progress = items.length
-    ? `<div class="timeline-progress"><meter value="${done}" min="0" max="${items.length}" aria-label="Checklist progress"></meter>` +
-      `<span>${done} of ${items.length} done</span></div>`
-    : ''
+  const progress = items.length ? progressLine(done, items.length, 'Checklist progress', `${done} of ${items.length} done`) : ''
   return `${progress}<ul class="checklist">${lis.join('\n')}</ul>`
 }
 
@@ -307,6 +326,44 @@ const renderFigure: Handler = (content, attrs) => {
 /** Edge chains in, laid-out diagram out; the generated SVG passes the same figure allowlist. */
 const renderFlow: Handler = (content, attrs) => renderFigure(renderFlowSvg(content), attrs, 'figure')
 
+/**
+ * A question the reader answers in the page. The live viewer turns the options into buttons
+ * that record the choice as a comment; a static render shows the options and any answer.
+ */
+const renderAsk: Handler = (content, attrs) => {
+  const question: string[] = []
+  const options: { label: string; recommended: boolean }[] = []
+  for (const raw of content.split('\n')) {
+    const line = raw.trim()
+    const opt = /^-\s+(.+)$/.exec(line)
+    if (opt) {
+      const recommended = /\s*\[recommended\]\s*/i.test(opt[1])
+      options.push({ label: opt[1].replace(/\s*\[recommended\]\s*/i, ' ').trim(), recommended })
+    } else if (line) question.push(line)
+  }
+  if (!question.length) throw new Error('ask needs a question line before its options')
+  if (options.length < 2) throw new Error('ask needs at least two "- option" lines')
+  const q = question.join(' ')
+  const id = attrs.id && /^[a-z][\w-]*$/.test(attrs.id) ? attrs.id : `q-${slugify(q).slice(0, 40)}`
+  const answer = context.answers.get(`#${id}`)
+  const chosen = answer?.answer
+  const buttons = options.map((o) => {
+    const text = plainText(o.label)
+    const pressed = chosen !== undefined && chosen === text
+    return `<button class="ask-opt" type="button" data-choice="${escapeHtml(text)}" aria-pressed="${pressed}" disabled>` +
+      `${renderInline(o.label)}${o.recommended ? '<span class="rec">recommended</span>' : ''}</button>`
+  }).join('')
+  const other = chosen !== undefined && !options.some((o) => plainText(o.label) === chosen)
+  const state = answer
+    ? `You answered “${escapeHtml(other ? chosen! : chosen ?? '')}”${answer.status === 'resolved' && answer.resolved_in ? ` · taken into ${escapeHtml(answer.resolved_in)}` : ' · waiting for the next draft'}`
+    : ''
+  return `<div class="ask" id="${escapeHtml(id)}" data-ask="${escapeHtml(id)}">` +
+    `<div class="ask-q"><p>${renderInline(q)}${anchor(id)}</p></div>` +
+    `<div class="ask-options" role="group" aria-label="Answer">${buttons}` +
+    `<button class="ask-opt ask-other" type="button" data-other aria-pressed="${other}" disabled>Something else…</button></div>` +
+    `<p class="ask-state">${state}</p></div>`
+}
+
 const HANDLERS: Record<string, Handler> = {
   callout: renderCallout,
   verdict: renderVerdict,
@@ -317,6 +374,7 @@ const HANDLERS: Record<string, Handler> = {
   diff: renderDiff,
   figure: renderFigure,
   flow: renderFlow,
+  ask: renderAsk,
 }
 
 /** The directive vocabulary, exported so lint can flag names outside it. */
@@ -330,7 +388,6 @@ interface HeadingInfo {
   level: 2 | 3
   title: string
   id: string
-  eyebrow?: string
 }
 
 interface Prepared {
@@ -340,22 +397,27 @@ interface Prepared {
   preamble: string[]
   blocks: string[]
   headings: HeadingInfo[]
+  /** renderer-built HTML spliced in by the traces view */
+  raws: string[]
 }
 
 const HEADING_META_RE = /\s*<!--\s*([^>]*?)\s*-->\s*$/
-const BLOCK_MARKER_RE = /^\uE000PENTIMENTO-BLOCK-(\d+)\uE001$/
-const HEADING_MARKER_RE = /^\uE000PENTIMENTO-HEADING-(\d+)\uE001$/
+const BLOCK_MARKER_RE = /^PENTIMENTO-BLOCK-(\d+)$/
+const HEADING_MARKER_RE = /^PENTIMENTO-HEADING-(\d+)$/
+const RAW_MARKER_RE = /^PENTIMENTO-RAW-(\d+)$/
+const rawMarker = (n: number): string => `PENTIMENTO-RAW-${n}`
 
-const parseHeadingMeta = (comment: string): { id?: string; eyebrow?: string } => {
-  const out: { id?: string; eyebrow?: string } = {}
+/** Heading comments carry an id; `eyebrow:` from earlier releases is accepted and ignored. */
+const parseHeadingMeta = (comment: string): { id?: string } => {
+  const out: { id?: string } = {}
   for (const part of comment.split(';')) {
-    const m = /^\s*(id|eyebrow)\s*:\s*(.+?)\s*$/.exec(part)
-    if (m) out[m[1] as 'id' | 'eyebrow'] = m[2]
+    const m = /^\s*id\s*:\s*(.+?)\s*$/.exec(part)
+    if (m) out.id = m[1]
   }
   return out
 }
 
-const prepare = (body: string): Prepared => {
+const prepare = (body: string, raws: string[] = []): Prepared => {
   const lines = body.split('\n')
   const blocks: string[] = []
   const headings: HeadingInfo[] = []
@@ -401,13 +463,13 @@ const prepare = (body: string): Prepared => {
           rest = rest.slice(vm[0].length)
         }
         blocks.push(HANDLERS[open[1]](contentLines.join('\n').trim(), parseAttrs(rest), variant))
-        out.push('', `\uE000PENTIMENTO-BLOCK-${blocks.length - 1}\uE001`, '')
+        out.push('', `PENTIMENTO-BLOCK-${blocks.length - 1}`, '')
         continue
       }
       const h = /^(#{2,3})\s+(.+)$/.exec(line)
       if (h) {
         let text = h[2]
-        let meta: { id?: string; eyebrow?: string } = {}
+        let meta: { id?: string } = {}
         const c = HEADING_META_RE.exec(text)
         if (c) { meta = parseHeadingMeta(c[1]); text = text.replace(HEADING_META_RE, '') }
         const requestedId = slugify(meta.id ?? text) || `section-${headings.length + 1}`
@@ -415,14 +477,8 @@ const prepare = (body: string): Prepared => {
         let suffix = 2
         while (usedIds.has(id)) id = `${requestedId}-${suffix++}`
         usedIds.add(id)
-        const info: HeadingInfo = {
-          level: h[1].length as 2 | 3,
-          title: text.trim(),
-          id,
-          eyebrow: meta.eyebrow,
-        }
-        headings.push(info)
-        out.push(`\uE000PENTIMENTO-HEADING-${headings.length - 1}\uE001`)
+        headings.push({ level: h[1].length as 2 | 3, title: text.trim(), id })
+        out.push(`PENTIMENTO-HEADING-${headings.length - 1}`)
         i++
         continue
       }
@@ -445,7 +501,7 @@ const prepare = (body: string): Prepared => {
     }
     bucket.push(line)
   }
-  return { title, standfirst: standfirstLines.join(' ').trim(), sections, preamble, blocks, headings }
+  return { title, standfirst: standfirstLines.join(' ').trim(), sections, preamble, blocks, headings, raws }
 }
 
 const anchor = (id: string): string =>
@@ -461,20 +517,40 @@ const renderSectionBody = (prepared: Prepared, bodyLines: string[]): string => {
   for (const line of bodyLines) {
     const heading = HEADING_MARKER_RE.exec(line)
     const block = BLOCK_MARKER_RE.exec(line)
+    const raw = RAW_MARKER_RE.exec(line)
     const h = heading ? prepared.headings[Number(heading[1])] : undefined
     const renderedBlock = block ? prepared.blocks[Number(block[1])] : undefined
+    const rawHtml = raw ? prepared.raws[Number(raw[1])] : undefined
     if (h) {
       flush()
       out.push(`<h3 id="${escapeHtml(h.id)}">${renderInline(h.title)}${anchor(h.id)}</h3>`)
-    } else if (renderedBlock) {
+    } else if (renderedBlock !== undefined) {
       flush()
       out.push(renderedBlock)
+    } else if (rawHtml !== undefined) {
+      flush()
+      out.push(rawHtml)
     } else {
       markdown.push(line)
     }
   }
   flush()
   return out.join('\n')
+}
+
+const renderSections = (prepared: Prepared): string => {
+  const preamble = prepared.preamble.join('\n').trim()
+    ? `<div class="preamble">${renderSectionBody(prepared, prepared.preamble)}</div>\n`
+    : ''
+  return preamble + prepared.sections.map((s) =>
+    `<section>\n<h2 id="${escapeHtml(s.heading.id)}">${renderInline(s.heading.title)}${anchor(s.heading.id)}</h2>\n` +
+    renderSectionBody(prepared, s.bodyLines) + '\n</section>').join('\n\n')
+}
+
+/** Render a loose markdown fragment (no sections) to HTML. */
+const renderFragment = (source: string): string => {
+  const p = prepare(source)
+  return renderSectionBody(p, [...p.preamble, ...p.sections.flatMap((s) => s.bodyLines)])
 }
 
 // ---------------------------------------------------------------------------
@@ -515,7 +591,7 @@ const glanceDelta = (prev: GlanceCounts, cur: GlanceCounts): string => {
   const parts: string[] = []
   for (const key of ['done', 'next', 'later', 'CRIT', 'HIGH', 'MED', 'LOW', 'checked'] as const) {
     const d = cur[key] - prev[key]
-    if (d) parts.push(`${d > 0 ? '+' : '−'}${Math.abs(d)} ${key}`)
+    if (d) parts.push(`${d > 0 ? '+' : '−'}${Math.abs(d)} ${key in SEV_LABEL ? SEV_LABEL[key].toLowerCase() : key}`)
   }
   return parts.join(' · ')
 }
@@ -560,11 +636,51 @@ const changedSectionIds = (baseline: string, current: string): Set<string> => {
   return changed
 }
 
-const ARCHETYPES: Record<string, string> = {
+/** The traces view: the current body with the baseline showing through, as rendered HTML. */
+const renderTraces = (baseline: string, current: string, baselineLabel: string): string => {
+  const raws: string[] = []
+  const stripIds = (html: string): string => html.replace(/\sid="[^"]*"/g, '')
+  const pieces = tracePlan(baseline, current).map((part) => {
+    if (part.kind === 'same' || part.kind === 'inline') return part.text
+    if (part.kind === 'add') {
+      raws.push(`<div class="tr-new">${stripIds(renderFragment(part.text))}</div>`)
+      return rawMarker(raws.length - 1)
+    }
+    if (part.kind === 'swap') {
+      let old: string
+      try { old = renderFragment(part.old) } catch { old = `<pre>${escapeHtml(part.old)}</pre>` }
+      raws.push(`<div class="tr-new" data-label="Changed since ${escapeHtml(baselineLabel)}">${stripIds(renderFragment(part.text))}</div>` +
+        `<details class="tr-prev"><summary>As it was in ${escapeHtml(baselineLabel)}</summary><div class="tr-old">${stripIds(old)}</div></details>`)
+      return rawMarker(raws.length - 1)
+    }
+    if (part.heading !== undefined) {
+      raws.push(`<p class="tr-heading">${escapeHtml(part.heading)}</p>`)
+      return rawMarker(raws.length - 1)
+    }
+    let html: string
+    try { html = renderFragment(part.text) } catch { html = `<p>${escapeHtml(part.text)}</p>` }
+    raws.push(`<div class="tr-old" data-label="Cut from ${escapeHtml(baselineLabel)}">${stripIds(html)}</div>`)
+    return rawMarker(raws.length - 1)
+  })
+  const html = renderSections(prepare(pieces.join('\n\n'), raws))
+  return `<p class="traces-banner">Traces of ${escapeHtml(baselineLabel)} under the current text. Press T to hide.</p>\n` +
+    html
+      .replaceAll(TRACE.delOpen, '<del class="tr">').replaceAll(TRACE.delClose, '</del>')
+      .replaceAll(TRACE.insOpen, '<ins class="tr">').replaceAll(TRACE.insClose, '</ins>')
+}
+
+const KINDS: Record<string, string> = {
   implementation: 'Implementation plan',
-  brainstorm: 'Brainstorm / exploration',
-  audit: 'Audit / review',
-  'design-doc': 'Design doc · PRD',
+  brainstorm: 'Brainstorm',
+  audit: 'Audit',
+  'design-doc': 'Design doc',
+  plan: 'Plan',
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const humanDate = (iso: string): string => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
+  return m ? `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}` : iso
 }
 
 export interface RenderOptions {
@@ -572,130 +688,197 @@ export interface RenderOptions {
   artifact?: boolean
   /** Skip the header comments panel (the live viewer shows comments in its drawer instead). */
   omitCommentsPanel?: boolean
+  /** Compare against this revision instead of the previous one ("what changed since I last read"). */
+  since?: string
+}
+
+/** Plans (any Archetype) use CommonMark line joining; personal documents keep their line breaks. */
+const usesLineBreaks = (doc: Doc): boolean => {
+  const explicit = doc.frontmatter['Line Breaks']
+  if (typeof explicit === 'boolean') return explicit
+  return !doc.frontmatter['Archetype']
+}
+
+interface Draft { id: string; body: string }
+
+const readDrafts = (doc: Doc, meta: Meta): Draft[] => {
+  const drafts: Draft[] = []
+  for (const r of meta.revisions) {
+    try { drafts.push({ id: r.id, body: scrubInternal(splitRaw(readRevision(doc.canonicalPath, r.id)).body) }) } catch { /* verify reports it */ }
+  }
+  return drafts
+}
+
+const receiptsHtml = (resolved: CommentEntry[]): string => {
+  if (!resolved.length) return ''
+  const items = resolved.map((c) => {
+    const quote = c.quote ? `<q>${escapeHtml(c.quote.length > 180 ? `${c.quote.slice(0, 180)}…` : c.quote)}</q>` : ''
+    const reply = c.replies?.length ? `<span class="reply">↳ ${mdUntrusted.renderInline(c.replies[c.replies.length - 1].text)}</span>` : ''
+    return `<div class="receipt">${quote}<span class="ask-text">${mdUntrusted.renderInline(c.text)}</span>${reply}</div>`
+  }).join('')
+  return `<div class="receipts"><h4>Your notes this draft answered</h4>${items}</div>`
+}
+
+const cuttingsHtml = (cuttings: Cutting[], open: boolean): string => {
+  if (!cuttings.length) return ''
+  const one = (c: Cutting): string =>
+    `<div class="cutting"><pre class="cutting-text">${escapeHtml(c.text)}</pre>` +
+    `<div class="cuttings-meta"><span>${c.section ? `${escapeHtml(c.section)} · ` : ''}cut in ${escapeHtml(c.cutIn === 'canonical' ? 'the unsaved draft' : c.cutIn)}</span>` +
+    `<button class="cut-copy" type="button" data-copy>Copy</button></div></div>`
+  const shown = cuttings.slice(0, 12).map(one).join('')
+  const rest = cuttings.length > 12
+    ? `<details class="cuttings-more"><summary>${cuttings.length - 12} older cuttings</summary>${cuttings.slice(12).map(one).join('')}</details>`
+    : ''
+  const n = cuttings.length
+  return `<section class="cuttings" id="cuttings"><details${open ? ' open' : ''}><summary><h2>Cuttings · ${n} passage${n > 1 ? 's' : ''} from earlier drafts</h2></summary>` +
+    `${shown}${rest}</details></section>`
+}
+
+const historyHtml = (meta: Meta, drafts: Draft[]): string => {
+  if (!meta.revisions.length) return ''
+  const words = new Map(drafts.map((d) => [d.id, wordCount(d.body)]))
+  const approved = new Set((meta.approvals ?? []).map((a) => a.rev))
+  const latest = meta.revisions[meta.revisions.length - 1].id
+  let spark = ''
+  if (drafts.length >= 3) {
+    const max = Math.max(1, ...drafts.map((d) => words.get(d.id) ?? 0))
+    const bars = drafts.map((d, i) => {
+      const h = Math.max(1.5, ((words.get(d.id) ?? 0) / max) * 22)
+      return `<rect${d.id === latest ? ' class="cur"' : ''} x="${i * 7}" y="${(24 - h).toFixed(1)}" width="5" height="${h.toFixed(1)}" rx="1"><title>${d.id}: ${words.get(d.id)} words</title></rect>`
+    }).join('')
+    spark = `<svg class="spark" viewBox="0 0 ${drafts.length * 7 - 2} 24" width="${drafts.length * 7 - 2}" height="24" role="img" aria-label="Words per draft">${bars}</svg>`
+  }
+  const items = [...meta.revisions].reverse().map((r) =>
+    `<li><span class="rev">${escapeHtml(r.id)}</span><span class="what"><strong>${renderInline(r.summary)}</strong>` +
+    `${r.why ? `. ${renderInline(r.why)}` : ''}` +
+    `${approved.has(r.id) ? ' <span class="approved">· approved</span>' : ''}</span>` +
+    `<span class="when"><time datetime="${escapeHtml(r.created_at)}">${escapeHtml(humanDate(r.created_at))}</time>` +
+    `${words.has(r.id) ? ` <span class="words">· ${words.get(r.id)} words</span>` : ''}</span></li>`).join('\n')
+  return `<section class="history" id="history"><h2>History · ${meta.revisions.length} draft${meta.revisions.length > 1 ? 's' : ''}</h2>${spark}<ol>${items}</ol></section>`
 }
 
 const chrome = (doc: Doc, meta: Meta, prepared: Prepared, opts: RenderOptions): string => {
   const css = renderStylesheet()
   const js = fs.readFileSync(path.join(ASSETS, 'chrome.js'), 'utf8')
-  const archetype = String(doc.frontmatter['Archetype'] ?? 'design-doc')
-  const badge = ARCHETYPES[archetype] ?? archetype
+  const archetype = doc.frontmatter['Archetype'] ? String(doc.frontmatter['Archetype']) : ''
+  const kind = archetype ? KINDS[archetype] ?? archetype : ''
+  const isPlan = Boolean(archetype)
   const latest = meta.revisions[meta.revisions.length - 1]
   const revisionState = canonicalRevisionState(doc, meta)
-  const rev = revisionState.label
   const date = latest ? latest.created_at.slice(0, 10) : ''
   const pathLabel = doc.canonicalPath.split(path.sep).slice(-3).join('/')
-  const historyRel = String(doc.frontmatter['History Folder'] ?? `.history/${doc.name}`)
-
-  // Default palette precedence: document frontmatter > env > personal CLI config > built-in.
-  // Explicit browser choices still win until the reader resets to the document default.
-  const fmPalette = String(doc.frontmatter['Palette'] ?? '')
-  const envPalette = String(process.env.PENTIMENTO_PALETTE ?? '')
-  const userPalette = String(readUserConfig().palette ?? '')
-  const defaultPalette = isPalette(fmPalette) ? fmPalette
-    : isPalette(envPalette) ? envPalette
-    : isPalette(userPalette) ? userPalette
-    : DEFAULT_PALETTE
-
   const inline = (s: string): string => renderInline(s)
+  const body = scrubInternal(doc.body)
 
-  const evolution = [...meta.revisions].reverse().slice(0, 4).map((r) =>
-    `<div class="evolution"><span class="rev">${escapeHtml(r.id)}</span>` +
-    `<span class="what"><strong>${inline(r.summary)}</strong>` +
-    `${r.why ? ` — ${inline(r.why)}` : ''}</span></div>`).join('\n  ')
+  // --- baseline: what this view is compared against --------------------------------
+  const revIds = meta.revisions.map((r) => r.id)
+  const currentId = revisionState.dirty ? 'canonical' : latest?.id
+  let baselineId: string | null = null
+  if (opts.since && revIds.includes(opts.since) && opts.since !== currentId) baselineId = opts.since
+  else if (revisionState.dirty && revisionState.latest) baselineId = revisionState.latest
+  else if (meta.revisions.length >= 2) baselineId = meta.revisions[meta.revisions.length - 2].id
+  let baselineBody: string | null = null
+  if (baselineId) {
+    try { baselineBody = scrubInternal(splitRaw(readRevision(doc.canonicalPath, baselineId)).body) } catch { baselineId = null }
+  }
+
+  let changes = ''
+  let traces = ''
+  let changedSections = new Set<string>()
+  if (baselineBody !== null && baselineId) {
+    changedSections = changedSectionIds(baselineBody, body)
+    const delta = glanceDelta(glanceCounts(baselineBody), glanceCounts(body))
+    // receipts: notes resolved in a revision after the baseline, up to this one
+    const from = revIds.indexOf(baselineId)
+    const to = currentId === 'canonical' ? revIds.length - 1 : revIds.indexOf(currentId ?? '')
+    const window = new Set(revIds.slice(from + 1, to + 1))
+    const resolved = meta.comments.filter((c) => c.status === 'resolved' && c.resolved_in && window.has(c.resolved_in))
+    const extras = [delta, resolved.length ? `${resolved.length} note${resolved.length > 1 ? 's' : ''} answered` : '']
+      .filter(Boolean).join(' · ')
+    const label = revisionState.dirty && baselineId === revisionState.latest
+      ? `Unsaved changes since ${escapeHtml(baselineId)}`
+      : `What changed since ${escapeHtml(baselineId)}`
+    changes = `<details class="changes"><summary>${label}${extras ? `<span class="delta"> · ${extras}</span>` : ''}</summary>` +
+      `${receiptsHtml(resolved)}<div class="rdiff">${renderDiffHtml(baselineBody, body)}</div></details>`
+    try {
+      traces = `<template id="traces-tpl">${renderTraces(baselineBody, body, baselineId)}</template>`
+    } catch { /* a traces failure never blocks the page */ }
+  }
 
   const openComments = opts.omitCommentsPanel ? [] : meta.comments.filter((c) => c.status === 'open')
   const commentsPanel = openComments.length
-    ? `\n  <details class="comments" open><summary>${openComments.length} open comment${openComments.length > 1 ? 's' : ''}</summary>${openComments.map((c) =>
-        `<div class="vcomment" data-cid="${escapeHtml(c.id)}">` +
-        `${c.anchor ? `<a class="vc-anchor" href="${escapeHtml(c.anchor)}">${escapeHtml(c.anchor)}</a> ` : ''}` +
+    ? `\n  <details class="changes comments"><summary>${openComments.length} open comment${openComments.length > 1 ? 's' : ''}</summary><div class="receipts">${openComments.map((c) =>
+        `<div class="receipt vcomment" data-cid="${escapeHtml(c.id)}">` +
         `${c.quote ? `<blockquote>${escapeHtml(c.quote)}</blockquote>` : ''}` +
-        `<p>${mdUntrusted.renderInline(c.text)}</p>` +
-        `<span class="vc-meta">${escapeHtml(c.author)} · ${escapeHtml(String(c.created_at).slice(0, 10))}</span></div>`).join('')}</details>`
+        `<span class="ask-text">${mdUntrusted.renderInline(c.text)}</span>` +
+        `<span class="reply">${escapeHtml(c.author)} · ${escapeHtml(humanDate(String(c.created_at)))}</span></div>`).join('')}</div></details>`
     : ''
 
-  // what changed since the previous revision — so a reader never has to ask the agent
-  let baselineBody: string | null = null
-  let baselineLabel = ''
-  if (revisionState.dirty && revisionState.latest) {
-    try {
-      baselineBody = splitRaw(readRevision(doc.canonicalPath, revisionState.latest)).body
-      baselineLabel = `Draft changes after ${escapeHtml(revisionState.latest)}`
-    } catch { /* verify reports missing or invalid history; rendering stays available */ }
-  } else if (meta.revisions.length >= 2) {
-    const prev = meta.revisions[meta.revisions.length - 2]
-    try {
-      baselineBody = splitRaw(readRevision(doc.canonicalPath, prev.id)).body
-      baselineLabel = `What changed in ${escapeHtml(latest.id)} (vs ${escapeHtml(prev.id)})`
-    } catch { /* verify reports missing or invalid history; rendering stays available */ }
-  }
-  let changes = ''
-  let changedSections = new Set<string>()
-  if (baselineBody !== null) {
-    changedSections = changedSectionIds(baselineBody, doc.body)
-    const delta = glanceDelta(glanceCounts(baselineBody), glanceCounts(doc.body))
-    changes = `\n  <details class="changes"><summary>${baselineLabel}` +
-      `${delta ? `<span class="delta"> · ${delta}</span>` : ''}</summary>` +
-      `<div class="rdiff">${renderDiffHtml(baselineBody, doc.body)}</div></details>`
-  }
+  // --- history, cuttings -----------------------------------------------------------
+  const drafts = readDrafts(doc, meta)
+  const sequence = revisionState.dirty ? [...drafts, { id: 'canonical', body }] : drafts
+  const cuttings = collectCuttings(sequence)
+  const appendix = [cuttingsHtml(cuttings, !isPlan), historyHtml(meta, drafts)].filter(Boolean).join('\n')
 
-  // changed sections get a dot in the TOC, so a reviewer rereads only what moved
-  const toc = prepared.sections.map((s, i) =>
-    `<li><a href="#${escapeHtml(s.heading.id)}"><span class="n">${String(i + 1).padStart(2, '0')}</span>` +
-    `${escapeHtml(plainText(s.heading.title))}` +
-    `${changedSections.has(s.heading.id) ? '<span class="chg" title="Changed since the previous revision"></span>' : ''}</a></li>`).join('\n      ')
-
-  const sections = prepared.sections.map((s) => {
-    const eyebrow = s.heading.eyebrow ? `<span class="eyebrow">${escapeHtml(s.heading.eyebrow)}</span>\n  ` : ''
-    return `<section>\n  ${eyebrow}<h2 id="${escapeHtml(s.heading.id)}">${renderInline(s.heading.title)}${anchor(s.heading.id)}</h2>\n` +
-      renderSectionBody(prepared, s.bodyLines) + '\n</section>'
-  }).join('\n\n')
-
-  const preambleHtml = prepared.preamble.join('\n').trim()
-    ? renderSectionBody(prepared, prepared.preamble)
+  // --- contents ------------------------------------------------------------------------
+  const tocItems = prepared.sections.map((s) =>
+    `<li><a href="#${escapeHtml(s.heading.id)}">${escapeHtml(plainText(s.heading.title))}` +
+    `${changedSections.has(s.heading.id) ? '<span class="chg" title="Changed since ' + escapeHtml(baselineId ?? '') + '"></span>' : ''}</a></li>`)
+  const appendixItems = [
+    cuttings.length ? '<li><a href="#cuttings">Cuttings</a></li>' : '',
+    meta.revisions.length ? '<li><a href="#history">History</a></li>' : '',
+  ].filter(Boolean)
+  const showToc = prepared.sections.length >= 3
+  const rail = showToc
+    ? `<nav class="rail" aria-label="Contents"><ol>${tocItems.join('')}</ol>${appendixItems.length ? `<ol class="rail-appendix">${appendixItems.join('')}</ol>` : ''}</nav>`
+    : ''
+  const tocInline = showToc
+    ? `<details class="toc-inline"><summary>Contents</summary><nav aria-label="Contents"><ol>${tocItems.join('')}${appendixItems.join('')}</ol></nav></details>`
     : ''
 
-  const title = escapeHtml(plainText(prepared.title))
-  // Set palette and scheme before first paint; a valid reader override wins over document defaults.
-  const paletteInit = themeInitSnippet(defaultPalette)
+  // --- header -----------------------------------------------------------------------------
+  const approval = latestApproval(meta)
+  const approvedLabel = approval
+    ? approval.rev === latest?.id && !revisionState.dirty ? 'Approved' : `Approved ${approval.rev}`
+    : ''
+  const metaItems = [
+    kind ? `<span class="kind">${escapeHtml(kind)}</span>` : '',
+    `<span class="rev-label">${escapeHtml(revisionState.label === 'Draft' ? 'Unsaved draft' : revisionState.label)}</span>`,
+    date ? `<time datetime="${escapeHtml(date)}">${escapeHtml(humanDate(date))}</time>` : '',
+    approvedLabel ? `<span class="approved" data-approved="${escapeHtml(approval!.rev)}">${escapeHtml(approvedLabel)}</span>` : '',
+  ].filter(Boolean).join('')
+  const tools = `<span class="meta-tools">${traces ? '<button class="tool" type="button" data-traces-toggle aria-pressed="false" title="Show the previous draft under this one (T)">Traces</button>' : ''}${schemeToggle()}</span>`
+  const latestLine = latest
+    ? `<p class="latest"><span class="rev">${escapeHtml(latest.id)}</span>${inline(latest.summary)}</p>`
+    : ''
 
-  const body = `${paletteInit}
+  const title = escapeHtml(plainText(prepared.title || doc.name))
+  const page = `${themeInitSnippet()}
 
 <div class="wrap">
+${rail}
 <header class="doc">
-  <div class="meta-row">
-    <span class="badge badge-${escapeHtml(archetype)}">${escapeHtml(badge)}</span>
-    <span class="chip">${escapeHtml(rev)}</span>
-    ${date ? `<time class="chip" datetime="${escapeHtml(date)}">${escapeHtml(date)}</time>\n    ` : ''}${themePicker(defaultPalette)}
-    <span class="path-chip" title="${escapeHtml(doc.canonicalPath)}">${escapeHtml(pathLabel)}</span>
-  </div>
-  <h1>${inline(prepared.title)}</h1>
+  <div class="meta">${metaItems}${tools}</div>
+  <h1>${inline(prepared.title || doc.name)}</h1>
   ${prepared.standfirst ? `<p class="standfirst">${inline(prepared.standfirst)}</p>` : ''}
-  ${evolution}${changes}${commentsPanel}
+  ${latestLine}${changes}${commentsPanel}
+  ${tocInline}
 </header>
 
-<details class="toc" open>
-  <summary>Contents</summary>
-  <nav aria-label="Contents">
-    <ol>
-      ${toc}
-    </ol>
-  </nav>
-</details>
-
 <main>
-${preambleHtml}
-${sections}
+${renderSections(prepared)}
 </main>
-
+${traces}
+${appendix ? `<div class="appendix">\n${appendix}\n</div>` : ''}
 <footer class="doc">
-  Source: <code>${escapeHtml(pathLabel)}</code> · history: <code>${escapeHtml(historyRel)}/</code> (${escapeHtml(rev)}) · Rendered by <code>pentimento render</code>.
+  <code>${escapeHtml(pathLabel)}</code>
 </footer>
 </div>
 <script>
 ${js}</script>
 `
 
-  if (opts.artifact) return `<title>${title}</title>\n<style>\n${css}</style>\n\n${body}`
+  if (opts.artifact) return `<title>${title}</title>\n<style>\n${css}</style>\n\n${page}`
 
   return secureHtml(`<!doctype html>
 <html lang="en">
@@ -708,15 +891,22 @@ ${FAVICON_TAG}
 ${css}</style>
 </head>
 <body>
-${body}</body>
+${page}</body>
 </html>
 `)
+}
+
+const withDocument = <T>(doc: Doc, meta: Meta, fn: () => T): T => {
+  const previous = { md, context }
+  md = usesLineBreaks(doc) ? mdVerse : mdPlan
+  context = contextFor(meta)
+  try { return fn() } finally { md = previous.md; context = previous.context }
 }
 
 export const render = (docPath: string, opts: RenderOptions = {}): string => {
   const doc = loadDoc(docPath)
   const meta = readMeta(doc.historyDir)
-  return chrome(doc, meta, prepare(doc.body), opts)
+  return withDocument(doc, meta, () => chrome(doc, meta, prepare(scrubInternal(doc.body)), opts))
 }
 
 export const renderToFile = (docPath: string, outPath?: string, opts: RenderOptions = {}): string => {
@@ -728,7 +918,7 @@ export const renderToFile = (docPath: string, outPath?: string, opts: RenderOpti
   return out
 }
 
-/** Render the document as it stood at a given revision (evolution strip trimmed to that point). */
+/** Render the document as it stood at a given revision (history trimmed to that point). */
 export const renderRevisionHtml = (docPath: string, rev: string, opts: RenderOptions = {}): string => {
   const doc = loadDoc(docPath)
   const raw = readRevision(docPath, rev)
@@ -744,9 +934,10 @@ export const renderRevisionHtml = (docPath: string, rev: string, opts: RenderOpt
   const trimmed: Meta = {
     revisions: idx >= 0 ? meta.revisions.slice(0, idx + 1) : meta.revisions,
     comments: meta.comments,
+    approvals: (meta.approvals ?? []).filter((a) => meta.revisions.findIndex((r) => r.id === a.rev) <= idx),
   }
   const revDoc: Doc = { ...doc, raw, body, frontmatter }
-  return chrome(revDoc, trimmed, prepare(body), opts)
+  return withDocument(revDoc, trimmed, () => chrome(revDoc, trimmed, prepare(scrubInternal(body)), opts))
 }
 
 /** Standalone page showing the changes between two revisions ('canonical' = current file). */
@@ -757,7 +948,8 @@ export const renderDiffPage = (docPath: string, a: string, b: string): string =>
   const bodyOf = (rev: string): string =>
     rev === 'canonical' ? doc.body : splitRaw(readRevision(docPath, rev)).body
   const rdiff = renderDiffHtml(bodyOf(a), bodyOf(b))
-  const title = `${doc.name}: ${a} → ${b}`
+  const label = (rev: string): string => (rev === 'canonical' ? 'now' : rev)
+  const title = `${doc.name}: ${label(a)} → ${label(b)}`
   return secureHtml(`<!doctype html>
 <html lang="en">
 <head>
@@ -772,19 +964,13 @@ ${css}</style>
 ${RESTORE_SNIPPET}
 <div class="wrap">
 <header class="doc">
-  <div class="meta-row">
-    <span class="badge">Changes</span>
-    <span class="chip">${escapeHtml(a)} → ${escapeHtml(b)}</span>
-    <span class="chip">${escapeHtml(doc.name)}</span>
-    ${themePicker()}
-  </div>
+  <div class="meta"><span class="kind">Changes</span><span>${escapeHtml(label(a))} → ${escapeHtml(label(b))}</span><span class="meta-tools">${schemeToggle()}</span></div>
   <h1>${escapeHtml(doc.name)}</h1>
-  <p class="standfirst">What changed between ${escapeHtml(a)} and ${escapeHtml(b)}.</p>
+  <p class="standfirst">What changed between ${escapeHtml(label(a))} and ${escapeHtml(label(b))}.</p>
 </header>
 <main>
-<div class="rdiff" style="margin-top:2rem">${rdiff}</div>
+<div class="rdiff">${rdiff}</div>
 </main>
-<footer class="doc">Rendered by <code>pentimento diff --html</code>.</footer>
 </div>
 <script>${js}</script>
 </body>

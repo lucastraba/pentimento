@@ -6,4 +6,9 @@ revisions:
       affordances"
     why: Answering the three review questions with a second pass by Codex; records
       what shipped and what was deferred
+  - id: r002
+    created_at: 2026-09-30T13:14:09+00:00
+    author: Lucas Traba
+    summary: Drop eyebrow labels and the palette setting
+    why: 0.8 renders neither
 comments: []

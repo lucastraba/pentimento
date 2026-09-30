@@ -8,14 +8,14 @@ import { Hono, type Context } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { getCookie, setCookie } from 'hono/cookie'
 import {
-  addComment, addReply, canonicalRevisionState, deleteComment, isPathInside, loadDoc, readMeta, reopenComment,
-  resolveComment, resolveContainedPath, type Meta,
+  addComment, addReply, answerQuestion, approve, canonicalRevisionState, deleteComment, isPathInside,
+  latestApproval, loadDoc, readMeta, reopenComment, resolveComment, resolveContainedPath, type Meta,
 } from './core.js'
 import {
   contentSecurityPolicy, FAVICON_TAG, render, renderDiffPage, renderRevisionHtml, renderStylesheet,
   RESTORE_SNIPPET, secureHtml,
 } from './render.js'
-import { themePicker } from './themes.js'
+import { schemeToggle } from './themes.js'
 import { findPentimentoDocs } from './verify.js'
 
 const ASSETS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../assets')
@@ -23,26 +23,27 @@ const ASSETS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../as
 const escapeHtml = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
-const COMMENT_ICON = '<svg class="comment-icon" viewBox="0 0 20 20" aria-hidden="true">' +
+const COMMENT_ICON = '<svg class="icon" viewBox="0 0 20 20" aria-hidden="true">' +
   '<path d="M5.25 3.75h9.5a2.5 2.5 0 0 1 2.5 2.5v5.5a2.5 2.5 0 0 1-2.5 2.5H9l-4.25 2.5v-2.6a2.5 2.5 0 0 1-2-2.4v-5.5a2.5 2.5 0 0 1 2.5-2.5Z"/>' +
-  '<path class="comment-dots" d="M7 9h.01M10 9h.01M13 9h.01"/></svg>'
+  '<path class="dots" d="M7 9h.01M10 9h.01M13 9h.01"/></svg>'
 
-const STOP_ICON = '<svg class="stop-icon" viewBox="0 0 20 20" aria-hidden="true">' +
+const STOP_ICON = '<svg class="icon" viewBox="0 0 20 20" aria-hidden="true">' +
   '<path d="M10 2.5v7M5.2 5.3a7 7 0 1 0 9.6 0"/></svg>'
-const stopButton = (): string =>
-  `<button class="viewer-stop" data-stop-viewer type="button">${STOP_ICON}<span>Stop viewer</span></button>`
+const stopButton = (compact = false): string =>
+  `<button class="${compact ? 'vb' : 'tool'} stop viewer-stop" data-stop-viewer type="button" title="Stop viewer for every document it serves" aria-label="Stop viewer">${STOP_ICON}${compact ? '' : '<span>Stop viewer</span>'}</button>`
 const STOP_SNIPPET = `<script>(() => {
   document.addEventListener('click', async (event) => {
     const button = event.target.closest?.('[data-stop-viewer]')
     if (!button || !confirm('Stop this viewer for every document it serves?')) return
     button.disabled = true
-    button.querySelector('span').textContent = 'Stopping…'
+    const label = button.querySelector('span')
+    if (label) label.textContent = 'Stopping…'
     try {
       const response = await fetch('/api/shutdown', {
         method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
       })
       if (!response.ok) throw new Error(await response.text())
-      button.querySelector('span').textContent = 'Viewer stopped'
+      if (label) label.textContent = 'Viewer stopped'
       document.documentElement.dataset.viewerStopped = 'true'
       const status = document.createElement('div')
       status.className = 'viewer-stopped-status'
@@ -53,7 +54,7 @@ const STOP_SNIPPET = `<script>(() => {
       status.focus()
     } catch (error) {
       button.disabled = false
-      button.querySelector('span').textContent = 'Stop viewer'
+      if (label) label.textContent = 'Stop viewer'
       alert(error instanceof Error ? error.message : String(error))
     }
   })
@@ -63,49 +64,65 @@ const STOP_SNIPPET = `<script>(() => {
 // listens to the same stream and patches or morphs instead of reloading.
 const SSE_SNIPPET = `<script>new EventSource('/__events').onmessage = () => location.reload()</script>`
 
+const shortDate = (iso: string): string => {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
+  return m ? `${Number(m[3])} ${months[Number(m[2]) - 1]}` : ''
+}
+
+/** One stop per saved revision, plus "now" when the file has unsaved changes. */
+const scrubStops = (meta: Meta, dirty: boolean): { id: string; label: string; note: string }[] => [
+  ...meta.revisions.map((r) => ({ id: r.id, label: r.id, note: shortDate(r.created_at) })),
+  ...(dirty || !meta.revisions.length ? [{ id: 'canonical', label: 'now', note: 'unsaved' }] : []),
+]
+
 const viewerBar = (
-  rel: string,
   meta: Meta,
   current: string | null,
-  canonicalLabel: string,
   canonicalDirty: boolean,
-  canComment = true,
+  canWrite: boolean,
   canStop = false,
 ): string => {
+  const stops = scrubStops(meta, canonicalDirty)
   const latest = meta.revisions[meta.revisions.length - 1]?.id ?? null
-  const selected = current ?? 'canonical'
-  const options = [
-    `<option value="canonical"${selected === 'canonical' ? ' selected' : ''}>${escapeHtml(canonicalLabel)} (now)</option>`,
-    ...[...meta.revisions].reverse().map((r) =>
-      `<option value="${r.id}"${selected === r.id ? ' selected' : ''}>${r.id} · ${escapeHtml(r.summary.slice(0, 48))}</option>`),
-  ].join('')
-  const idx = current ? meta.revisions.findIndex((r) => r.id === current) : meta.revisions.length - 1
-  const prev = !current && canonicalDirty ? latest : idx > 0 ? meta.revisions[idx - 1].id : null
-  const diffTo = current ?? 'canonical'
-  const diffLink = prev
-    ? `<a href="/diff/${encodeURI(rel)}?a=${prev}&amp;b=${diffTo}">diff vs ${prev}</a>`
-    : ''
+  const at = current ? stops.findIndex((s) => s.id === current) : stops.length - 1
+  const stop = stops[Math.max(0, at)]
+  const scrub = stops.length > 1
+    ? `<label class="scrub"><input id="vscrub" type="range" min="0" max="${stops.length - 1}" step="1" value="${Math.max(0, at)}" aria-label="Revision">` +
+      `<span class="scrub-label" id="vscrub-label">${escapeHtml(stop.label)} <small>${escapeHtml(stop.note)}</small></span></label>`
+    : `<span class="scrub"><span class="scrub-label">${escapeHtml(stop?.label ?? 'draft')}</span></span>`
   const openCount = meta.comments.filter((c) => c.status === 'open').length
-  const note = current
-    ? `<span class="vbar-note">read-only revision — comments attach to the current version</span>`
-    : canComment ? '' : `<span class="vbar-note">read-only link — open the private write link to comment</span>`
+  const approval = latestApproval(meta)
+  const approvedLatest = Boolean(approval && latest && approval.rev === latest && !canonicalDirty)
+  const approveButton = canWrite && latest && !current
+    ? approvedLatest
+      ? `<button class="vb approved" type="button" disabled>Approved ${escapeHtml(latest)}</button>`
+      : `<button class="vb approve" id="vapprove" type="button" data-rev="${escapeHtml(latest)}" title="Sign off on ${escapeHtml(latest)}">Approve<span class="label-long">&nbsp;${escapeHtml(latest)}</span></button>`
+    : ''
+  const note = !canWrite && !current ? '<span class="vbar-note">read-only link</span>' : ''
   return `<div class="vbar-pad"></div>
-<nav class="vbar">
-  <a href="/">◂ documents</a>
-  <span class="vbar-name">${escapeHtml(rel)} · ${escapeHtml(current ?? canonicalLabel)}</span>
-  <select id="vrev" aria-label="Revision">${options}</select>
-  ${diffLink}
+<nav class="vbar" aria-label="Viewer">
+  <a href="/" title="All documents">←<span class="label-long">&nbsp;Documents</span></a>
+  <span class="sep"></span>
+  ${scrub}
+  <button class="vb" type="button" data-traces-toggle aria-pressed="false" title="Show the previous draft under this one (T)">Traces</button>
+  <span class="sep"></span>
+  <button id="vc-toggle" class="vb vc-toggle" type="button" aria-controls="vc-drawer" aria-expanded="false" aria-label="Comments">${COMMENT_ICON}<span id="vc-count">${openCount}</span></button>
+  ${approveButton}
   ${note}
-  <button id="vc-toggle" class="vc-toggle" type="button" aria-controls="vc-drawer" aria-expanded="false" aria-label="Comments">${COMMENT_ICON}<span id="vc-count">${openCount}</span></button>
-  ${canStop ? stopButton() : ''}
+  ${canStop ? stopButton(true) : ''}
 </nav>`
+}
+
+const KIND_LABELS: Record<string, string> = {
+  implementation: 'Implementation plan', brainstorm: 'Brainstorm', audit: 'Audit', 'design-doc': 'Design doc', plan: 'Plan',
 }
 
 const indexPage = (root: string, canStop = false): string => {
   const css = renderStylesheet()
   const chromeJs = fs.readFileSync(path.join(ASSETS, 'chrome.js'), 'utf8')
   const rootName = path.basename(root)
-  const cards = findPentimentoDocs(root)
+  const items = findPentimentoDocs(root)
     .map((p) => {
       const doc = loadDoc(p)
       let meta: Meta = { revisions: [], comments: [] }
@@ -113,36 +130,33 @@ const indexPage = (root: string, canStop = false): string => {
       const latest = meta.revisions[meta.revisions.length - 1]
       const revisionState = canonicalRevisionState(doc, meta)
       const rel = path.relative(root, p).split(path.sep).join('/')
-      const archetype = String(doc.frontmatter['Archetype'] ?? 'design-doc')
+      const archetype = doc.frontmatter['Archetype'] ? String(doc.frontmatter['Archetype']) : ''
+      const title = /^#\s+(.+)$/m.exec(doc.body)?.[1]?.replace(/[`*_]/g, '').trim() || doc.name
       return {
         rel,
-        name: doc.name,
-        archetype,
+        title,
+        kind: archetype ? KIND_LABELS[archetype] ?? archetype : '',
         rev: revisionState.label,
         summary: latest?.summary ?? '',
         date: latest?.created_at?.slice(0, 10) ?? '',
         open: meta.comments.filter((c) => c.status === 'open').length,
+        approved: latestApproval(meta)?.rev === latest?.id && !revisionState.dirty,
       }
     })
     .sort((a, b) => b.date.localeCompare(a.date))
     .map((d) =>
-      `<a class="vcard" href="/doc/${encodeURI(d.rel)}">
-  <div class="meta-row">
-    <span class="badge badge-${escapeHtml(d.archetype)}">${escapeHtml(d.archetype)}</span>
-    <span class="chip">${escapeHtml(d.rev)}</span>
-    ${d.date ? `<span class="chip">${escapeHtml(d.date)}</span>` : ''}
-    ${d.open ? `<span class="chip chip-comments">${COMMENT_ICON}${d.open}</span>` : ''}
-  </div>
-  <h3>${escapeHtml(d.name)}</h3>
+      `<li><a href="/doc/${encodeURI(d.rel)}">
+  <div class="meta">${d.kind ? `<span class="kind">${escapeHtml(d.kind)}</span>` : ''}<span>${escapeHtml(d.rev)}</span>${d.date ? `<span>${escapeHtml(shortDate(d.date))}</span>` : ''}${d.approved ? '<span class="approved">Approved</span>' : ''}${d.open ? `<span>${d.open} open comment${d.open > 1 ? 's' : ''}</span>` : ''}</div>
+  <h3>${escapeHtml(d.title)}</h3>
   ${d.summary ? `<p>${escapeHtml(d.summary)}</p>` : ''}
-</a>`)
+</a></li>`)
     .join('\n')
   return secureHtml(`<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Pentimento — living documents</title>
+<title>Pentimento · ${escapeHtml(rootName)}</title>
 ${FAVICON_TAG}
 <style>
 ${css}</style>
@@ -151,13 +165,11 @@ ${css}</style>
 ${RESTORE_SNIPPET}
 <div class="wrap">
 <header class="doc">
-  <div class="meta-row"><span class="badge">Pentimento viewer</span>${themePicker()}${canStop ? stopButton() : ''}<span class="path-chip">Serving ${escapeHtml(rootName)}</span></div>
-  <h1>Living documents</h1>
+  <div class="meta"><span class="kind">Pentimento</span><span>${escapeHtml(rootName)}</span><span class="meta-tools">${schemeToggle()}${canStop ? stopButton() : ''}</span></div>
+  <h1>Documents</h1>
 </header>
 <main>
-<div class="vcards">
-${cards || '<div class="empty-state"><h2>No living documents yet</h2><p>Create a Markdown file here, then save its first revision:</p><code>pentimento snapshot Plan.md --summary "Initial version"</code></div>'}
-</div>
+${items ? `<ul class="doclist">\n${items}\n</ul>` : '<div class="empty-state"><h2>Nothing here yet</h2><p>Write a Markdown file in this folder, then save its first draft:</p><code>pentimento snapshot Song.md</code></div>'}
 </main>
 </div>
 <script>${chromeJs}</script>
@@ -278,12 +290,14 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
     if (!abs) return c.notFound()
     const rev = c.req.query('rev') ?? null
     if (rev && !hasRevision(abs, rev)) return c.notFound()
+    const since = c.req.query('since') ?? undefined
+    if (since && !hasRevision(abs, since)) return c.notFound()
     let html: string
     try {
       // the viewer replaces the static header panel with its drawer
       html = rev
-        ? renderRevisionHtml(abs, rev, { omitCommentsPanel: true })
-        : render(abs, { omitCommentsPanel: true })
+        ? renderRevisionHtml(abs, rev, { omitCommentsPanel: true, since })
+        : render(abs, { omitCommentsPanel: true, since })
     } catch (e) {
       return c.text(e instanceof Error ? e.message : String(e), 500)
     }
@@ -296,12 +310,15 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
       rel,
       rev,
       canComment,
+      canWrite: canWrite(c),
       author: viewerOpts.author ?? 'reader',
       comments: meta.comments,
       revisions: meta.revisions.map((r) => r.id),
+      stops: scrubStops(meta, revisionState.dirty),
+      dirty: revisionState.dirty,
     }
     const cfgScript = `<script>window.__pentimento=${JSON.stringify(cfg).replace(/</g, '\\u003c')}</script>\n<script>\n${viewerJs}</script>`
-    return htmlResponse(c, html.replace('</body>', `${viewerBar(rel, meta, rev, revisionState.label, revisionState.dirty, canComment, stoppable)}\n${cfgScript}\n${stoppable ? STOP_SNIPPET : ''}\n</body>`))
+    return htmlResponse(c, html.replace('</body>', `${viewerBar(meta, rev, revisionState.dirty, canWrite(c), stoppable)}\n${cfgScript}\n${stoppable ? STOP_SNIPPET : ''}\n</body>`))
   })
 
   app.get('/api/comments', (c) => {
@@ -383,6 +400,37 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
     } catch (e) {
       return c.text(e instanceof Error ? e.message : String(e), 404)
     }
+  })
+
+  app.post('/api/approve', async (c) => {
+    const b = await c.req.json().catch(() => null)
+    if (!b) return c.text('bad json', 400)
+    if (tooLong(b.rel, 1024) || tooLong(b.rev, 16)) return c.text('field too large', 413)
+    const abs = resolveDoc(String(b.rel ?? ''))
+    if (!abs) return c.notFound()
+    const rev = typeof b.rev === 'string' && b.rev ? b.rev : undefined
+    if (rev && !hasRevision(abs, rev)) return c.notFound()
+    try {
+      return c.json(approve(abs, rev, viewerOpts.author ?? 'reader'))
+    } catch (e) {
+      return c.text(e instanceof Error ? e.message : String(e), 409)
+    }
+  })
+
+  app.post('/api/answer', async (c) => {
+    const b = await c.req.json().catch(() => null)
+    if (!b) return c.text('bad json', 400)
+    if (tooLong(b.rel, 1024) || tooLong(b.anchor, 128) || tooLong(b.question, 600) || tooLong(b.choice, 300)) {
+      return c.text('field too large', 413)
+    }
+    const abs = resolveDoc(String(b.rel ?? ''))
+    if (!abs) return c.notFound()
+    const anchor = String(b.anchor ?? '')
+    const choice = String(b.choice ?? '').trim()
+    if (!/^#[a-z][\w-]*$/.test(anchor) || !choice) return c.text('answer needs an #anchor and a choice', 400)
+    return c.json(answerQuestion(abs, {
+      anchor, choice, question: String(b.question ?? '').slice(0, 600), author: viewerOpts.author ?? 'reader',
+    }))
   })
 
   app.post('/api/reply', async (c) => {

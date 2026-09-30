@@ -1,10 +1,29 @@
-# Archetype skeletons
+# Outlines
 
-Every plan uses the shared chrome (header, TOC, evolution strip). The archetype sets the badge/accent and the section skeleton below. Sections marked (opt) are used only when the content calls for them.
+These are starting points, not forms to fill in. Keep the sections the content needs,
+rename them to say what they contain, and delete the rest. A two-section document is fine.
 
-One rule spans all four: lead with the answer. The reader wants the verdict, the recommendation, the bottom line in the first screen, then the evidence below it. Each skeleton opens with a `::: verdict` banner that a reader can act on without scrolling. The renderer computes the glance summaries you'd otherwise write by hand: severity counts from `::: findings`, phase progress from `::: timeline` pills. Write the findings and phases; let the render tally them.
+Every outline shares one rule: the standfirst (the `>` line under the title) states the
+conclusion in one sentence. A reader who stops there should know what you recommend.
 
-## implementation — approve and execute
+## plan (the default)
+
+Use it when the document doesn't fit one of the others, or when you're unsure.
+
+```markdown
+---
+Archetype: plan
+---
+# <What this is about>
+
+> <The conclusion in one sentence.>
+
+## <The situation, named after what's wrong or what's needed>
+## <The proposal>
+## <What could go wrong> (only if something could)
+```
+
+## implementation: approve, then build
 
 ```markdown
 ---
@@ -12,63 +31,46 @@ Archetype: implementation
 ---
 # <What gets built>
 
-> One-sentence scope: what will exist when this is done.
+> <What will exist when this is done, and the first step.>
 
-## Recommendation <!-- id: recommendation; eyebrow: Bottom line -->
-   (::: verdict — Build? / First move / Main risk / Done when)
-## Plan <!-- id: plan; eyebrow: Sequence -->
-   (::: timeline with [done]/[next]/[later]; the render shows a progress meter)
-## Decisions <!-- id: decisions; eyebrow: Locked -->
-   (::: callout decision for each load-bearing choice)
-## Changes <!-- id: changes; eyebrow: Diffs -->
-   (file-touch table: | File | Change | Risk | — then ::: diff per non-trivial change)
-## Risks (opt) <!-- id: risks; eyebrow: Watch out -->
-   (::: callout risk per real risk, with mitigation)
-## Verification <!-- id: verify; eyebrow: Done means -->
-   (::: checklist — each done-when as a `- [ ]` item; the render shows coverage)
+## Why                  prose: what's wrong today, with file and line references
+## Approach             prose; one `::: callout decision` per choice that closes off an alternative
+## Steps                `::: timeline` with [done]/[next]/[later] once work starts; a numbered list before that
+## Changes              a table of files touched; `::: diff` only for a change the reader must see
+## Done when            `::: checklist`, only if the items will be ticked off across drafts
 ```
 
-## brainstorm — compare directions
+## brainstorm: compare directions
 
 ```markdown
 ---
 Archetype: brainstorm
 ---
-# <The question being explored>
+# <The question>
 
-> The tension in one sentence.
+> <Your pick and the main reason.>
 
-## Recommendation <!-- id: recommendation; eyebrow: Bottom line -->
-   (::: verdict — Pick / Why / Closest loser; the reader gets your answer before the comparison)
-## Comparison <!-- id: comparison; eyebrow: Tradeoffs -->
-   (::: options criteria="..." — one row per option, exactly one [pick])
-## Options <!-- id: options; eyebrow: Details -->
-   (one ### per option; evidence, cost, what it forecloses; be opinionated)
-## Open questions <!-- id: open; eyebrow: Unresolved -->
-   (only the questions that could change the recommendation)
+## Options              `::: options criteria="..."` with one [pick] row, or a plain table
+## <One section per serious option>   evidence, cost, and what choosing it rules out
+## What would change the answer       only questions that could flip the pick
 ```
 
-## audit — report findings
+## audit: report findings
 
 ```markdown
 ---
 Archetype: audit
 ---
-# <What was audited>
+# <What was reviewed>
 
-> Scope and date in one line.
+> <The overall state and the first thing to fix. Scope and date.>
 
-## Verdict <!-- id: verdict; eyebrow: Summary -->
-   (::: verdict — Status / Highest severity / Fix first, then a short prose paragraph)
-## Findings <!-- id: findings; eyebrow: Evidence -->
-   (::: findings, CRIT/HIGH open, @collapse the rest; the render tallies severities; cite file:line)
-## Remediation <!-- id: remediation; eyebrow: Next -->
-   (::: timeline or checklist; note what needs separate approval)
-## Scope (opt) <!-- id: scope; eyebrow: Coverage -->
-   (what was inspected and what was not)
+## Findings             `::: findings`, critical and high open, the rest under `@collapse`
+## Fixes                prose or a numbered list; `::: timeline` once fixes are underway
+## Not covered          what you didn't look at
 ```
 
-## design-doc — record a vision
+## design-doc: record a design
 
 ```markdown
 ---
@@ -76,17 +78,16 @@ Archetype: design-doc
 ---
 # <The system>
 
-> The thesis in one sentence.
+> <The design in one sentence.>
 
-## Summary <!-- id: summary; eyebrow: Bottom line -->
-   (::: verdict — Direction / Main bet / Hard constraint / Open risk)
-## Decisions <!-- id: decisions; eyebrow: Locked -->
-   (::: callout decision per locked decision — these are the doc's spine)
-## Architecture <!-- id: architecture; eyebrow: System -->
-   (::: flow diagram — hand-composed ::: figure only when flow can't say it; ### per component)
-## Build order <!-- id: build; eyebrow: Sequence -->
-   (::: timeline)
-## Alternatives (opt) <!-- id: alternatives; eyebrow: Rejected -->
-   (short comparison table or prose — what you turned down and why)
-## Open questions <!-- id: open; eyebrow: Unresolved -->
+## Decisions            `::: callout decision` per settled choice; this is the spine
+## How it fits together `::: flow` when a diagram helps; prose per component
+## Order of work        a list, or `::: timeline`
+## Open questions       `::: ask` for the ones only the user can answer
 ```
+
+## Personal documents
+
+A file without an `Archetype` is treated as the user's own writing: no label, and single
+line breaks are kept, as in Obsidian. Don't add an `Archetype` to a user's song, story, or
+notes.

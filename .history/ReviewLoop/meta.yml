@@ -28,4 +28,9 @@ revisions:
     why: "One measure, prose guide + style page, trusted save, in-place updates,
       drawer, replies — exercised in a real browser: save states, undo, deferred
       morph, session-scoped delete"
+  - id: r005
+    created_at: 2026-09-30T13:14:10+00:00
+    author: Lucas Traba
+    summary: Drop eyebrow labels and the palette setting
+    why: 0.8 renders neither
 comments: []

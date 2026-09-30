@@ -4,254 +4,118 @@
 
 <h1 align="center">Pentimento</h1>
 
-Pentimento keeps a document as plain markdown, saves a hidden history of the versions you choose to keep, and renders it to one HTML page whose look you don't control. A pentimento is a trace of earlier brushwork visible under the surface of a painting.
+Pentimento keeps every draft of a markdown document and shows you what changed between rounds, and why. Use it on your own writing in Obsidian, or let an agent write plans with it and revise them from your comments.
 
-Pentimento is deliberately single-user. In its primary loop, one person reviews a plan written by an agent, leaves revision instructions, and sees exactly what changed in the next saved version. It also works without an agent as a version history for one person's evolving documents. It is not a shared editor or team-approval system.
+A pentimento is an earlier brushstroke showing through the paint on top of it. That is what the page does: the current draft on top, the previous one showing through when you want to see it.
 
-That one mechanism covers two jobs, and you can use either without the other:
+## What a round looks like
 
-- Plans your agent writes: a coding agent produces a reviewable HTML plan, design doc, or audit, and Pentimento fixes how it looks and tracks what changed between drafts.
-- Version history for documents you revise: snapshot, diff, and revert any markdown you edit over time, like Obsidian notes, essays, or lyrics.
-
-## How it works
-
-A Pentimento document is one markdown file that keeps its name and place. A snapshot copies the current state into a numbered revision (`r001`, `r002`, …) under a hidden `.history/` folder beside it, with a note on what changed and why. Rendering turns the file into a self-contained HTML page with a table of contents, revision log, six themes, and light and dark modes. From the second revision on, the page also shows a word-level diff against the previous one.
-
-The author, human or agent, writes markdown plus a small set of `:::` directives. A single fixed stylesheet decides every pixel, so two documents built months apart look like the same tool made them, and every draft can be diffed against the last. Everything on disk is plain text: grep it, sync it, commit it, hand it to an agent. Nothing needs git, and nothing conflicts with git.
-
-## Install and run
-
-Pentimento requires Node 20.13 or newer. Start the viewer without installing anything:
+You write or edit a markdown file. You save a draft:
 
 ```bash
-npx -y pentimento@latest serve .
+pentimento snapshot Song.md
 ```
 
-Or install it globally:
+Pentimento copies the file into a hidden `.history/` folder next to it and writes a one-line summary of what moved, based on your headings: `Rewrote Chorus`, `Removed Bridge`. Pass `--summary` to write your own.
+
+Then you read it:
+
+```bash
+pentimento serve .
+```
+
+The page shows the current draft, set in a plain serif with no decoration. Above it, one line says which draft this is and what changed. Below it you'll find:
+
+- **What changed.** A diff against the previous draft: word by word for prose, line by line for verse and lists.
+- **Traces.** Press T and the previous draft shows through the current one, with cut words struck through in sepia and new ones underlined.
+- **Cuttings.** Every passage you removed in an earlier draft, with a copy button. The bridge you cut on Thursday is still there on Friday.
+- **History.** Every draft, with its summary, date, and word count.
+
+In the live viewer, a scrubber at the bottom steps through the drafts, and the page tells you when there are drafts you haven't read yet.
+
+## Install
+
+Pentimento needs Node 20.13 or newer.
 
 ```bash
 npm install -g pentimento
 ```
 
-Start the globally installed viewer:
+Or run any command without installing: `npx -y pentimento@latest serve .`
+
+## Your own writing
+
+Nothing needs an agent. Write in Obsidian (or anything else), and save a draft whenever you've done a morning's work:
 
 ```bash
-pentimento serve .
+pentimento snapshot Song.md
+pentimento list Song.md          # every draft and its summary
+pentimento diff Song.md          # the latest two, in the terminal
+pentimento cuttings Song.md      # everything you've cut that isn't in the current draft
+pentimento revert Song.md r002   # bring back r002, saved as a new draft
 ```
 
-List every command and flag:
+A document without an `Archetype` in its frontmatter is treated as your own writing: single line breaks stay line breaks, as in Obsidian, so lyrics and poems keep their shape. The `.history/` folder is hidden from Obsidian.
+
+## Plans with an agent
+
+Pentimento works with Claude Code, opencode, and Codex. Install the skill for your agent:
 
 ```bash
-pentimento --help
+pentimento skill install ~/.claude/skills    # Claude Code
+pentimento skill install ~/.agents/skills    # opencode, Codex
 ```
 
-Open the URL printed in the terminal. Rendered pages make no outside requests.
+Then ask: *"Write a plan for X as a Pentimento document."* The agent writes the markdown, saves the first draft, starts the viewer, and gives you the link.
 
-## Write plans with an agent
+The loop from there:
 
-Pentimento works with Claude Code, opencode, and Codex. Install the small authoring skill for the agent you use.
+1. **Read and comment.** Select any text and leave a comment. When the agent asked you something with a question block, click an answer.
+2. **Tell the agent.** "I left comments." It revises the file and saves the next draft. The page updates in place.
+3. **See what it did.** "What changed since r002" opens the diff, and lists each of your comments the new draft answered.
+4. **Approve.** When the plan is right, press Approve. The agent sees the approval and gets to work. If the plan changes after that, the page offers everything that changed since you signed off.
 
-For Claude Code:
+The skill keeps plans quiet on purpose: mostly prose, with a small set of structured blocks (decisions, a phase list with status, findings by severity, an options table, a question for you) used only where they carry information. `pentimento lint` warns when a document leans on them, and flags the usual generated-prose habits.
+
+If the agent runs on a remote machine, `pentimento serve . --tailscale` binds the viewer to its Tailscale address and prints a private write link and a read-only link. Send the write link only to yourself.
+
+## The page
+
+There is one look. Content is set in a serif, the interface in your system's sans, and code in monospace. Light and dark follow your system; the toggle in the header overrides it for your browser. Nothing on the page is configurable by the document, which is why a plan an agent wrote in March and a song you wrote in May look like they came from the same place.
+
+A static page for sharing or printing:
 
 ```bash
-npx -y pentimento@latest skill install ~/.claude/skills
+pentimento render Plan.md
 ```
 
-For opencode or Codex:
+It has everything except the scrubber and commenting, and makes no outside requests.
+
+## Writing reference
+
+The CLI prints version-matched references:
 
 ```bash
-npx -y pentimento@latest skill install ~/.agents/skills
+pentimento guide              # the authoring loop
+pentimento guide style        # two example documents in the house register
+pentimento guide archetypes   # outlines for plans, audits, brainstorms, design docs
+pentimento guide directives   # syntax for the structured blocks
 ```
 
-Then ask: *"Write an implementation plan for X as a Pentimento document."*
+The same files are in [`skill/references/`](skill/references/).
 
-The skill tells the agent to research the task, write the markdown, lint it, save the first revision, and start the viewer in the background. The agent should give you the local viewer URL. You do not need to run the render command yourself.
-
-Select text in the viewer to leave a comment, then tell the agent: *"I left comments."* It reads the comments, revises the markdown, and saves another revision. The page updates in place and shows what changed.
-
-If the agent runs on a VPS, it can bind the viewer to that machine's Tailscale address:
+## Other commands
 
 ```bash
-pentimento serve . --tailscale
+pentimento comments Plan.md                          # open comments
+pentimento address Plan.md                           # open comments and answers, formatted for an agent
+pentimento resolve Plan.md <id> --rev r003           # mark a comment answered by a draft
+pentimento reply Plan.md <id> --text "..."           # answer without revising
+pentimento approve Plan.md                           # sign off from the terminal
+pentimento verify .                                  # check history and frontmatter agree
+pentimento lint Plan.md [--strict]                   # prose and structure warnings
 ```
 
-Pentimento protects every non-loopback bind and prints a write link plus a read-only link. The write link carries a fresh capability; opening it once stores that capability in an HttpOnly, same-site browser cookie and redirects to a clean URL. Send the write link only to the user who will leave revision instructions. This is remote access to the private user-agent loop, not a shared workspace. Keep the viewer inside the tailnet; Pentimento is not a public hosting service.
-
-Each `serve` command starts one server on one port and serves every Pentimento document under the selected directory. Closing a browser tab does not stop it. A writable viewer includes a **Stop viewer** button; after confirmation it closes that server and every document on its port. Read-only links cannot stop a server, and other Pentimento processes on other ports are unaffected.
-
-The installed skill defers to the version-matched instructions in the CLI. Check whether a copy is current with:
-
-```bash
-pentimento skill check ~/.claude/skills
-```
-
-## Themes
-
-Every rendered page includes Verdigris, Mist, Iris, Parchment, Fjord, and High Contrast, each with Auto, Light, and Dark modes. The picker stores an explicit browser choice locally; **Use document default** clears that override.
-
-Set a personal default once from the CLI:
-
-```bash
-pentimento config theme iris
-```
-
-Show the current default and available themes:
-
-```bash
-pentimento config theme
-```
-
-Return to the built-in default:
-
-```bash
-pentimento config theme reset
-```
-
-The personal setting is stored in `~/.config/pentimento/config.json`. Default precedence is: document `Palette` frontmatter, `PENTIMENTO_PALETTE`, personal CLI config, then built-in Verdigris. An explicit choice in the browser sits above those until you use **Use document default**. Reload after changing the config. Restart an older viewer process once if it still shows the compact three-theme picker.
-
-## Version your own documents
-
-The same engine works on anything you revise seriously, with no agent and no HTML.
-
-Save the first revision:
-
-```bash
-pentimento snapshot Notes.md --summary "Initial draft"
-```
-
-Edit the markdown, then save another revision:
-
-```bash
-pentimento snapshot Notes.md --summary "Rewrote the opening" --why "Buried the point"
-```
-
-List the revisions:
-
-```bash
-pentimento list Notes.md
-```
-
-Compare the latest two:
-
-```bash
-pentimento diff Notes.md
-```
-
-Restore an older revision while keeping the restoration as a new one:
-
-```bash
-pentimento revert Notes.md r001
-```
-
-Snapshots land in a hidden `.history/` next to the file, which keeps them out of the way in Obsidian. The viewer browses revisions and diffs. The `--author` flag defaults to your git `user.name`.
-
-```bash
-pentimento serve .
-```
-
-To create a standalone HTML file instead:
-
-```bash
-pentimento render Notes.md
-```
-
-## Writing documents
-
-A document takes two optional frontmatter keys:
-
-```yaml
----
-Archetype: implementation   # implementation | brainstorm | audit | design-doc
-Palette: iris               # verdigris | mist | iris | parchment | fjord | contrast
----
-```
-
-Rich elements come from `:::` directives: callouts, verdict banners, severity-graded findings, phase timelines, verification checklists, option scorecards, side-by-side diffs, and diagrams laid out from `A -> B` edge chains. The CLI has version-matched writing references.
-
-Directive syntax:
-
-```bash
-pentimento guide directives
-```
-
-Section skeletons by document type:
-
-```bash
-pentimento guide archetypes
-```
-
-Prose rules and examples:
-
-```bash
-pentimento guide style
-```
-
-The same references are in [`skill/references/`](skill/references/).
-
-Each archetype leads with a verdict banner so a reader gets the recommendation before the evidence. The renderer computes the glance-level summaries: a severity tally above `::: findings`, progress meters above `::: timeline` and `::: checklist`. From the second revision on it also computes where the document moved: changed sections get a dot in the table of contents, and the "What changed" panel tallies deltas like `+1 done · −2 HIGH`. On wide screens the table of contents becomes a fixed side rail; a print stylesheet, sticky table headers, and a light/dark toggle come with every render.
-
-Four rules keep the output consistent: no custom CSS, no inline styles, no scripts, no hand-written HTML. When a document needs something the vocabulary can't say, the vocabulary grows in a tool release rather than in the document.
-
-## The review loop
-
-Start the viewer and open a document:
-
-```bash
-pentimento serve .
-```
-
-Select text and a comment button appears. The saved comment includes the quote and surrounding context, so it can find the text again after a section moves. The comment button in the bottom bar opens the drawer. When the agent revises the file, the page updates without a reload and preserves a half-written comment.
-
-List comments:
-
-```bash
-pentimento comments Plan.md
-```
-
-Format open comments for an agent:
-
-```bash
-pentimento address Plan.md
-```
-
-Reply without revising the document:
-
-```bash
-pentimento reply Plan.md c-2026-07-08-001 --text "..."
-```
-
-Resolve a comment against the revision that fixed it:
-
-```bash
-pentimento resolve Plan.md c-2026-07-08-001 --rev r003
-```
-
-You can also comment without the viewer:
-
-```bash
-pentimento comment Plan.md --text "..." --quote "..."
-```
-
-Inline `%% @c: a note %%` markers are another option. Snapshot moves them into `meta.yml`.
-
-## Checking consistency
-
-Check every document's frontmatter against its history and metadata:
-
-```bash
-pentimento verify <file-or-dir>
-```
-
-Lint prose for promotional words, false contrast, engagement hooks, bold-lead bullets, and em-dash density:
-
-```bash
-pentimento lint <doc>
-```
-
-Use strict mode in CI:
-
-```bash
-pentimento lint <doc> --strict
-```
+Everything on disk is plain text: the document, its `.history/<name>/rNNN.md` drafts, and a `meta.yml` with summaries, comments, and approvals. Nothing needs git, and nothing conflicts with it.
 
 MIT © Lucas Traba

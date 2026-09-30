@@ -9,87 +9,124 @@
       else localStorage.removeItem(key)
     } catch (err) {}
   }
-  const paletteButtons = () => [...document.querySelectorAll('.pbtn')]
-  const sync = () => {
-    const valid = paletteButtons().map((b) => b.dataset.p)
-    const fallback = root.dataset.documentPalette || valid[0] || 'verdigris'
-    const p = valid.includes(root.dataset.palette) ? root.dataset.palette : fallback
-    root.dataset.palette = p
+
+  // --- color scheme: auto → dark → light → auto -----------------------------
+  const syncScheme = () => {
     const t = root.dataset.theme || ''
-    const selected = paletteButtons().find((b) => b.dataset.p === p)
-    const label = selected?.querySelector('.theme-copy strong')?.textContent || 'Theme'
-    paletteButtons().forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.p === p)))
-    document.querySelectorAll('.theme-name').forEach((el) => { el.textContent = label })
-    const schemeLabel = t ? `${t[0].toUpperCase()}${t.slice(1)}` : 'Auto'
-    document.querySelectorAll('.tbtn').forEach((b) => { b.textContent = `◐ ${schemeLabel}` })
-    const override = Boolean(readStore('pentimento-palette') || readStore('pentimento-theme'))
-    if (override) root.dataset.readerOverride = 'true'
-    else delete root.dataset.readerOverride
-    document.querySelectorAll('.theme-reset').forEach((b) => { b.disabled = !override })
-    document.querySelectorAll('.theme-trigger').forEach((el) => {
-      el.setAttribute('aria-label', `Theme settings: ${label}, ${t || 'auto'}${override ? ', reader override' : ''}`)
+    const label = t ? t[0].toUpperCase() + t.slice(1) : 'Auto'
+    document.querySelectorAll('[data-scheme-toggle]').forEach((b) => {
+      b.textContent = label
+      b.setAttribute('aria-label', 'Color scheme: ' + (t || 'auto'))
     })
   }
-  // delegated so buttons re-rendered by the live viewer's morph keep working
-  document.addEventListener('click', (e) => {
+
+  // --- traces: swap the document for the version with the last draft showing through
+  const stash = new WeakMap()
+  const applyTraces = () => {
+    const main = document.querySelector('main')
+    const tpl = document.getElementById('traces-tpl')
+    if (!main) return
+    const want = root.dataset.traces === 'on' && Boolean(tpl)
+    const has = main.classList.contains('traces')
+    if (want && !has) {
+      stash.set(main, main.innerHTML)
+      main.innerHTML = tpl.innerHTML
+      main.classList.add('traces')
+    } else if (!want && has) {
+      main.innerHTML = stash.get(main) ?? main.innerHTML
+      main.classList.remove('traces')
+    }
+    document.querySelectorAll('[data-traces-toggle]').forEach((b) => {
+      b.setAttribute('aria-pressed', String(want))
+      b.classList.toggle('traces-on', want)
+    })
+    if (want !== has) document.dispatchEvent(new CustomEvent('pentimento:content'))
+  }
+  const setTraces = (on) => {
+    if (on) root.dataset.traces = 'on'
+    else delete root.dataset.traces
+    try { sessionStorage.setItem('pentimento-traces', on ? 'on' : '') } catch (err) {}
+    applyTraces()
+  }
+  try { if (sessionStorage.getItem('pentimento-traces') === 'on') root.dataset.traces = 'on' } catch (err) {}
+
+  // --- copy a cutting ------------------------------------------------------
+  const copyText = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      return true
+    } catch (err) {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.setAttribute('readonly', '')
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      let ok = false
+      try { ok = document.execCommand('copy') } catch (e) {}
+      ta.remove()
+      return ok
+    }
+  }
+
+  // delegated so controls re-rendered by the live viewer keep working
+  document.addEventListener('click', async (e) => {
     const t = e.target
     if (!t || !t.closest) return
-    const pb = t.closest('.pbtn')
-    if (pb) {
-      root.dataset.palette = pb.dataset.p
-      writeStore('pentimento-palette', pb.dataset.p === root.dataset.documentPalette ? '' : pb.dataset.p)
-      sync()
-      const picker = pb.closest('.theme-picker')
-      if (picker) {
-        picker.open = false
-        picker.querySelector('.theme-trigger')?.focus()
-      }
-      return
-    }
-    if (t.closest('.tbtn')) {
-      // scheme cycle: auto → dark → light → auto
+    if (t.closest('[data-scheme-toggle]')) {
       const current = root.dataset.theme || ''
       const next = current === '' ? 'dark' : current === 'dark' ? 'light' : ''
       if (next) root.dataset.theme = next
       else delete root.dataset.theme
       writeStore('pentimento-theme', next)
-      sync()
+      syncScheme()
       return
     }
-    if (t.closest('.theme-reset')) {
-      writeStore('pentimento-palette', '')
-      writeStore('pentimento-theme', '')
-      root.dataset.palette = root.dataset.documentPalette || 'verdigris'
-      delete root.dataset.theme
-      sync()
-      const picker = t.closest('.theme-picker')
-      if (picker) {
-        picker.open = false
-        picker.querySelector('.theme-trigger')?.focus()
-      }
+    if (t.closest('[data-traces-toggle]')) {
+      setTraces(root.dataset.traces !== 'on')
       return
     }
-    if (!t.closest('.theme-picker')) document.querySelectorAll('.theme-picker[open]').forEach((picker) => { picker.open = false })
-  })
-  document.addEventListener('keydown', (e) => {
-    const current = e.target.closest?.('.pbtn')
-    if (current && ['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft'].includes(e.key)) {
-      const buttons = paletteButtons()
-      const delta = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : -1
-      buttons[(buttons.indexOf(current) + delta + buttons.length) % buttons.length]?.focus()
-      e.preventDefault()
-    }
-    if (e.key === 'Escape') {
-      document.querySelectorAll('.theme-picker[open]').forEach((picker) => {
-        picker.open = false
-        picker.querySelector('.theme-trigger')?.focus()
-      })
+    const copy = t.closest('[data-copy]')
+    if (copy) {
+      const text = copy.closest('.cutting')?.querySelector('.cutting-text')?.textContent ?? ''
+      const ok = await copyText(text)
+      const before = copy.textContent
+      copy.textContent = ok ? 'Copied' : 'Copy failed'
+      setTimeout(() => { copy.textContent = before }, 1400)
     }
   })
-  window.__pSyncPalette = sync
-  sync()
 
-  // print with every fold open, then restore — CSS alone can't force <details> open
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 't' || e.metaKey || e.ctrlKey || e.altKey) return
+    const tag = (e.target && e.target.tagName) || ''
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag) || e.target.isContentEditable) return
+    if (!document.getElementById('traces-tpl')) return
+    setTraces(root.dataset.traces !== 'on')
+  })
+
+  // --- contents rail: mark the section being read ----------------------------
+  let ticking = false
+  const syncRail = () => {
+    ticking = false
+    const links = [...document.querySelectorAll('.rail a[href^="#"]')]
+    if (!links.length) return
+    const line = innerHeight * 0.28
+    let current = null
+    for (const a of links) {
+      const target = document.getElementById(decodeURIComponent(a.getAttribute('href').slice(1)))
+      if (target && target.getBoundingClientRect().top <= line) current = a
+    }
+    links.forEach((a) => a.setAttribute('aria-current', String(a === current)))
+  }
+  addEventListener('scroll', () => {
+    if (!ticking) { ticking = true; requestAnimationFrame(syncRail) }
+  }, { passive: true })
+
+  window.__pSyncChrome = () => { syncScheme(); applyTraces(); syncRail() }
+  window.__pSyncChrome()
+
+  // print with every fold open, then restore; CSS alone can't force <details> open
   let reopened = []
   addEventListener('beforeprint', () => {
     reopened = [...document.querySelectorAll('details:not([open])')]

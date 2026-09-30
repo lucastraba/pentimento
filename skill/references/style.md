@@ -1,103 +1,138 @@
-# Pentimento prose style
+# Writing a Pentimento document
 
-The rules live in `pentimento guide` (the Prose section). This page shows the register
-by example — one before/after pair per surface an agent writes. In every pair the
-"before" is grammatical, plausible, and wrong.
+Two complete documents follow. They show the register to write in: plain sentences,
+specific claims, the conclusion first, and very little structure. Read one before your
+first draft and match it. Then read the notes after each; they point at the choices that
+are easy to miss.
 
-## Standfirst (any archetype)
+## Example 1: an implementation plan
 
-Before:
+````markdown
+---
+Archetype: implementation
+---
+# Stop losing drafts when the save request fails
 
-> A robust, seamless toolchain that doesn't just version your documents — it empowers
-> teams to collaborate effortlessly across the entire planning lifecycle.
+> Keep the reader's text in the form until the server confirms the save, and show the
+> error in place. About 40 lines in `assets/viewer.js`, no server changes.
 
-After:
+## What happens today
 
-> One markdown file, a hidden history of the revisions you chose to keep, and an HTML
-> render the author doesn't control.
+When a reader saves a comment, `post()` in `assets/viewer.js:98` removes the form before
+the request finishes. If the server answers 400 or 404, nothing checks the status, so the
+comment is gone and the page shows no error. If the network drops, the promise rejects,
+the form stays, and the Save button stops responding.
 
-The before says nothing checkable. The after makes three claims a reader can verify.
+Both failures happen in normal use. The 404 case is the common one: an agent renames the
+document while the reader is typing.
 
-## Decision callout (implementation)
+## Approach
 
-Before:
+The form stays open with its text until the response comes back with a 2xx status. On
+any other outcome the form shows the server's message under the text box and re-enables
+Save. The text is also written to `localStorage` on every keystroke, so a reload brings
+it back.
 
-```markdown
-::: callout decision
-**Flexibility:** We will leverage a modular architecture to ensure the system remains
-robust and future-proof as requirements evolve.
+::: callout decision id=d-no-retry
+**No automatic retry.** A retry would hide the 404 case, where retrying can't succeed.
+The reader sees the error and decides.
 :::
-```
 
-After:
+## Steps
 
-```markdown
-::: callout decision id=d-sqlite
-**SQLite over Postgres.** One file on disk, no daemon to run. We lose concurrent
-writers — which this tool never has.
+1. Check `response.ok` in `post()` and keep the form open on failure.
+2. Add the inline error line and re-enable the buttons.
+3. Save and restore the draft through `localStorage`, keyed by document path.
+4. Test each failure with the server stopped, and with the document renamed mid-edit.
+
+## Changes
+
+| File | Change |
+|---|---|
+| `assets/viewer.js` | status check, error line, draft storage |
+| `test/comments.test.ts` | 404 and network-failure cases |
+````
+
+What to notice:
+
+- The standfirst is the whole plan in two sentences, including its size.
+- "What happens today" cites the file and line, and says which failure is common and why.
+  It doesn't call the bug critical; the description makes that clear.
+- There is one callout, for the one choice that rules something out, and it says what.
+- The steps are a plain numbered list. Nothing has started, so there is no status to
+  track and no reason for `::: timeline` yet.
+- Paragraphs are short and end when the point is made. No section summarizes another.
+
+## Example 2: a brainstorm
+
+````markdown
+---
+Archetype: brainstorm
+---
+# Where the notes app should store edit history
+
+> SQLite in the app's data folder. It is one file, needs no server, and handles the
+> expected volume (about 50,000 operations per user per year) without tuning.
+
+## Options
+
+::: options criteria="Setup, Queries by note, Sync cost"
+- **SQLite** [pick] :: none, ships with the app :: indexed, under 5 ms :: send new rows since the last sync
+- **One JSON file per note** :: none :: read and parse the file :: send whole files
+- **Postgres** :: a server per user :: indexed :: needs a sync service we don't have
 :::
-```
 
-A decision names what it forecloses. "Future-proof" forecloses nothing.
+## SQLite
 
-## Finding (audit)
+Each operation is one row: note id, device id, clock, and the edit. Reading one note's
+history is an indexed query. Syncing sends rows with a clock higher than the last one the
+other device acknowledged, which is a single `SELECT`.
 
-Before:
+The cost is a schema to migrate. We have done that twice before with the settings table,
+and it took an afternoon each time.
 
-```markdown
-- HIGH :: The error handling could potentially be improved to be more robust and comprehensive.
-```
+## One JSON file per note
 
-After:
+This is closest to what the app does today, and it needs no new dependency. It breaks
+down on sync: two devices that edit the same note produce two different files, and
+merging them means re-implementing what SQLite gives us as a query.
 
-```markdown
-- HIGH :: `save()` swallows write errors — a full disk loses the draft silently (`src/store.ts:88`).
-```
+## Postgres
 
-A finding is an accusation with an address: symptom, consequence, file and line.
+Postgres would work, but every user would need a server or we would need to host one.
+Neither is on the roadmap.
 
-## Options prose (brainstorm)
+## What would change the answer
 
-Before:
+::: ask id=q-web
+Will the app need to run in a browser tab within the next year?
+- No
+- Yes, which would favour IndexedDB over SQLite
+:::
+````
 
-> It's not just about performance — it's about developer experience. Both options have
-> their pros and cons, and the right choice ultimately depends on your specific needs.
+What to notice:
 
-After:
+- The standfirst names the pick and the number that justifies it.
+- The table carries the comparison, so the sections below add only what doesn't fit in a
+  cell: the mechanism, the real cost, and what breaks.
+- Each option gets a fair hearing in two or three sentences. The losing options are
+  described accurately, not dismissed.
+- The only question asked is one that would flip the recommendation, and only the user
+  can answer it.
 
-> Option A wins on cold-start latency (120ms vs 800ms) and loses on memory (3× resident
-> set). For a CLI that runs once and exits, latency is the only column that matters.
+## Patterns that make a document read as generated
 
-Take a side and show the numbers that put you there. "Depends on your needs" is the
-author refusing to do the reader's thinking.
+These are the habits that make a page feel machine-made. `pentimento lint` catches most
+of them.
 
-## Timeline entry (implementation)
-
-Before:
-
-```markdown
-1. **Phase 1** [next] — Lay the groundwork and establish a comprehensive foundation for future development.
-```
-
-After:
-
-```markdown
-1. **Schema and migrations** [next] — The two tables everything else reads; nothing ships until they're stable.
-```
-
-## Snapshot notes
-
-Before:
-
-```bash
-pentimento snapshot Plan.md --summary "Enhanced the document with various improvements"
-```
-
-After:
-
-```bash
-pentimento snapshot Plan.md --summary "Cut Options from five to three" --why "Two were the same idea worded twice"
-```
-
-The evolution strip at the top of the render is built from these notes. Write them for
-the reader who wasn't in the room.
+- A structured element in every section because the outline mentioned it.
+- Labels that dress up a section ("The bottom line", "Why this matters").
+- Promotional words: leverage, robust, seamless, streamline, empower, comprehensive.
+- "Not X, but Y" framing when the claim is just Y.
+- Bullets that start with a bold label and a colon.
+- Em-dashes in place of commas, colons, and periods.
+- Rhetorical questions and "here's the thing" openers.
+- A closing paragraph that restates the document.
+- Snapshot summaries like "Various improvements". Name the change: "Merge keeps both
+  versions".

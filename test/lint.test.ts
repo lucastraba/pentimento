@@ -22,6 +22,20 @@ describe('lint', () => {
     expect(rules('The future looks bright for this module.\n')).toContain('closer')
   })
 
+  it('warns when a document leans on directives', () => {
+    const block = '::: callout info\nA note.\n:::\n\n'
+    expect(rules(`# T\n\nShort prose.\n\n${block.repeat(3)}`)).not.toContain('directive-density')
+    expect(rules(`# T\n\nShort prose.\n\n${block.repeat(4)}`)).toContain('directive-density')
+    expect(rules('::: verdict\n- a :: b\n:::\n\n::: verdict\n- c :: d\n:::\n')).toContain('repeated-verdict')
+    const ask = '::: ask\nQ?\n- a\n- b\n:::\n\n'
+    expect(rules(ask.repeat(3))).toContain('too-many-asks')
+    expect(rules('::: callout decision\nx\n:::\n\n'.repeat(5))).toContain('decision-density')
+  })
+
+  it('points at settings earlier releases used', () => {
+    expect(rules('---\nPalette: iris\n---\n# T\n\n## A <!-- id: a; eyebrow: Intro -->\n\ntext\n')).toEqual(['palette', 'eyebrow'])
+  })
+
   it('flags two em-dashes in one paragraph and doc-level density', () => {
     const line = 'The fix — which is small — lands today.\n'
     expect(rules(line)).toContain('em-dash')

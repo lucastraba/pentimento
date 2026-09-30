@@ -2,6 +2,8 @@
 
 Directives are fenced with `:::` on their own lines. A leading bare word is the variant; the rest is `key="value"` attrs. Content inside is markdown unless noted.
 
+Use few. A typical plan has zero to three; the guide explains the budget. Everything here renders quietly (rules and labels, not boxes), so a directive helps only when its structure carries information.
+
 ## Callout
 
 ```markdown
@@ -10,9 +12,9 @@ Directives are fenced with `:::` on their own lines. A leading bare word is the 
 :::
 ```
 
-Variants: `decision` (accent wash), `info`, `warn`, `risk` (red label). `id` is optional but give decisions stable ids — they're comment/link anchors.
+Variants: `decision`, `info`, `warn`, `risk`. Each renders as a rule and a small label beside the text. Give decisions stable ids; they are comment and link anchors. Reserve `decision` for choices that close off an alternative; background and caveats stay in prose.
 
-When a decision is reversed, never delete it — mark it and point at its replacement:
+When a decision is reversed, keep it and point at its replacement:
 
 ```markdown
 ::: callout decision id=d-old superseded-by=d-new
@@ -20,19 +22,33 @@ When a decision is reversed, never delete it — mark it and point at its replac
 :::
 ```
 
-The render dims it, relabels it "Superseded", and links `#d-new`. Old brushwork stays visible under the surface.
+The render dims it, relabels it "Superseded", and links `#d-new`.
 
-## Verdict banner
+## Verdict
 
-Headline answers, 2–4 cells. One `question :: answer` list item per cell.
+Two to four short answers, shown as a two-column list. One `question :: answer` item per row. Optional: when the answer fits in one sentence, the standfirst carries it better.
 
 ```markdown
 ::: verdict
 - Works correctly? :: Partially
 - Efficient? :: Convention yes, tooling no
-- Portable? :: Yes — easily
+- Portable? :: Yes
 :::
 ```
+
+## Ask (a question the user answers in the page)
+
+A question line, then two or more `- option` lines. Mark at most one `[recommended]`. Give it an `id`; the answer is stored against it.
+
+```markdown
+::: ask id=q-merge
+How should two edits to the same paragraph merge?
+- Keep both, marked as a conflict [recommended]
+- Last write wins
+:::
+```
+
+In the live viewer the options are buttons, plus "Something else…" for a free-text reply. The answer lands in `meta.yml` as a comment with an `answer` field, and `pentimento address` prints it. Once the next draft reflects the answer, resolve the comment and replace the block with the decision it settled. Ask only what changes your next draft, and at most two per draft.
 
 ## Findings (audit archetype)
 
@@ -48,9 +64,7 @@ Severity is one of `CRIT`, `HIGH`, `MED`, `LOW`. Everything after `@collapse <la
 :::
 ```
 
-The render adds a severity count strip above the list (`1 CRIT · 1 HIGH · …`) computed
-from the lines, and appends the collapsed count to the `@collapse` label, so you don't
-write either by hand.
+The render adds a severity count above the list (`1 critical · 1 high`) and appends the collapsed count to the `@collapse` label, so you don't write either by hand.
 
 ## Options (brainstorm scorecard)
 
@@ -63,11 +77,11 @@ One row per option, criteria as columns, exactly one row marked `[pick]`. The `c
 :::
 ```
 
-The picked row gets the accent wash and a Pick chip, so the comparison carries the recommendation instead of ending in "it depends".
+The picked row is marked, so the comparison carries the recommendation.
 
 ## Checklist (verification)
 
-`- [x]` / `- [ ]` items; the render computes a coverage strip (`2 of 3 done` plus a meter). Use it for the Verification / "done when" section so completion is state, not prose.
+`- [x]` / `- [ ]` items; the render adds a progress line (`2 of 3 done`). Use it when the items will be ticked off across drafts; otherwise a plain list reads better.
 
 ```markdown
 ::: checklist
@@ -78,7 +92,7 @@ The picked row gets the accent wash and a Pick chip, so the comparison carries t
 
 ## Timeline (phases)
 
-Numbered items; bold title, optional `[next]`/`[later]`/`[done]` pill, `—` then description.
+Numbered items; bold title, optional `[next]`/`[later]`/`[done]` status, `—` then description. Use it when phases carry status the reader tracks across drafts.
 
 ```markdown
 ::: timeline
@@ -88,9 +102,7 @@ Numbered items; bold title, optional `[next]`/`[later]`/`[done]` pill, `—` the
 :::
 ```
 
-The render adds a progress strip above the phases (a `<meter>` plus `1 done · 1 next · 1
-later · 3 total`) computed from the pills, so the reader sees how far along the plan is
-at a glance.
+Once any phase is `done` or `next`, the render adds a progress line (`1 of 3 done · 1 next`).
 
 ## Diff (proposed file changes)
 
@@ -123,7 +135,7 @@ Node names are plain text (no markdown). Reach for `::: figure` only when a diag
 
 ## Figure (diagrams)
 
-Inline SVG only, composed from `theme.css` classes: `nodebox` (plain node), `accentbox` (highlighted node), `flow` (arrow path; add `marker-end="url(#arr)"` and define the `arr` marker in `<defs>`), `lbl` (small caption text). The renderer keeps only its SVG tag, attribute, and class allowlists; scripts, event handlers, links, foreign objects, and inline styles are removed. Colors come from CSS variables — never hardcode fills beyond those classes. Always set `aria`.
+Inline SVG only, composed from `theme.css` classes: `nodebox` (plain node), `accentbox` (highlighted node), `flow` (arrow path; add `marker-end="url(#arr)"` and define the `arr` marker in `<defs>`), `lbl` (small caption text). The renderer keeps only its SVG tag, attribute, and class allowlists; scripts, event handlers, links, foreign objects, and inline styles are removed. Colors come from CSS variables; never hardcode fills beyond those classes. Always set `aria`.
 
 ```markdown
 ::: figure aria="PLAN.md flows through the pentimento CLI to plan.html"
@@ -138,13 +150,13 @@ Inline SVG only, composed from `theme.css` classes: `nodebox` (plain node), `acc
 :::
 ```
 
-## Headings, ids, eyebrows
+## Headings and ids
 
 ```markdown
-## Why past HTML plans failed <!-- id: why; eyebrow: Diagnosis -->
+## Why past HTML plans failed <!-- id: why -->
 ```
 
-`id` gives the section a short stable anchor (default: slugified title). `eyebrow` is the small-caps label above the heading. `###` subheadings take `<!-- id: ... -->` too.
+`id` gives the section a stable anchor (default: the slugified title). Add it only when you expect to rename the heading. `###` subheadings take it too. The `eyebrow:` key from earlier releases is ignored.
 
 ## Item anchors
 
@@ -157,18 +169,16 @@ Findings, timeline phases, and checklist items take an optional trailing `{#id}`
 
 ## Swatches
 
-`{dot:impl}` `{dot:brain}` `{dot:audit}` `{dot:design}` `{dot:verdigris}` `{dot:mist}` `{dot:iris}` render as colored dots — use in table cells to key rows to accent hues.
+`{dot:impl}` `{dot:brain}` `{dot:audit}` `{dot:design}` render as small colored dots for keying table rows. Rarely needed.
 
-## Header, TOC, evolution strip, what-changed, footer
+## Generated parts
 
-Generated — never write them. The header reads `Archetype` and `Current Revision` from frontmatter; the evolution strip reads `meta.yml` (that's why snapshot summaries must be written for the reader); the TOC comes from `##` sections; the collapsible "What changed in rNNN" panel is a word-level diff against the previous snapshot, computed at render time.
-
-From the second revision on, the render also computes where the document moved: sections whose content changed since the previous revision get an accent dot in the TOC, and the "What changed" summary line carries glance deltas (`+1 done · −2 HIGH · +1 checked`) tallied from timeline pills, finding severities, and checklist boxes. Never write these by hand.
+Never write these; the render computes them: the label, revision, and date line; the latest summary; "What changed since rNNN" with tallies and answered comments; the traces view; the contents rail and its change dots; cuttings; history.
 
 ## Frontmatter keys
 
 ```yaml
-Archetype: implementation | brainstorm | audit | design-doc   # badge + accent
-Palette: iris | verdigris | mist                              # default palette (reader's own pick wins)
+Archetype: plan | implementation | brainstorm | audit | design-doc   # the label above the title
+Line Breaks: true | false   # optional; defaults to false for plans, true for documents without an Archetype
 ```
-`Pentimento`, `Current Revision`, and `History Folder` are managed by the CLI — never hand-edit them.
+`Pentimento`, `Current Revision`, and `History Folder` are managed by the CLI; never edit them. `Palette` from earlier releases is ignored.

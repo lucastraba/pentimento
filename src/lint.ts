@@ -8,8 +8,8 @@ export interface LintFinding {
 }
 
 /** Directive openings by line, so an unknown name never renders as literal text silently. */
-const directiveOpenings = (raw: string): { line: number; name: string }[] => {
-  const out: { line: number; name: string }[] = []
+const directiveOpenings = (raw: string): { line: number; name: string; variant: string }[] => {
+  const out: { line: number; name: string; variant: string }[] = []
   const lines = raw.split('\n')
   let inFence = false
   let open = false
@@ -18,8 +18,8 @@ const directiveOpenings = (raw: string): { line: number; name: string }[] => {
     if (/^```/.test(text)) { inFence = !inFence; continue }
     if (inFence) continue
     if (open) { if (/^:::$/.test(text)) open = false; continue }
-    const m = /^:::\s*([\w-]+)/.exec(text)
-    if (m) { out.push({ line: i + 1, name: m[1] }); open = true }
+    const m = /^:::\s*([\w-]+)(?:\s+([\w-]+)(?!=))?/.exec(text)
+    if (m) { out.push({ line: i + 1, name: m[1], variant: m[2] ?? '' }); open = true }
   }
   return out
 }
@@ -85,7 +85,8 @@ const RULES: { rule: string; re: RegExp; message: string }[] = [
 
 export const lintDoc = (raw: string): LintFinding[] => {
   const findings: LintFinding[] = []
-  for (const { line, name } of directiveOpenings(raw)) {
+  const openings = directiveOpenings(raw)
+  for (const { line, name } of openings) {
     if (!DIRECTIVE_NAMES.includes(name)) {
       findings.push({
         line,
@@ -119,6 +120,41 @@ export const lintDoc = (raw: string): LintFinding[] => {
       }
     }
     words += text.split(/\s+/).filter(Boolean).length
+  }
+
+  // structure budget: a quiet page is mostly prose
+  const known = openings.filter((o) => DIRECTIVE_NAMES.includes(o.name))
+  const budget = Math.max(3, Math.floor(words / 250))
+  if (known.length > budget) {
+    findings.push({
+      line: known[budget].line,
+      rule: 'directive-density',
+      message: `${known.length} directives in ${words} words of prose — a quiet page is mostly prose; keep the ones whose structure carries information and write the rest as sentences or plain lists`,
+    })
+  }
+  const count = (pred: (o: { name: string; variant: string }) => boolean) => known.filter(pred)
+  const verdicts = count((o) => o.name === 'verdict')
+  if (verdicts.length > 1) {
+    findings.push({ line: verdicts[1].line, rule: 'repeated-verdict', message: 'more than one ::: verdict — one answer block per document' })
+  }
+  const asks = count((o) => o.name === 'ask')
+  if (asks.length > 2) {
+    findings.push({ line: asks[2].line, rule: 'too-many-asks', message: `${asks.length} ::: ask blocks — ask only what changes the next draft, at most two` })
+  }
+  const decisions = count((o) => o.name === 'callout' && o.variant === 'decision')
+  if (decisions.length > 4) {
+    findings.push({ line: decisions[4].line, rule: 'decision-density', message: `${decisions.length} decision callouts — keep them for choices that rule something out` })
+  }
+  const lines = raw.split('\n')
+  lines.forEach((text, i) => {
+    if (/^#{2,3}\s.*<!--[^>]*\beyebrow\s*:/.test(text)) {
+      findings.push({ line: i + 1, rule: 'eyebrow', message: 'eyebrow labels are no longer rendered — remove `eyebrow:` from the heading comment' })
+    }
+  })
+  const { frontmatterRaw } = splitRaw(raw)
+  if (frontmatterRaw && /^Palette\s*:/m.test(frontmatterRaw)) {
+    const line = lines.findIndex((l) => /^Palette\s*:/.test(l)) + 1
+    findings.push({ line, rule: 'palette', message: 'Palette is ignored since 0.8 (one palette, light and dark) — remove it' })
   }
 
   if (words > 0 && emDashes >= 3 && emDashes > words / 100) {

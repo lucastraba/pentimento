@@ -5,20 +5,26 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { createTwoFilesPatch } from 'diff'
-import { configPath, readUserConfig, setUserPalette } from './config.js'
-import { addComment, addReply, loadDoc, readMeta, readRevision, resolveComment, revert, snapshot } from './core.js'
+import { configPath } from './config.js'
+import {
+  addComment, addReply, approve, canonicalRevisionState, latestApproval, loadDoc, readMeta, readRevision,
+  resolveComment, revert, snapshot, splitRaw,
+} from './core.js'
 import { renderDiffPage, renderToFile } from './render.js'
 import { lintDoc } from './lint.js'
+import { collectCuttings } from './semdiff.js'
 import { bundledShim, checkShim, installShim, readGuide } from './skill.js'
-import { DEFAULT_PALETTE, isPalette, PALETTES } from './themes.js'
 import { findPentimentoDocs, verifyDoc } from './verify.js'
 import { isLoopbackHost, serveViewer, viewerOrigin } from './viewer.js'
 
 const USAGE = `pentimento — living documents
 
 Usage:
-  pentimento snapshot <doc> --summary "..." [--why "..."] [--source "..."] [--author name]
+  pentimento snapshot <doc> [--summary "..."] [--why "..."] [--source "..."] [--author name]
+                                      (without --summary, the summary is computed from what
+                                       changed: "Removed Bridge; rewrote Chorus")
   pentimento list <doc>
+  pentimento cuttings <doc>               (passages cut from earlier drafts and not in the current one)
   pentimento diff <doc> [revA] [revB] [--html [-o out.html]]
                                       (defaults: latest two; one arg diffs it against the canonical;
                                        --html renders a readable word-level diff page)
@@ -31,13 +37,13 @@ Usage:
                                        (live viewer: document index, revision picker, diffs,
                                        hot reload, comments, and a protected stop control;
                                        one port serves all plans below dir; never binds 0.0.0.0)
-  pentimento config theme [name|reset]    (show or set your personal default theme)
   pentimento comments <doc>               (list open comments, plus a resolved count)
   pentimento comment <doc> --text "..." [--anchor "#id"] [--quote "..."] [--author name]
   pentimento address <doc>                (open comments formatted for an agent to act on)
   pentimento reply <doc> <comment-id> --text "..." [--author name]
   pentimento resolve <doc> <comment-id> [--rev rNNN] [--note "..."]
                                       (--note records a closing reply on the comment)
+  pentimento approve <doc> [rNNN]         (sign off on a revision, the latest by default)
   pentimento lint <doc> [--strict]        (flag AI-register tells: banned words, false contrast,
                                        em-dash density; --strict exits nonzero for CI)
   pentimento guide [directives|archetypes|style]  (version-matched authoring instructions)
@@ -121,14 +127,15 @@ const main = (): void => {
   switch (cmd) {
     case 'snapshot': {
       if (!doc) fail('snapshot needs a document path')
-      if (!flags.summary) fail('snapshot needs --summary "what changed"')
       const res = snapshot(doc, {
         summary: flags.summary,
         why: flags.why,
         source: flags.source,
         author: flags.author ?? defaultAuthor(),
       })
+      const saved = readMeta(loadDoc(doc).historyDir).revisions.find((r) => r.id === res.rev)
       console.log(`${res.rev} → ${res.historyFile}`)
+      if (!flags.summary && saved) console.log(`summary: ${saved.summary}`)
       const style = lintDoc(loadDoc(doc).raw)
       if (style.length) console.log(`${style.length} style warning(s) — run: pentimento lint ${positional[0]}`)
       break
@@ -151,8 +158,31 @@ const main = (): void => {
         console.log(`      ${r.summary}`)
         if (r.why) console.log(`      why: ${r.why}`)
       }
+      const approvals = new Map((meta.approvals ?? []).map((a) => [a.rev, a]))
+      for (const [rev, a] of approvals) console.log(`\napproved ${rev} — ${a.author}, ${a.created_at.slice(0, 10)}`)
       const open = meta.comments.filter((c) => c.status === 'open')
       if (open.length) console.log(`\n${open.length} open comment(s)`)
+      break
+    }
+    case 'cuttings': {
+      if (!doc) fail('cuttings needs a document path')
+      const d = loadDoc(doc)
+      const meta = readMeta(d.historyDir)
+      const drafts = meta.revisions.map((r) => ({ id: r.id, body: splitRaw(readRevision(doc, r.id)).body }))
+      if (canonicalRevisionState(d, meta).dirty) drafts.push({ id: 'canonical', body: d.body })
+      const cuttings = collectCuttings(drafts)
+      if (!cuttings.length) { console.log('no cuttings'); break }
+      for (const c of cuttings) {
+        console.log(`— cut in ${c.cutIn === 'canonical' ? 'the unsaved draft' : c.cutIn}${c.section ? `, from ${c.section}` : ''}`)
+        console.log(c.text.split('\n').map((l) => `  ${l}`).join('\n'))
+        console.log('')
+      }
+      break
+    }
+    case 'approve': {
+      if (!doc) fail('approve needs a document path')
+      const a = approve(doc, positional[1], flags.author ?? defaultAuthor())
+      console.log(`approved ${a.rev}`)
       break
     }
     case 'diff': {
@@ -235,32 +265,10 @@ const main = (): void => {
       break
     }
     case 'config': {
-      const subject = positional[0] ?? 'theme'
-      if (subject !== 'theme' && subject !== 'palette') fail('config supports: theme [name|reset]')
-      const requested = positional[1]?.toLowerCase()
-      if (!requested) {
-        const configured = readUserConfig().palette
-        const active = configured ?? DEFAULT_PALETTE
-        const label = PALETTES.find((palette) => palette.key === active)?.label ?? active
-        console.log(`default theme: ${label}${configured ? ' (personal config)' : ' (built in)'}`)
-        console.log(`config: ${configPath()}`)
-        console.log(`themes: ${PALETTES.map((palette) => palette.key).join(', ')}`)
-        break
-      }
-      if (requested === 'reset') {
-        const file = setUserPalette(null)
-        console.log(`default theme reset to ${DEFAULT_PALETTE}`)
-        console.log(`config: ${file}`)
-        console.log('Reload the viewer and use “Use document default”; restart only if it still shows the old compact picker.')
-        break
-      }
-      const key = requested === 'high-contrast' ? 'contrast' : requested
-      if (!isPalette(key)) fail(`unknown theme "${requested}" (choose: ${PALETTES.map((palette) => palette.key).join(', ')})`)
-      const file = setUserPalette(key)
-      const label = PALETTES.find((palette) => palette.key === key)?.label ?? key
-      console.log(`default theme: ${label}`)
-      console.log(`config: ${file}`)
-      console.log('Reload the viewer and use “Use document default”; restart only if it still shows the old compact picker.')
+      // Palettes and the personal theme setting were removed in 0.8.
+      console.log('Pentimento has one palette since 0.8; the page follows your system light/dark')
+      console.log('setting, and the toggle in the page header overrides it per browser.')
+      console.log(`Any old ${configPath()} can be deleted.`)
       break
     }
     case 'comments': {
@@ -297,7 +305,16 @@ const main = (): void => {
       const open = meta.comments.filter((c) => c.status === 'open')
       if (!open.length) { console.log('no open comments — nothing to address'); break }
       console.log(`${d.name} (${d.frontmatter['Current Revision'] ?? 'no revision'}) has ${open.length} open comment${open.length > 1 ? 's' : ''}:\n`)
+      const approval = latestApproval(meta)
+      if (approval) console.log(`The reader approved ${approval.rev} on ${approval.created_at.slice(0, 10)}.\n`)
       for (const c of open) {
+        if (c.answer !== undefined) {
+          console.log(`[${c.id}] answer to the question at ${c.anchor} — ${c.author}, ${c.created_at.slice(0, 10)}`)
+          if (c.quote) console.log(`  question: "${c.quote}"`)
+          console.log(`  answer: ${c.answer}`)
+          console.log('')
+          continue
+        }
         console.log(`[${c.id}] anchored at ${c.anchor || '(document)'} — ${c.author}, ${c.created_at.slice(0, 10)}`)
         if (c.quote) console.log(`  quoted text: "${c.quote}"`)
         if (c.prefix || c.suffix) console.log(`  context: …${c.prefix ?? ''}[quote]${c.suffix ?? ''}…`)

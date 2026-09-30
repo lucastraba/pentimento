@@ -134,6 +134,61 @@ describe('comments in render and viewer', () => {
     expect(readMeta(loadDoc(p).historyDir).comments[0].status).toBe('resolved')
   })
 
+  it('records answers to ::: ask questions, replacing an earlier open answer', async () => {
+    fs.writeFileSync(p, fs.readFileSync(p, 'utf8') + '\n::: ask id=q-db\nWhich database?\n- SQLite [recommended]\n- Postgres\n:::\n')
+    snapshot(p, { summary: 'ask', author: 'test' })
+    const { app } = createApp(dir, { author: 'lucas' })
+    const answer = (choice: string) => app.request('/api/answer', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ rel: 'Plan.md', anchor: '#q-db', question: 'Which database?', choice }),
+    })
+    expect((await answer('Postgres')).status).toBe(200)
+    expect((await answer('SQLite')).status).toBe(200)
+    const answers = readMeta(loadDoc(p).historyDir).comments.filter((c) => c.answer !== undefined)
+    expect(answers).toHaveLength(1)
+    expect(answers[0]).toMatchObject({ anchor: '#q-db', answer: 'SQLite', text: 'Answer: SQLite', author: 'lucas' })
+    const html = render(p)
+    expect(html).toContain('data-choice="SQLite" aria-pressed="true"')
+    expect(html).toContain('You answered “SQLite” · waiting for the next draft')
+    expect((await app.request('/api/answer', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ rel: 'Plan.md', anchor: 'no-hash', choice: 'x' }),
+    })).status).toBe(400)
+  })
+
+  it('approves the latest revision and shows it in the page and the bar', async () => {
+    const { app } = createApp(dir, { author: 'lucas' })
+    const res = await app.request('/api/approve', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ rel: 'Plan.md' }),
+    })
+    expect(res.status).toBe(200)
+    expect(readMeta(loadDoc(p).historyDir).approvals).toEqual([expect.objectContaining({ rev: 'r001', author: 'lucas' })])
+    let page = await (await app.request('/doc/Plan.md')).text()
+    expect(page).toContain('<span class="approved" data-approved="r001">Approved</span>')
+    expect(page).toContain('Approved r001</button>')
+    // a newer draft keeps the old approval visible and offers the approve button again
+    fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace('long enough', 'long enough, and changed'))
+    snapshot(p, { summary: 'second', author: 'test' })
+    page = await (await app.request('/doc/Plan.md')).text()
+    expect(page).toContain('data-approved="r001">Approved r001</span>')
+    expect(page).toContain('id="vapprove"')
+    expect((await app.request('/api/approve', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ rel: 'Plan.md', rev: 'r009' }),
+    })).status).toBe(404)
+  })
+
+  it('serves a view compared against an earlier revision with ?since=', async () => {
+    fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace('long enough', 'long enough, twice'))
+    snapshot(p, { summary: 'second', author: 'test' })
+    fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace('twice', 'thrice'))
+    snapshot(p, { summary: 'third', author: 'test' })
+    const { app } = createApp(dir)
+    expect(await (await app.request('/doc/Plan.md')).text()).toContain('What changed since r002')
+    expect(await (await app.request('/doc/Plan.md?since=r001')).text()).toContain('What changed since r001')
+    expect((await app.request('/doc/Plan.md?since=r777')).status).toBe(404)
+  })
+
   it('rejects empty text and unknown docs', async () => {
     const { app } = createApp(dir)
     const bad = await app.request('/api/comment', {
@@ -177,8 +232,8 @@ describe('comments in render and viewer', () => {
     const locked = await (await app.request('/doc/Plan.md')).text()
     expect(locked).toContain('"canComment":false')
     expect(locked).toContain('read-only link')
-    expect(locked).not.toContain('<button class="viewer-stop" data-stop-viewer')
-    expect(await (await app.request('/')).text()).not.toContain('<button class="viewer-stop" data-stop-viewer')
+    expect(locked).not.toContain('data-stop-viewer type="button"')
+    expect(await (await app.request('/')).text()).not.toContain('data-stop-viewer type="button"')
     const body = JSON.stringify({ rel: 'Plan.md', text: 'remote note' })
     expect((await app.request('/api/comment', {
       method: 'POST', headers: { origin: 'http://100.64.0.2:4820', 'content-type': 'application/json' }, body,
@@ -199,8 +254,8 @@ describe('comments in render and viewer', () => {
     })).status).toBe(200)
     const writable = await (await app.request('/doc/Plan.md', { headers: { cookie } })).text()
     expect(writable).toContain('"canComment":true')
-    expect(writable).toContain('<button class="viewer-stop" data-stop-viewer')
-    expect(await (await app.request('/', { headers: { cookie } })).text()).toContain('<button class="viewer-stop" data-stop-viewer')
+    expect(writable).toContain('data-stop-viewer type="button"')
+    expect(await (await app.request('/', { headers: { cookie } })).text()).toContain('data-stop-viewer type="button"')
     expect((await app.request('/api/shutdown', {
       method: 'POST', headers: { origin: 'https://evil.example', 'content-type': 'application/json', cookie }, body: '{}',
     })).status).toBe(403)
@@ -218,7 +273,8 @@ describe('comments in render and viewer', () => {
     const { app } = createApp(dir)
     const page = await (await app.request('/doc/Plan.md?rev=r001')).text()
     expect(page).toContain('"canComment":false')
-    expect(page).toContain('read-only revision')
+    expect(page).toContain('"rev":"r001"')
+    expect(page).toContain(" is read-only. ")
   })
 
   it('replaces the header panel with drawer data in the live viewer', async () => {
