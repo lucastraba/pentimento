@@ -1,6 +1,9 @@
 name: ci
 on:
   push:
+    # Branches only. A bare `push` also fires on tag pushes, which would rerun
+    # the whole matrix alongside the release workflow.
+    branches: ['**']
   pull_request:
 jobs:
   test:
