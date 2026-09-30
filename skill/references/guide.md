@@ -124,5 +124,9 @@ documents; imitate those rather than a list of rules. The few rules that matter 
 - Write bullets as full sentences, or write a paragraph. No bold labels at the start of
   bullets.
 - Don't open with a hook or close with a summary of what you just said.
+- Don't swap in a clipped, quotable voice instead. No slogans ("X is the product"), no
+  metaphors for bugs, no "This document walks…", no "Three things…" setups, no
+  "…, not a Y." endings. Write the way you'd explain it to a colleague at their desk.
+  `pentimento guide style` has before/after lines from a real document.
 
 `pentimento lint <Name>.md` checks these mechanically. Snapshot prints the warning count.

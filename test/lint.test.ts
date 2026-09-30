@@ -22,6 +22,20 @@ describe('lint', () => {
     expect(rules('The future looks bright for this module.\n')).toContain('closer')
   })
 
+  it('flags the tells of prose trying not to sound generated', () => {
+    expect(rules('This document walks the loop as a reader sees it.\n')).toContain('narration')
+    expect(rules('The numbers tell the story.\n')).toContain('narration')
+    expect(rules('This is the load-bearing idea.\n')).toContain('stock-phrase')
+    expect(rules('The review loop is the product.\n')).toContain('stock-phrase')
+    expect(rules('This is a review tool, not a forum.\n')).toContain('tidy-contrast')
+    expect(rules('Use SQLite, which needs no server.\n')).toEqual([])
+  })
+
+  it('ignores phrases that are quoted or in code', () => {
+    expect(rules('Agents wrote "leverage" and "isn\'t just X" everywhere.\n')).toEqual([])
+    expect(rules('The lint list includes `robust`.\n')).toEqual([])
+  })
+
   it('warns when a document leans on directives', () => {
     const block = '::: callout info\nA note.\n:::\n\n'
     expect(rules(`# T\n\nShort prose.\n\n${block.repeat(3)}`)).not.toContain('directive-density')

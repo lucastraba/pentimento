@@ -33,4 +33,10 @@ revisions:
     author: Lucas Traba
     summary: Drop eyebrow labels and the palette setting
     why: 0.8 renders neither
+  - id: r006
+    created_at: 2026-09-30T13:34:21+00:00
+    author: Lucas Traba
+    summary: Rewrote in plain prose
+    why: The first drafts used the slogan-and-metaphor voice the skill now warns
+      about
 comments: []

@@ -2,7 +2,7 @@
 name: pentimento-plan
 description: "Write a plan, design doc, brainstorm, or audit as a Pentimento document: one markdown file with saved drafts, served as a page the user reads, comments on, and approves. Use when the user asks for a plan or design doc they will review over several rounds, or invokes /pentimento-plan. Also for revising an existing Pentimento document after comments."
 metadata:
-  pentimento_skill_revision: "10"
+  pentimento_skill_revision: "11"
 ---
 
 # Pentimento plans
@@ -31,7 +31,7 @@ Check with `command -v pentimento`. Node 20.13 or newer either way.
 
 `pentimento guide` covers the loop. Deeper pages:
 
-- `pentimento guide style`: two complete example documents in the register to write in. Read at least one before your first draft.
+- `pentimento guide style`: two complete example documents in the register to write in, and the second-layer tells to avoid. Read it before your first draft.
 - `pentimento guide archetypes`: suggested section outlines.
 - `pentimento guide directives`: directive syntax.
 

@@ -15,6 +15,7 @@ Pentimento 0.8 reframes the tool around rounds of drafts and makes the page much
 - The viewer has a revision scrubber, and it tells you when you have unread drafts, with a link to everything changed since the last one you read (`?since=rNNN`).
 - History at the bottom of every page: each draft's summary, reason, date, word count, and a small words-per-draft chart.
 - Documents without an `Archetype` keep single line breaks, as Obsidian does. `Line Breaks: true|false` overrides it.
+- Lint flags a second layer of generated-prose tells: self-narration ("This document walks…"), stock phrases (load-bearing, "X is the product"), and ", not a Y." slogan endings. Quoted phrases and code spans no longer count.
 - Lint warns about directive-heavy documents, repeated verdicts, more than two asks, more than four decision callouts, and leftover `eyebrow:` and `Palette` settings.
 
 ### Changed

@@ -77,6 +77,21 @@ const RULES: { rule: string; re: RegExp; message: string }[] = [
     message: 'false contrast — state the claim without the "not X but Y" frame',
   },
   {
+    rule: 'narration',
+    re: /\bthis (?:document|doc|plan|section|memo) (?:walks|explores|catalogs|catalogues|dives|takes a look|looks at|unpacks)\b|\bwalk(?:s|ing)? (?:it|through it) end to end\b|\blet'?s (?:walk|look|unpack|break)\b|\btells? the (?:whole )?story\b/gi,
+    message: 'the document narrating itself — say the thing instead of announcing it',
+  },
+  {
+    rule: 'stock-phrase',
+    re: /\bload-bearing\b|\bthe real win\b|\bthe moment that matters\b|\bis the (?:product|point|whole game)\.|\bin (?:a single|one) move\b|\bheavy lifting\b|\bnorth star\b|\bsingle source of truth\b|\bat the end of the day\b|\bmove the needle\b|\bhere'?s why\b/gi,
+    message: 'stock phrase — write the specific claim it stands in for',
+  },
+  {
+    rule: 'tidy-contrast',
+    re: /,\s+not\s+(?:a|an|the)\s+[\w-]+(?:\s+[\w-]+)?\.(?=\s|$)/gi,
+    message: 'a ", not a Y." ending reads as a slogan — say what it is and stop',
+  },
+  {
     rule: 'closer',
     re: /the future (?:looks|is) bright|only time will tell|i hope this helps|stay tuned|exciting (?:times|journey)/gi,
     message: 'generic closer — end when the content ends',
@@ -100,9 +115,11 @@ export const lintDoc = (raw: string): LintFinding[] => {
   let words = 0
 
   for (const { line, text, block } of prose) {
+    // quoted phrases and code spans are mentions, not uses
+    const said = text.replace(/`[^`]*`/g, ' ').replace(/"[^"\n]*"|“[^”\n]*”/g, ' ')
     for (const { rule, re, message } of RULES) {
       re.lastIndex = 0
-      const m = re.exec(text)
+      const m = re.exec(said)
       if (m) findings.push({ line, rule, message: `"${m[0]}" — ${message}` })
     }
     if (/^#{1,3}\s/.test(text) && /\p{Extended_Pictographic}/u.test(text)) {

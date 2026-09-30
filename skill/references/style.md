@@ -123,7 +123,7 @@ What to notice:
 
 ## Patterns that make a document read as generated
 
-These are the habits that make a page feel machine-made. `pentimento lint` catches most
+These are the habits that make a page feel machine-made. `pentimento lint` catches many
 of them.
 
 - A structured element in every section because the outline mentioned it.
@@ -136,3 +136,43 @@ of them.
 - A closing paragraph that restates the document.
 - Snapshot summaries like "Various improvements". Name the change: "Merge keeps both
   versions".
+
+## The second layer: prose trying not to sound generated
+
+Avoiding the words above is not enough. A model told to avoid them often switches to a
+clipped, quotable voice that readers spot just as fast. Every line on the left below comes
+from a real Pentimento document that passed the older lint.
+
+| Reads as generated | Plain |
+|---|---|
+| The review loop is the product. | An agent writes a plan, the reader comments, and the agent revises. |
+| Every save feels like dropping a letter into a mailbox with no slot. | Saving a comment showed nothing. |
+| Correct and trustworthy are different properties, and the viewer only delivers the first. | Storage worked, but the reader had no way to tell. |
+| Walk it end to end. You select a sentence… | Selecting text showed a button. |
+| The numbers in `theme.css` tell the story. | In `theme.css`, the container was 90 characters wide. |
+| This is the load-bearing idea: | (Delete it. Put the idea first.) |
+| This is a review tool, not a forum. | Replies stay one level deep and plain text. |
+| One column for reading, one wider stage for exhibits, nothing in between. | Everything uses the prose width except diffs, wide tables, and figures. |
+| Three moments need work, in order of how much they hurt. | (Delete it. Start with the first one.) |
+
+The patterns behind them:
+
+- **Slogans.** Short, quotable sentences that sum up instead of inform ("X is the
+  product", "Y, not Z."). If a sentence would work on a poster, rewrite it as a fact.
+- **Figures of speech.** Metaphors and similes to make a bug feel vivid. Describe what
+  happens instead.
+- **Self-narration.** The document announcing what it is about to do ("This document
+  walks…", "Let's look at…", "Walk it end to end"). Do it without announcing it.
+- **Counted setups.** "Three gaps", "two halves", "three layers", followed by "The first…
+  The second…". Use a heading or a list if the items need numbers; otherwise just write
+  them.
+- **Colon reveals.** "What you see: …", "The fix: …", "The answer is simple: …". Write
+  the sentence.
+- **Borrowed jargon.** load-bearing, the real win, north star, tier, surface area,
+  first-class. Use the ordinary word for the thing.
+- **Clipped imperatives as section openers.** "Kill the reload." "Make failure loud."
+  Say what changes and why.
+
+A useful check: read a paragraph and ask whether a colleague explaining this at a desk
+would say it that way. They would say "saving didn't show anything", not "every save
+feels like a letter into a mailbox with no slot".
