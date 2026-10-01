@@ -489,22 +489,22 @@ html[data-scrubbing] main { transition: opacity .12s; }
 <script>(()=>{let t=null;try{t=localStorage.getItem('pentimento-theme')}catch(e){}if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;else{try{localStorage.removeItem('pentimento-theme')}catch(e){}}})()</script>
 
 <div class="wrap">
-<nav class="rail" aria-label="Contents"><ol><li><a href="#why">What it does</a></li><li><a href="#decisions">Decisions</a></li><li><a href="#settled">Settled in September 2026</a></li><li><a href="#shipped">Status<span class="chg" title="Changed since r009"></span></a></li><li><a href="#open">Open questions</a></li></ol><ol class="rail-appendix"><li><a href="#cuttings">Cuttings</a></li><li><a href="#history">History</a></li></ol></nav>
+<nav class="rail" aria-label="Contents"><ol><li><a href="#why">What it does</a></li><li><a href="#decisions">Decisions</a></li><li><a href="#settled">Settled in September 2026</a></li><li><a href="#shipped">Status<span class="chg" title="Changed since r010"></span></a></li><li><a href="#open">Open questions</a></li></ol><ol class="rail-appendix"><li><a href="#cuttings">Cuttings</a></li><li><a href="#history">History</a></li></ol></nav>
 <header class="doc">
-  <div class="meta"><span class="kind">Design doc</span><span class="rev-label">r010</span><time datetime="2026-10-01">1 Oct 2026</time><span class="meta-tools"><button class="tool" type="button" data-traces-toggle aria-pressed="false" title="Show the previous draft under this one (T)">Traces</button><button class="tool scheme-toggle" type="button" data-scheme-toggle aria-label="Color scheme: auto">Auto</button></span></div>
+  <div class="meta"><span class="kind">Design doc</span><span class="rev-label">r011</span><time datetime="2026-10-01">1 Oct 2026</time><span class="meta-tools"><button class="tool" type="button" data-traces-toggle aria-pressed="false" title="Show the previous draft under this one (T)">Traces</button><button class="tool scheme-toggle" type="button" data-scheme-toggle aria-label="Color scheme: auto">Auto</button></span></div>
   <h1>Pentimento</h1>
   <p class="standfirst">Pentimento keeps every draft of a markdown document and shows what changed between rounds and why. It serves two uses with one mechanism: a person revising their own writing, and an agent revising a plan from the person's comments.</p>
-  <p class="latest"><span class="rev">r010</span>Plugin 0.3.1 released, ready to submit</p><details class="changes"><summary>What changed since r009</summary><div class="rdiff"><div class="rdiff-skip">18 unchanged blocks</div>
+  <p class="latest"><span class="rev">r011</span>Plugin listed in Obsidian's community directory</p><details class="changes"><summary>What changed since r010<span class="delta"> · +1 done · −1 next</span></summary><div class="rdiff"><div class="rdiff-skip">18 unchanged blocks</div>
 <div class="rdiff-ctx">Status</div>
 <div class="rdiff-block codey">::: timeline
 1. **Release 0.11** [done] — Published from CI on 30 September 2026. The viewer is still unchecked in Safari and Firefox.
 2. **Obsidian plugin, first version** [done] — `src/model.ts` holds the draft format, `src/drafts.ts` saves through a storage interface, and the plugin has the Save draft command, ribbon button, status bar, and optional daily drafts.
 3. **Obsidian plugin, side panel** [done] — Changes against any draft, every draft with restore, and cuttings with copy buttons.
-4. **Plugin in the community list** [next] — The plugin moved to `lucastraba/pentimento-obsidian` and imports the draft code from the `pentimento` package. <del>Submitted</del><ins>Released as 0.3.1, ready</ins> to <del>Obsidian's</del><ins>submit at</ins> community<del> list; review is pending</del>.<ins>obsidian.md.
-</ins>5. **Paragraph history** [later] — A mark beside each paragraph that changed across drafts, opening its earlier versions.
+4. **Plugin in the community list** [<del>next</del><ins>done</ins>] — <ins>Listed at community.obsidian.md/plugins/pentimento from 0.3.2. </ins>The <del>plugin moved to</del><ins>source is</ins> `lucastraba/pentimento-obsidian`<del> and</del><ins>, which</ins> imports the draft code from the `pentimento` package.<del> Released as 0.3.1, ready to submit at community.obsidian.md.</del>
+5. **Paragraph history** [later] — A mark beside each paragraph that changed across drafts, opening its earlier versions.
 :::</div>
 <div class="rdiff-skip">2 unchanged blocks</div></div></details>
-  <div class="drafts-scrub"><label><span class="drafts-scrub-name">Drafts</span><input type="range" data-draft-scrub min="0" max="9" step="1" value="9" aria-label="Draft"></label><span class="drafts-scrub-label" data-draft-label data-current="r010">r010</span></div>
+  <div class="drafts-scrub"><label><span class="drafts-scrub-name">Drafts</span><input type="range" data-draft-scrub min="0" max="10" step="1" value="10" aria-label="Draft"></label><span class="drafts-scrub-label" data-draft-label data-current="r011">r011</span></div>
 <template class="draft-tpl" data-rev="r001"><section>
 <h2 id="why">Why<a class="anch" href="#why" aria-label="Link to this section">#</a></h2>
 <p>Agent-generated HTML is slop because the agent is handed a <em>paint palette</em>. Plans revised three times are unreviewable because nothing records what moved, or why. Pentimento inverts both: a deterministic renderer, a fixed design system, a small directive vocabulary, and numbered snapshots with an append-only decision log. Any agent — or any human — produces markdown plus directives; the toolchain produces the view and the history.</p>
@@ -959,7 +959,56 @@ html[data-scrubbing] main { transition: opacity .12s; }
 </ul>
 
 </section></template>
-  <details class="toc-inline"><summary>Contents</summary><nav aria-label="Contents"><ol><li><a href="#why">What it does</a></li><li><a href="#decisions">Decisions</a></li><li><a href="#settled">Settled in September 2026</a></li><li><a href="#shipped">Status<span class="chg" title="Changed since r009"></span></a></li><li><a href="#open">Open questions</a></li><li><a href="#cuttings">Cuttings</a></li><li><a href="#history">History</a></li></ol></nav></details>
+<template class="draft-tpl" data-rev="r010"><section>
+<h2 id="why">What it does<a class="anch" href="#why" aria-label="Link to this section">#</a></h2>
+<p>A document is one markdown file that stays where it is. <code>pentimento snapshot</code> copies it into <code>.history/&lt;name&gt;/rNNN.md</code> and records a summary in <code>meta.yml</code>. When no summary is given, the snapshot writes one from the diff, using the document's headings (&quot;Rewrote Chorus&quot;).</p>
+<p><code>pentimento serve</code> shows the current draft as a page. From the second draft on, the page offers the diff against the previous draft, a traces view with the previous draft showing under the current one, the passages cut in earlier drafts, and the full history. In the live viewer the reader can also step through drafts, comment on selected text, answer questions the agent asked, and approve a draft.</p>
+<p>Agents use the same commands. <code>pentimento address</code> gives them the reader's open comments and answers, and <code>pentimento resolve</code> records which draft answered each one, which the page then shows next to the diff.</p>
+
+</section>
+
+<section>
+<h2 id="decisions">Decisions<a class="anch" href="#decisions" aria-label="Link to this section">#</a></h2>
+
+<div class="callout decision" id="d-source-of-truth"><span class="label">Decision</span><p><strong>The markdown file is the document, and history is plain files.</strong> The HTML is always generated from it. Drafts and metadata sit in <code>.history/</code> as markdown and YAML, so grep, git, Obsidian, and agents can all read them. There is no database.</p>
+</div>
+
+<div class="callout decision" id="d-vocabulary"><span class="label">Decision</span><p><strong>Documents don't control how they look.</strong> Agents write markdown and a small set of <code>:::</code> directives; one stylesheet decides the rest. When a document needs something the directives can't express, the vocabulary changes in a release. This is what keeps agent output consistent from one plan to the next.</p>
+</div>
+<p>Two more choices follow from these. Pentimento is built for one person and one document at a time: comments are that person's instructions to the agent, and there are no accounts, reviewers, or shared editing. When the agent runs on a remote machine, <code>--tailscale</code> gives the same person a private link to the viewer; it does not make the document shared.</p>
+<p>The project was called Vellum until July 2026. Documents marked <code>Vellum: true</code> are still read and are migrated on their next snapshot.</p>
+
+</section>
+
+<section>
+<h2 id="settled">Settled in September 2026<a class="anch" href="#settled" aria-label="Link to this section">#</a></h2>
+<p>The Obsidian plugin will work inside Obsidian rather than open the browser viewer. For your own writing the point is to stay in the editor; the browser viewer stays the place for agent plans, comments, and approval. The plugin will write drafts through Obsidian's vault API instead of calling the CLI, so it also works on phones. That means moving the file access in <code>src/core.ts</code> behind a small storage interface first. The diff and traces code in <code>src/semdiff.ts</code> has no file access and can be shared as it is.</p>
+<p><code>::: figure</code> is out of the authoring guide. It still renders for older documents, and lint suggests <code>::: flow</code> for new ones. Flow arrows now take labels (<code>A -(writes)-&gt; B</code>), which covers the diagrams figure was mostly used for.</p>
+<p>Static renders embed the last 10 drafts and a scrubber in the header. <code>pentimento render --drafts all</code> embeds every draft and <code>--drafts 0</code> none. A four-draft song adds a few kilobytes; a long plan with 20 drafts would add several hundred, which is why the default is capped.</p>
+<p>Obsidian syntax now renders as Obsidian shows it: <code>[[links]]</code>, <code>==highlights==</code>, <code>&gt; [!note]</code> callouts, and footnotes, with `` hidden.</p>
+
+</section>
+
+<section>
+<h2 id="shipped">Status<a class="anch" href="#shipped" aria-label="Link to this section">#</a></h2>
+<p>Version 0.6 hardened rendering and paths, added the protected Tailscale mode, and set up CI across Node 20, 22, and 24 with a packed-install test. Version 0.7 added <code>::: flow</code>, checklists, option tables, and change marks in the contents. Version 0.11 replaced the six palettes with one quieter design, added traces, cuttings, computed summaries, the scrubber, approvals, <code>::: ask</code>, and Obsidian syntax, and rewrote the agent skill around a directive budget and example documents.</p>
+
+<div class="progress"><span class="bar" role="meter" aria-valuemin="0" aria-valuemax="5" aria-valuenow="3" aria-label="Sequence progress"><i style="width:60%"></i></span><span>3 of 5 done · 1 next</span></div><ol class="timeline"><li class="is-done"><span class="ph">1</span><div><h3>Release 0.11<span class="status done">done</span></h3><p>Published from CI on 30 September 2026. The viewer is still unchecked in Safari and Firefox.</p></div></li>
+<li class="is-done"><span class="ph">2</span><div><h3>Obsidian plugin, first version<span class="status done">done</span></h3><p><code>src/model.ts</code> holds the draft format, <code>src/drafts.ts</code> saves through a storage interface, and the plugin has the Save draft command, ribbon button, status bar, and optional daily drafts.</p></div></li>
+<li class="is-done"><span class="ph">3</span><div><h3>Obsidian plugin, side panel<span class="status done">done</span></h3><p>Changes against any draft, every draft with restore, and cuttings with copy buttons.</p></div></li>
+<li><span class="ph">4</span><div><h3>Plugin in the community list<span class="status next">next</span></h3><p>The plugin moved to <code>lucastraba/pentimento-obsidian</code> and imports the draft code from the <code>pentimento</code> package. Released as 0.3.1, ready to submit at community.obsidian.md.</p></div></li>
+<li><span class="ph">5</span><div><h3>Paragraph history<span class="status later">later</span></h3><p>A mark beside each paragraph that changed across drafts, opening its earlier versions.</p></div></li></ol>
+
+</section>
+
+<section>
+<h2 id="open">Open questions<a class="anch" href="#open" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>Should wikilinks in the live viewer open the linked note when it is a Pentimento document in the same folder?</li>
+</ul>
+
+</section></template>
+  <details class="toc-inline"><summary>Contents</summary><nav aria-label="Contents"><ol><li><a href="#why">What it does</a></li><li><a href="#decisions">Decisions</a></li><li><a href="#settled">Settled in September 2026</a></li><li><a href="#shipped">Status<span class="chg" title="Changed since r010"></span></a></li><li><a href="#open">Open questions</a></li><li><a href="#cuttings">Cuttings</a></li><li><a href="#history">History</a></li></ol></nav></details>
 </header>
 
 <main>
@@ -997,10 +1046,10 @@ html[data-scrubbing] main { transition: opacity .12s; }
 <h2 id="shipped">Status<a class="anch" href="#shipped" aria-label="Link to this section">#</a></h2>
 <p>Version 0.6 hardened rendering and paths, added the protected Tailscale mode, and set up CI across Node 20, 22, and 24 with a packed-install test. Version 0.7 added <code>::: flow</code>, checklists, option tables, and change marks in the contents. Version 0.11 replaced the six palettes with one quieter design, added traces, cuttings, computed summaries, the scrubber, approvals, <code>::: ask</code>, and Obsidian syntax, and rewrote the agent skill around a directive budget and example documents.</p>
 
-<div class="progress"><span class="bar" role="meter" aria-valuemin="0" aria-valuemax="5" aria-valuenow="3" aria-label="Sequence progress"><i style="width:60%"></i></span><span>3 of 5 done · 1 next</span></div><ol class="timeline"><li class="is-done"><span class="ph">1</span><div><h3>Release 0.11<span class="status done">done</span></h3><p>Published from CI on 30 September 2026. The viewer is still unchecked in Safari and Firefox.</p></div></li>
+<div class="progress"><span class="bar" role="meter" aria-valuemin="0" aria-valuemax="5" aria-valuenow="4" aria-label="Sequence progress"><i style="width:80%"></i></span><span>4 of 5 done</span></div><ol class="timeline"><li class="is-done"><span class="ph">1</span><div><h3>Release 0.11<span class="status done">done</span></h3><p>Published from CI on 30 September 2026. The viewer is still unchecked in Safari and Firefox.</p></div></li>
 <li class="is-done"><span class="ph">2</span><div><h3>Obsidian plugin, first version<span class="status done">done</span></h3><p><code>src/model.ts</code> holds the draft format, <code>src/drafts.ts</code> saves through a storage interface, and the plugin has the Save draft command, ribbon button, status bar, and optional daily drafts.</p></div></li>
 <li class="is-done"><span class="ph">3</span><div><h3>Obsidian plugin, side panel<span class="status done">done</span></h3><p>Changes against any draft, every draft with restore, and cuttings with copy buttons.</p></div></li>
-<li><span class="ph">4</span><div><h3>Plugin in the community list<span class="status next">next</span></h3><p>The plugin moved to <code>lucastraba/pentimento-obsidian</code> and imports the draft code from the <code>pentimento</code> package. Released as 0.3.1, ready to submit at community.obsidian.md.</p></div></li>
+<li class="is-done"><span class="ph">4</span><div><h3>Plugin in the community list<span class="status done">done</span></h3><p>Listed at community.obsidian.md/plugins/pentimento from 0.3.2. The source is <code>lucastraba/pentimento-obsidian</code>, which imports the draft code from the <code>pentimento</code> package.</p></div></li>
 <li><span class="ph">5</span><div><h3>Paragraph history<span class="status later">later</span></h3><p>A mark beside each paragraph that changed across drafts, opening its earlier versions.</p></div></li></ol>
 
 </section>
@@ -1013,7 +1062,7 @@ html[data-scrubbing] main { transition: opacity .12s; }
 
 </section>
 </main>
-<template id="traces-tpl"><p class="traces-banner">Traces of r009 under the current text. Press T to hide.</p>
+<template id="traces-tpl"><p class="traces-banner">Traces of r010 under the current text. Press T to hide.</p>
 <section>
 <h2 id="why">What it does<a class="anch" href="#why" aria-label="Link to this section">#</a></h2>
 <p>A document is one markdown file that stays where it is. <code>pentimento snapshot</code> copies it into <code>.history/&lt;name&gt;/rNNN.md</code> and records a summary in <code>meta.yml</code>. When no summary is given, the snapshot writes one from the diff, using the document's headings (&quot;Rewrote Chorus&quot;).</p>
@@ -1048,17 +1097,17 @@ html[data-scrubbing] main { transition: opacity .12s; }
 <h2 id="shipped">Status<a class="anch" href="#shipped" aria-label="Link to this section">#</a></h2>
 <p>Version 0.6 hardened rendering and paths, added the protected Tailscale mode, and set up CI across Node 20, 22, and 24 with a packed-install test. Version 0.7 added <code>::: flow</code>, checklists, option tables, and change marks in the contents. Version 0.11 replaced the six palettes with one quieter design, added traces, cuttings, computed summaries, the scrubber, approvals, <code>::: ask</code>, and Obsidian syntax, and rewrote the agent skill around a directive budget and example documents.</p>
 
-<div class="tr-new" data-label="Changed since r009">
+<div class="tr-new" data-label="Changed since r010">
+<div class="progress"><span class="bar" role="meter" aria-valuemin="0" aria-valuemax="5" aria-valuenow="4" aria-label="Sequence progress"><i style="width:80%"></i></span><span>4 of 5 done</span></div><ol class="timeline"><li class="is-done"><span class="ph">1</span><div><h3>Release 0.11<span class="status done">done</span></h3><p>Published from CI on 30 September 2026. The viewer is still unchecked in Safari and Firefox.</p></div></li>
+<li class="is-done"><span class="ph">2</span><div><h3>Obsidian plugin, first version<span class="status done">done</span></h3><p><code>src/model.ts</code> holds the draft format, <code>src/drafts.ts</code> saves through a storage interface, and the plugin has the Save draft command, ribbon button, status bar, and optional daily drafts.</p></div></li>
+<li class="is-done"><span class="ph">3</span><div><h3>Obsidian plugin, side panel<span class="status done">done</span></h3><p>Changes against any draft, every draft with restore, and cuttings with copy buttons.</p></div></li>
+<li class="is-done"><span class="ph">4</span><div><h3>Plugin in the community list<span class="status done">done</span></h3><p>Listed at community.obsidian.md/plugins/pentimento from 0.3.2. The source is <code>lucastraba/pentimento-obsidian</code>, which imports the draft code from the <code>pentimento</code> package.</p></div></li>
+<li><span class="ph">5</span><div><h3>Paragraph history<span class="status later">later</span></h3><p>A mark beside each paragraph that changed across drafts, opening its earlier versions.</p></div></li></ol>
+</div><details class="tr-prev"><summary>As it was in r010</summary><div class="tr-old">
 <div class="progress"><span class="bar" role="meter" aria-valuemin="0" aria-valuemax="5" aria-valuenow="3" aria-label="Sequence progress"><i style="width:60%"></i></span><span>3 of 5 done · 1 next</span></div><ol class="timeline"><li class="is-done"><span class="ph">1</span><div><h3>Release 0.11<span class="status done">done</span></h3><p>Published from CI on 30 September 2026. The viewer is still unchecked in Safari and Firefox.</p></div></li>
 <li class="is-done"><span class="ph">2</span><div><h3>Obsidian plugin, first version<span class="status done">done</span></h3><p><code>src/model.ts</code> holds the draft format, <code>src/drafts.ts</code> saves through a storage interface, and the plugin has the Save draft command, ribbon button, status bar, and optional daily drafts.</p></div></li>
 <li class="is-done"><span class="ph">3</span><div><h3>Obsidian plugin, side panel<span class="status done">done</span></h3><p>Changes against any draft, every draft with restore, and cuttings with copy buttons.</p></div></li>
 <li><span class="ph">4</span><div><h3>Plugin in the community list<span class="status next">next</span></h3><p>The plugin moved to <code>lucastraba/pentimento-obsidian</code> and imports the draft code from the <code>pentimento</code> package. Released as 0.3.1, ready to submit at community.obsidian.md.</p></div></li>
-<li><span class="ph">5</span><div><h3>Paragraph history<span class="status later">later</span></h3><p>A mark beside each paragraph that changed across drafts, opening its earlier versions.</p></div></li></ol>
-</div><details class="tr-prev"><summary>As it was in r009</summary><div class="tr-old">
-<div class="progress"><span class="bar" role="meter" aria-valuemin="0" aria-valuemax="5" aria-valuenow="3" aria-label="Sequence progress"><i style="width:60%"></i></span><span>3 of 5 done · 1 next</span></div><ol class="timeline"><li class="is-done"><span class="ph">1</span><div><h3>Release 0.11<span class="status done">done</span></h3><p>Published from CI on 30 September 2026. The viewer is still unchecked in Safari and Firefox.</p></div></li>
-<li class="is-done"><span class="ph">2</span><div><h3>Obsidian plugin, first version<span class="status done">done</span></h3><p><code>src/model.ts</code> holds the draft format, <code>src/drafts.ts</code> saves through a storage interface, and the plugin has the Save draft command, ribbon button, status bar, and optional daily drafts.</p></div></li>
-<li class="is-done"><span class="ph">3</span><div><h3>Obsidian plugin, side panel<span class="status done">done</span></h3><p>Changes against any draft, every draft with restore, and cuttings with copy buttons.</p></div></li>
-<li><span class="ph">4</span><div><h3>Plugin in the community list<span class="status next">next</span></h3><p>The plugin moved to <code>lucastraba/pentimento-obsidian</code> and imports the draft code from the <code>pentimento</code> package. Submitted to Obsidian's community list; review is pending.</p></div></li>
 <li><span class="ph">5</span><div><h3>Paragraph history<span class="status later">later</span></h3><p>A mark beside each paragraph that changed across drafts, opening its earlier versions.</p></div></li></ol>
 </div></details>
 
@@ -1080,7 +1129,8 @@ html[data-scrubbing] main { transition: opacity .12s; }
 - Should a static render be able to include the scrubber, by embedding every draft in the file?</pre><div class="cuttings-meta"><span>Open questions · cut in r006</span><button class="cut-copy" type="button" data-copy>Copy</button></div></div><div class="cutting"><pre class="cutting-text">- Whether a future read-only bundle should include more revision history than today's standalone render.
 - Whether directive nesting is worth the renderer complexity it invites.
 - Mermaid: deferred. Diagrams are constrained inline SVG via `::: figure`; revisit if hand-composed SVG becomes the bottleneck.</pre><div class="cuttings-meta"><span>Open questions · cut in r005</span><button class="cut-copy" type="button" data-copy>Copy</button></div></div><div class="cutting"><pre class="cutting-text">Agent-generated HTML is slop because the agent is handed a *paint palette*. Plans revised three times are unreviewable because nothing records what moved, or why. Pentimento inverts both: a deterministic renderer, a fixed design system, a small directive vocabulary, and numbered snapshots with an append-only decision log. Any agent, or any human, produces markdown plus directives; the toolchain produces the view and the history.</pre><div class="cuttings-meta"><span>Why · cut in r005</span><button class="cut-copy" type="button" data-copy>Copy</button></div></div><div class="cutting"><pre class="cutting-text">&gt; One canonical markdown file, hidden revision history, deterministic rendering. The author writes content; the system owns the pixels.</pre><div class="cuttings-meta"><span>Pentimento: Living Documents · cut in r005</span><button class="cut-copy" type="button" data-copy>Copy</button></div></div></details></section>
-<section class="history" id="history"><h2>History · 10 drafts</h2><svg class="spark" viewBox="0 0 68 24" width="68" height="24" role="img" aria-label="Words per draft"><rect x="0" y="12.7" width="5" height="11.3" rx="1"><title>r001: 424 words</title></rect><rect x="7" y="12.6" width="5" height="11.4" rx="1"><title>r002: 426 words</title></rect><rect x="14" y="10.4" width="5" height="13.6" rx="1"><title>r003: 509 words</title></rect><rect x="21" y="10.4" width="5" height="13.6" rx="1"><title>r004: 509 words</title></rect><rect x="28" y="9.1" width="5" height="14.9" rx="1"><title>r005: 559 words</title></rect><rect x="35" y="3.5" width="5" height="20.5" rx="1"><title>r006: 769 words</title></rect><rect x="42" y="3.4" width="5" height="20.6" rx="1"><title>r007: 770 words</title></rect><rect x="49" y="2.0" width="5" height="22.0" rx="1"><title>r008: 824 words</title></rect><rect x="56" y="2.8" width="5" height="21.2" rx="1"><title>r009: 794 words</title></rect><rect class="cur" x="63" y="2.7" width="5" height="21.3" rx="1"><title>r010: 798 words</title></rect></svg><ol><li><span class="rev">r010</span><span class="what"><strong>Plugin 0.3.1 released, ready to submit</strong>. Obsidian now takes submissions through its community directory</span><span class="when"><time datetime="2026-10-01T20:56:23+00:00">1 Oct 2026</time> <span class="words">· 798 words</span></span></li>
+<section class="history" id="history"><h2>History · 11 drafts</h2><svg class="spark" viewBox="0 0 75 24" width="75" height="24" role="img" aria-label="Words per draft"><rect x="0" y="12.7" width="5" height="11.3" rx="1"><title>r001: 424 words</title></rect><rect x="7" y="12.6" width="5" height="11.4" rx="1"><title>r002: 426 words</title></rect><rect x="14" y="10.4" width="5" height="13.6" rx="1"><title>r003: 509 words</title></rect><rect x="21" y="10.4" width="5" height="13.6" rx="1"><title>r004: 509 words</title></rect><rect x="28" y="9.1" width="5" height="14.9" rx="1"><title>r005: 559 words</title></rect><rect x="35" y="3.5" width="5" height="20.5" rx="1"><title>r006: 769 words</title></rect><rect x="42" y="3.4" width="5" height="20.6" rx="1"><title>r007: 770 words</title></rect><rect x="49" y="2.0" width="5" height="22.0" rx="1"><title>r008: 824 words</title></rect><rect x="56" y="2.8" width="5" height="21.2" rx="1"><title>r009: 794 words</title></rect><rect x="63" y="2.7" width="5" height="21.3" rx="1"><title>r010: 798 words</title></rect><rect class="cur" x="70" y="2.7" width="5" height="21.3" rx="1"><title>r011: 796 words</title></rect></svg><ol><li><span class="rev">r011</span><span class="what"><strong>Plugin listed in Obsidian's community directory</strong></span><span class="when"><time datetime="2026-10-01T21:24:52+00:00">1 Oct 2026</time> <span class="words">· 796 words</span></span></li>
+<li><span class="rev">r010</span><span class="what"><strong>Plugin 0.3.1 released, ready to submit</strong>. Obsidian now takes submissions through its community directory</span><span class="when"><time datetime="2026-10-01T20:56:23+00:00">1 Oct 2026</time> <span class="words">· 798 words</span></span></li>
 <li><span class="rev">r009</span><span class="what"><strong>Plugin moved to its own repository for Obsidian's list</strong>. Obsidian's community list needs a repository with the manifest at its root</span><span class="when"><time datetime="2026-10-01T20:48:01+00:00">1 Oct 2026</time> <span class="words">· 794 words</span></span></li>
 <li><span class="rev">r008</span><span class="what"><strong>Obsidian plugin, first version and side panel</strong>. Built and checked in Obsidian 1.13.7</span><span class="when"><time datetime="2026-10-01T15:00:46+00:00">1 Oct 2026</time> <span class="words">· 824 words</span></span></li>
 <li><span class="rev">r007</span><span class="what"><strong>Released 0.11.0</strong>. Published from CI; the Obsidian plugin is next</span><span class="when"><time datetime="2026-09-30T19:44:50+00:00">30 Sep 2026</time> <span class="words">· 770 words</span></span></li>

@@ -51,4 +51,8 @@ revisions:
     author: Lucas Traba
     summary: Plugin 0.3.1 released, ready to submit
     why: Obsidian now takes submissions through its community directory
+  - id: r011
+    created_at: 2026-10-01T21:24:52+00:00
+    author: Lucas Traba
+    summary: Plugin listed in Obsidian's community directory
 comments: []
