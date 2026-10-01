@@ -8,7 +8,7 @@ import { createTwoFilesPatch } from 'diff'
 import { configPath } from './config.js'
 import {
   addComment, addReply, approve, canonicalRevisionState, latestApproval, loadDoc, readMeta, readRevision,
-  resolveComment, revert, snapshot, splitRaw,
+  resolveComment, revert, snapshot, splitRaw, untrack,
 } from './core.js'
 import { renderDiffPage, renderToFile } from './render.js'
 import { lintDoc } from './lint.js'
@@ -30,6 +30,8 @@ Usage:
                                        --html renders a readable word-level diff page)
   pentimento verify <doc-or-directory>    (check canonical/history/meta consistency)
   pentimento revert <doc> <rev> [--author name]
+  pentimento untrack <doc> --yes          (delete the document's history and remove its
+                                       Pentimento properties; the text is untouched)
   pentimento render <doc> [-o out.html] [--artifact] [--drafts N|all]
                                       (--artifact: fragment for claude.ai Artifact publishing;
                                        default: standalone HTML that works anywhere;
@@ -75,7 +77,7 @@ interface Args {
 const parseArgs = (argv: string[]): Args => {
   const positional: string[] = []
   const flags: Record<string, string> = {}
-  const boolean = new Set(['artifact', 'html', 'tailscale', 'strict'])
+  const boolean = new Set(['artifact', 'html', 'tailscale', 'strict', 'yes'])
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a.startsWith('--') && boolean.has(a.slice(2))) flags[a.slice(2)] = 'true'
@@ -239,6 +241,17 @@ const main = (): void => {
       if (!doc || !positional[1]) fail('revert needs a document path and a revision (e.g. r002)')
       const res = revert(doc, positional[1], flags.author ?? defaultAuthor())
       console.log(`canonical restored from ${positional[1]}; recorded as ${res.rev}`)
+      break
+    }
+    case 'untrack': {
+      if (!doc) fail('untrack needs a document path')
+      const d = loadDoc(doc)
+      const count = readMeta(d.historyDir).revisions.length
+      if (flags.yes !== 'true') {
+        fail(`untrack deletes ${path.relative(process.cwd(), d.historyDir) || d.historyDir} (${count} draft${count === 1 ? '' : 's'}) and can't be undone; run again with --yes`)
+      }
+      const res = untrack(doc)
+      console.log(`removed ${res.drafts} draft${res.drafts === 1 ? '' : 's'} and the Pentimento properties from ${d.name}`)
       break
     }
     case 'render': {

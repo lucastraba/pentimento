@@ -1,4 +1,4 @@
-import { parseDocument, parse as parseYaml, stringify as stringifyYaml } from 'yaml'
+import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 
 /**
  * The draft format with no file access: frontmatter stamping, meta.yml parsing and
@@ -113,14 +113,34 @@ export const parseRevId = (value: unknown): number => {
   return Number(m[1])
 }
 
-/** Rewrite one scalar frontmatter key, preserving all other formatting (audit H3). */
+/**
+ * Set or remove top-level frontmatter keys by editing only their own lines, so the rest of
+ * the frontmatter (the user's properties, their order, quoting, and spacing) stays as written.
+ */
+const editKeys = (lines: string[], updates: Record<string, string | boolean | null>): string[] => {
+  const out = [...lines]
+  for (const [key, value] of Object.entries(updates)) {
+    const at = out.findIndex((l) => l.startsWith(`${key}:`) || l.startsWith(`'${key}':`) || l.startsWith(`"${key}":`))
+    // a key's value may continue on indented lines below it
+    let span = 0
+    if (at >= 0) {
+      span = 1
+      while (at + span < out.length && /^[ \t]+\S/.test(out[at + span])) span++
+    }
+    if (value === null) {
+      if (at >= 0) out.splice(at, span)
+      continue
+    }
+    const line = stringifyYaml({ [key]: value }).replace(/\n$/, '')
+    if (at >= 0) out.splice(at, span, line)
+    else out.push(line)
+  }
+  return out
+}
+
 export const stampFrontmatter = (raw: string, updates: Record<string, string | boolean | null>): string => {
   const m = FRONTMATTER_RE.exec(raw)
-  if (m) {
-    const doc = parseDocument(m[1])
-    for (const [k, v] of Object.entries(updates)) v === null ? doc.delete(k) : doc.set(k, v)
-    return `---\n${String(doc).replace(/\n$/, '')}\n---\n${raw.slice(m[0].length)}`
-  }
+  if (m) return `---\n${editKeys(m[1].split(/\r?\n/), updates).join('\n')}\n---\n${raw.slice(m[0].length)}`
   const kept = Object.fromEntries(Object.entries(updates).filter(([, v]) => v !== null))
   const fmDoc = stringifyYaml(kept).replace(/\n$/, '')
   return `---\n${fmDoc}\n---\n\n${raw}`
@@ -294,6 +314,19 @@ const stampKeys = (rev: string, historyRel: string): Record<string, string | boo
 export const stampCanonical = (raw: string, rev: string, historyRel: string): { stamped: string; found: { text: string; anchor: string }[] } => {
   const { cleaned, found } = extractInlineComments(raw)
   return { stamped: stampFrontmatter(cleaned, stampKeys(rev, historyRel)), found }
+}
+
+/**
+ * The canonical with Pentimento's frontmatter keys removed. The frontmatter block goes too
+ * when nothing else was in it, so a note returns to how it was before its first draft.
+ */
+export const unstampCanonical = (raw: string): string => {
+  const m = FRONTMATTER_RE.exec(raw)
+  if (!m) return raw
+  const remaining = editKeys(m[1].split(/\r?\n/), { Pentimento: null, Vellum: null, 'Current Revision': null, 'History Folder': null })
+  const rest = raw.slice(m[0].length)
+  if (remaining.every((l) => !l.trim())) return rest.replace(/^\r?\n/, '')
+  return `---\n${remaining.join('\n')}\n---\n${rest}`
 }
 
 /** The revision a snapshot of this source would create (r001 for a document with none). */

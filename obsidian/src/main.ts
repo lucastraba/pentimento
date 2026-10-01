@@ -1,8 +1,8 @@
 import { MarkdownView, Modal, Notice, Plugin, Setting, TFile, type App } from 'obsidian'
-import { draftStatus, restoreDraft, saveDraft, type DraftStore, type SaveDraftOptions } from '../../src/drafts'
+import { draftStatus, readHistory, removeHistory, restoreDraft, saveDraft, type DraftStore, type SaveDraftOptions } from '../../src/drafts'
 import { DEFAULT_SETTINGS, PentimentoSettingTab, type PentimentoSettings } from './settings'
 import { vaultStore } from './store'
-import { HistoryView, VIEW_TYPE } from './view'
+import { ConfirmModal, HistoryView, VIEW_TYPE } from './view'
 
 const DAILY_CHECK_MS = 30 * 60 * 1000
 /** a note edited this recently is still being worked on; the daily draft waits */
@@ -39,15 +39,25 @@ export default class PentimentoPlugin extends Plugin {
       }),
     })
     this.addCommand({
-      id: 'show-drafts',
-      name: 'Show drafts',
-      callback: () => void this.showHistory(),
+      id: 'toggle-drafts',
+      name: 'Show or hide drafts',
+      callback: () => void this.toggleHistory(),
+    })
+    this.addCommand({
+      id: 'remove-drafts',
+      name: 'Remove Pentimento from this note…',
+      checkCallback: (checking) => {
+        const file = this.activeNote()
+        if (!file || this.app.metadataCache.getFileCache(file)?.frontmatter?.['Pentimento'] !== true) return false
+        if (!checking) void this.confirmRemove(file)
+        return true
+      },
     })
 
     this.statusEl = this.addStatusBarItem()
     this.statusEl.addClass('pentimento-statusbar', 'mod-clickable')
-    this.statusEl.setAttr('aria-label', 'Show drafts')
-    this.statusEl.addEventListener('click', () => void this.showHistory())
+    this.statusEl.setAttr('aria-label', 'Show or hide drafts')
+    this.statusEl.addEventListener('click', () => void this.toggleHistory())
 
     this.registerEvent(this.app.workspace.on('file-open', () => this.scheduleStatus(0)))
     this.registerEvent(this.app.vault.on('modify', (file) => {
@@ -143,6 +153,54 @@ export default class PentimentoPlugin extends Plugin {
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE)) {
       if (leaf.view instanceof HistoryView) void leaf.view.refresh()
     }
+  }
+
+  /** Ask, then take the note out of Pentimento: its drafts are deleted and its properties removed. */
+  async confirmRemove(file: TFile): Promise<void> {
+    let count = 0
+    let folder = ''
+    try {
+      const h = await readHistory(this.store, file.path)
+      count = h?.meta.revisions.length ?? 0
+      folder = h?.location.historyDir ?? ''
+    } catch { /* the modal still offers removal of an unreadable history */ }
+    const drafts = `${count} draft${count === 1 ? '' : 's'}`
+    new ConfirmModal(
+      this.app,
+      `Remove Pentimento from ${file.basename}?`,
+      `This deletes all ${drafts} (${folder || 'the history folder'}), with their summaries and cuttings, and removes the Pentimento properties from the note. The note's text stays as it is. This can't be undone.`,
+      'Remove',
+      async () => {
+        try {
+          await this.flushEditor(file)
+          const res = await removeHistory(this.store, file.path, {
+            updateCanonical: async (unstamp) => { await this.app.vault.process(file, unstamp) },
+          })
+          new Notice(`Removed ${res.drafts} draft${res.drafts === 1 ? '' : 's'} from ${file.basename}`)
+        } catch (e) {
+          new Notice(`Pentimento: ${e instanceof Error ? e.message : String(e)}`, 8000)
+        } finally {
+          this.afterChange()
+        }
+      },
+      true,
+    ).open()
+  }
+
+  /** Hide the drafts panel by collapsing the right sidebar, or bring it back in front. */
+  async toggleHistory(): Promise<void> {
+    const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE)[0]
+    const sidebar = this.app.workspace.rightSplit
+    if (leaf && !sidebar.collapsed && leaf.view.containerEl.isShown()) {
+      sidebar.collapse()
+      return
+    }
+    await this.showHistory()
+    if (sidebar.collapsed) sidebar.expand()
+  }
+
+  hideHistory(): void {
+    this.app.workspace.rightSplit.collapse()
   }
 
   async showHistory(): Promise<void> {

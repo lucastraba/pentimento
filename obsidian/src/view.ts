@@ -1,4 +1,4 @@
-import { ItemView, Modal, Notice, sanitizeHTMLToDom, type App, type TFile, type WorkspaceLeaf } from 'obsidian'
+import { ItemView, Modal, Notice, sanitizeHTMLToDom, setIcon, type App, type TFile, type WorkspaceLeaf } from 'obsidian'
 import { readHistory, restoreDraft, type DocHistory } from '../../src/drafts'
 import { collectCuttings, renderDiffHtml, wordCount } from '../../src/semdiff'
 import type PentimentoPlugin from './main'
@@ -69,7 +69,11 @@ export class HistoryView extends ItemView {
       root.createEl('p', { cls: 'pentimento-empty', text: 'Open a note to see its drafts.' })
       return
     }
-    root.createEl('h4', { cls: 'pentimento-title', text: file.basename })
+    const head = root.createDiv({ cls: 'pentimento-head' })
+    head.createEl('h4', { cls: 'pentimento-title', text: file.basename })
+    const hide = head.createEl('button', { cls: 'clickable-icon pentimento-hide', attr: { 'aria-label': 'Hide drafts' } })
+    setIcon(hide, 'panel-right-close')
+    hide.addEventListener('click', () => this.plugin.hideHistory())
     if (error || !h) {
       root.createEl('p', { cls: 'pentimento-empty', text: error ?? 'This note could not be read.' })
       return
@@ -170,11 +174,20 @@ export class HistoryView extends ItemView {
         })
       }
     }
+    const remove = el.createEl('a', { cls: 'pentimento-remove', text: 'Remove Pentimento from this note…', href: '#' })
+    remove.addEventListener('click', (e) => {
+      e.preventDefault()
+      if (this.file) void this.plugin.confirmRemove(this.file)
+    })
   }
 
   private drawCuttings(el: HTMLElement, cuttings: ReturnType<typeof collectCuttings>): void {
+    el.createEl('p', {
+      cls: 'pentimento-caption',
+      text: 'Passages you removed or rewrote in earlier drafts. Anything that comes back in the note drops off this list.',
+    })
     if (!cuttings.length) {
-      el.createEl('p', { cls: 'pentimento-empty', text: 'Nothing has been cut yet. Passages you remove or rewrite completely show up here.' })
+      el.createEl('p', { cls: 'pentimento-empty', text: 'Nothing has been cut yet.' })
       return
     }
     for (const c of cuttings) {
@@ -192,8 +205,11 @@ export class HistoryView extends ItemView {
   }
 }
 
-class ConfirmModal extends Modal {
-  constructor(app: App, private heading: string, private message: string, private action: string, private onConfirm: () => Promise<void>) {
+export class ConfirmModal extends Modal {
+  constructor(
+    app: App, private heading: string, private message: string, private action: string,
+    private onConfirm: () => Promise<void>, private destructive = false,
+  ) {
     super(app)
   }
 
@@ -202,7 +218,7 @@ class ConfirmModal extends Modal {
     this.contentEl.createEl('p', { text: this.message })
     const row = this.contentEl.createDiv({ cls: 'modal-button-container' })
     row.createEl('button', { text: 'Cancel' }).addEventListener('click', () => this.close())
-    const go = row.createEl('button', { cls: 'mod-cta', text: this.action })
+    const go = row.createEl('button', { cls: this.destructive ? 'mod-warning' : 'mod-cta', text: this.action })
     go.addEventListener('click', async () => {
       go.disabled = true
       try { await this.onConfirm() } finally { this.close() }

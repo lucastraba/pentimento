@@ -53,6 +53,7 @@ pentimento list Song.md          # every draft and its summary
 pentimento diff Song.md          # the latest two, in the terminal
 pentimento cuttings Song.md      # everything you've cut that isn't in the current draft
 pentimento revert Song.md r002   # bring back r002, saved as a new draft
+pentimento untrack Song.md --yes # delete the drafts and the Pentimento properties; the text stays
 ```
 
 In Obsidian, the [Pentimento plugin](obsidian/README.md) does the same without a terminal: a Save draft button, the latest draft in the status bar, and a panel with the changes, every draft, and your cuttings. It writes the same files, so the plugin and the CLI work on the same notes.

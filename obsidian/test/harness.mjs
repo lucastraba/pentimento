@@ -31,6 +31,10 @@ const app = {
       remove: async (p) => fs.rmSync(abs(p)),
       rmdir: async (p) => fs.rmSync(abs(p), { recursive: true }),
       stat: async (p) => (fs.existsSync(abs(p)) ? { mtime: fs.statSync(abs(p)).mtimeMs } : null),
+      list: async (p) => ({
+        files: fs.readdirSync(abs(p)).filter((f) => fs.statSync(path.join(abs(p), f)).isFile()),
+        folders: fs.readdirSync(abs(p)).filter((f) => fs.statSync(path.join(abs(p), f)).isDirectory()),
+      }),
     },
     process: async (file, fn) => { const out = fn(fs.readFileSync(abs(file.path), 'utf8')); fs.writeFileSync(abs(file.path), out); return out },
     getMarkdownFiles: () => fs.readdirSync(root).filter((f) => f.endsWith('.md')).map((f) => new TFile(f)),
@@ -126,6 +130,18 @@ assert.ok(fs.existsSync(abs('.history/Harbor/r006.md')), 'an idle, changed note 
 assert.equal(notices.at(-1), 'Saved daily drafts: Harbor')
 assert.ok(!fs.existsSync(abs('.history/Untracked')), 'notes without drafts are never touched')
 assert.match(read('.history/Harbor/meta.yml'), /source: daily draft/)
+
+// remove Pentimento from the note: properties off, history gone, text untouched
+const before = read('Harbor.md').replace(/^---\n[\s\S]*?\n---\n\n?/, '')
+const confirmations = []
+fake.Modal.prototype.open = function () { confirmations.push(this); }
+await plugin.confirmRemove(active)
+assert.equal(confirmations.length, 1, 'removal asks first')
+assert.ok(fs.existsSync(abs('.history/Harbor')), 'nothing is removed before confirming')
+await confirmations[0].onConfirm()
+assert.ok(!fs.existsSync(abs('.history')), 'the history folder is gone, and the empty .history with it')
+assert.equal(read('Harbor.md'), before, 'the note keeps its text and loses only the properties')
+assert.match(notices.at(-1), /^Removed 6 drafts from Harbor$/)
 
 console.log('harness: all checks passed')
 console.log(notices.join('\n'))

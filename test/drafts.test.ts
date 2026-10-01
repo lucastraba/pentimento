@@ -4,7 +4,9 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import { snapshot } from '../src/core.js'
-import { joinPath, locate, readHistory, restoreDraft, saveDraft, type DraftStore } from '../src/drafts.js'
+import { joinPath, locate, readHistory, removeHistory, restoreDraft, saveDraft, type DraftStore } from '../src/drafts.js'
+import { untrack } from '../src/core.js'
+import { unstampCanonical } from '../src/model.js'
 import { verifyDoc } from '../src/verify.js'
 
 /** A store over a real folder, so drafts saved here can be checked by the CLI. */
@@ -18,6 +20,7 @@ const folderStore = (root: string): DraftStore => {
     remove: async (p) => { fs.rmSync(abs(p), { force: true }) },
     rmdir: async (p) => { fs.rmSync(abs(p), { recursive: true, force: true }) },
     mtime: async (p) => (fs.existsSync(abs(p)) ? fs.statSync(abs(p)).mtimeMs : null),
+    isEmptyFolder: async (p) => fs.existsSync(abs(p)) && !fs.readdirSync(abs(p)).length,
   }
 }
 
@@ -112,6 +115,61 @@ describe('restoreDraft', () => {
     expect(canonical).toContain('keep the water gold')
     expect(canonical).toContain('Current Revision: r003')
     await expect(restoreDraft(store, 'Note.md', 'r009')).rejects.toThrow('No draft r009')
+  })
+})
+
+describe('taking a note out of Pentimento', () => {
+  it('returns a note to how it was before its first draft', async () => {
+    fs.writeFileSync(path.join(dir, 'Note.md'), song)
+    const store = folderStore(dir)
+    await saveDraft(store, 'Note.md')
+    await saveDraft(store, 'Note.md')
+    const res = await removeHistory(store, 'Note.md')
+    expect(res).toEqual({ historyDir: '.history/Note', drafts: 2 })
+    expect(fs.readFileSync(path.join(dir, 'Note.md'), 'utf8')).toBe(song)
+    expect(fs.existsSync(path.join(dir, '.history'))).toBe(false)
+  })
+
+  it('keeps the note\'s own properties and leaves other histories alone', async () => {
+    const tagged = '---\ntags: [song]\n---\n# Other\n\ntext here\n'
+    fs.writeFileSync(path.join(dir, 'Other.md'), tagged)
+    fs.writeFileSync(path.join(dir, 'Note.md'), song)
+    const store = folderStore(dir)
+    await saveDraft(store, 'Other.md')
+    // saving touches only the lines Pentimento owns
+    expect(fs.readFileSync(path.join(dir, 'Other.md'), 'utf8')).toBe(
+      '---\ntags: [song]\nPentimento: true\nCurrent Revision: r001\nHistory Folder: .history/Other\n---\n# Other\n\ntext here\n')
+    await saveDraft(store, 'Note.md')
+    await removeHistory(store, 'Other.md')
+    expect(fs.readFileSync(path.join(dir, 'Other.md'), 'utf8')).toBe(tagged)
+    expect(fs.existsSync(path.join(dir, '.history', 'Note', 'r001.md'))).toBe(true)
+    // another note still has history, so the shared folder stays
+    expect(fs.existsSync(path.join(dir, '.history'))).toBe(true)
+  })
+
+  it('waits for a save in progress, and refuses a history folder that is the note\'s own folder', async () => {
+    fs.writeFileSync(path.join(dir, 'Note.md'), song)
+    const store = folderStore(dir)
+    await saveDraft(store, 'Note.md')
+    fs.mkdirSync(path.join(dir, '.history', 'Note', '.lock'))
+    await expect(removeHistory(store, 'Note.md')).rejects.toThrow('being saved')
+    fs.writeFileSync(path.join(dir, 'Odd.md'), '---\nHistory Folder: .\n---\n# Odd\n')
+    await expect(removeHistory(store, 'Odd.md')).rejects.toThrow('own folder')
+  })
+
+  it('works the same from the CLI', () => {
+    const p = path.join(dir, 'Cli.md')
+    fs.writeFileSync(p, song)
+    snapshot(p, {})
+    expect(untrack(p)).toMatchObject({ drafts: 1 })
+    expect(fs.readFileSync(p, 'utf8')).toBe(song)
+    expect(fs.existsSync(path.join(dir, '.history'))).toBe(false)
+  })
+
+  it('only removes the keys Pentimento owns', () => {
+    expect(unstampCanonical('# no frontmatter\n')).toBe('# no frontmatter\n')
+    expect(unstampCanonical('---\nPentimento: true\nCurrent Revision: r002\nHistory Folder: .history/X\nAuthor: me\n---\nbody\n'))
+      .toBe('---\nAuthor: me\n---\nbody\n')
   })
 })
 

@@ -4,10 +4,12 @@
 
 ### Added
 
-- An Obsidian plugin in `obsidian/`: save drafts from Obsidian (ribbon button, commands, optional daily drafts), the latest draft in the status bar, and a panel with changes, every draft (with restore), and cuttings. It works on mobile.
+- An Obsidian plugin in `obsidian/`: save drafts from Obsidian (ribbon button, commands, optional daily drafts), the latest draft in the status bar, and a panel with changes, every draft (with restore), and cuttings. The panel shows and hides with a command, the status bar, or its own button. It works on mobile.
+- Taking a note out of Pentimento: `pentimento untrack <doc> --yes`, and "Remove Pentimento from this note…" in the plugin. Both delete the history and remove the Pentimento properties, leaving the text as it is.
 
 ### Changed
 
+- Snapshots edit only the frontmatter lines Pentimento owns. Before, the whole frontmatter was rewritten, which could reformat the note's other properties (`tags: [song]` became `tags: [ song ]`).
 - The draft format (frontmatter stamping, `meta.yml`, revision numbering) moved into `src/model.ts`, which has no file access. `src/drafts.ts` saves drafts through an async storage interface for hosts without Node; tests check it writes exactly what the CLI writes.
 
 ## 0.11.0 - 2026-09-30

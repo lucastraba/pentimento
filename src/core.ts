@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import {
-  FRONTMATTER_RE, makeComment, nowStamp, parseMeta, planSnapshot, serializeMeta, splitRaw,
+  FRONTMATTER_RE, makeComment, nowStamp, parseMeta, planSnapshot, serializeMeta, splitRaw, unstampCanonical,
   type Approval, type CommentEntry, type Meta, type NewComment, type SnapshotOptions,
 } from './model.js'
 import { describeChanges } from './semdiff.js'
@@ -326,4 +326,24 @@ export const revert = (docPath: string, rev: string, author?: string): SnapshotR
     why: `pentimento revert ${rev}`,
     author,
   }, targetBody)
+}
+
+/** Take a document out of Pentimento: drop its frontmatter keys, then delete its history folder. */
+export const untrack = (docPath: string): { historyDir: string; drafts: number } => {
+  const doc = loadDoc(docPath)
+  if (path.resolve(doc.historyDir) === path.dirname(doc.canonicalPath)) {
+    throw new Error('History Folder points at the document\'s own folder, so it can\'t be deleted safely; remove it by hand')
+  }
+  const lock = path.join(doc.historyDir, '.lock')
+  if (fs.existsSync(lock) && Date.now() - fs.statSync(lock).mtimeMs < 10 * 60 * 1000) {
+    throw new Error(`Another pentimento operation holds the lock: ${lock}`)
+  }
+  let drafts = 0
+  try { drafts = readMeta(doc.historyDir).revisions.length } catch { /* unreadable history is still removable */ }
+  atomicWrite(doc.canonicalPath, unstampCanonical(doc.raw))
+  fs.rmSync(doc.historyDir, { recursive: true, force: true })
+  // the shared `.history` folder goes too once its last document leaves
+  const parent = path.dirname(doc.historyDir)
+  if (path.basename(parent) === '.history' && fs.existsSync(parent) && !fs.readdirSync(parent).length) fs.rmdirSync(parent)
+  return { historyDir: doc.historyDir, drafts }
 }

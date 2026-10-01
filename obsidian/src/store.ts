@@ -29,5 +29,10 @@ export const vaultStore = (app: App): DraftStore => {
       if (await adapter.exists(p(path))) await adapter.rmdir(p(path), true)
     },
     mtime: async (path) => (await adapter.stat(p(path)))?.mtime ?? null,
+    isEmptyFolder: async (path) => {
+      if (!(await adapter.exists(p(path)))) return false
+      const listed = await adapter.list(p(path))
+      return !listed.files.length && !listed.folders.length
+    },
   }
 }

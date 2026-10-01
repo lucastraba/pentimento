@@ -8,13 +8,15 @@ It writes the same files as the [Pentimento CLI](../README.md): each draft is a 
 
 - **Save draft** (ribbon button, or the command palette) keeps a copy of the note as it is now. Pentimento writes the summary from what changed, using your headings: "Rewrote Chorus", "Removed Bridge".
 - **Save draft with a note…** lets you write the summary yourself, and why.
-- The status bar shows the latest draft, and "· edited" once the note has moved since. Click it to open the panel.
+- The status bar shows the latest draft, and "· edited" once the note has moved since. Click it to show or hide the panel.
+- **Show or hide drafts** (command palette, or the button at the top of the panel) opens the panel or collapses the right sidebar. Give it a hotkey in Settings → Hotkeys.
 - **The Drafts panel** has three tabs:
   - *Changes*: the note now against any earlier draft, with removed words struck through and new ones marked. Verse and lists compare line by line.
   - *Drafts*: every draft with its summary, date, and word count. "What changed" shows that draft's own changes; "Restore" brings it back as a new draft, after saving the note's current text so nothing is lost.
-  - *Cuttings*: passages you removed or rewrote completely in earlier drafts, with a Copy button.
+  - *Cuttings*: passages you removed or rewrote completely in earlier drafts, with a Copy button. A passage that comes back in the note drops off the list.
+- **Remove Pentimento from this note…** (command palette, or the link under the Drafts tab) deletes the note's drafts and takes the three properties off the note, after asking. The note's text stays as it is.
 
-The first draft of a note adds three properties to it (`Pentimento`, `Current Revision`, `History Folder`). They tell the CLI and the plugin where the history lives.
+The first draft of a note adds three properties to it (`Pentimento`, `Current Revision`, `History Folder`). They tell the CLI and the plugin where the history lives. Saving a draft edits only those three lines, so your own properties stay exactly as you wrote them.
 
 ## Settings
 

@@ -1,6 +1,6 @@
 import { parse as parseYaml } from 'yaml'
 import {
-  FRONTMATTER_RE, parseMeta, planSnapshot, serializeMeta, splitRaw, stampCanonical,
+  FRONTMATTER_RE, parseMeta, planSnapshot, serializeMeta, splitRaw, stampCanonical, unstampCanonical,
   type Meta, type SnapshotOptions,
 } from './model.js'
 import { describeChanges } from './semdiff.js'
@@ -21,6 +21,8 @@ export interface DraftStore {
   rmdir(path: string): Promise<void>
   /** modification time in ms, or null when the path doesn't exist */
   mtime(path: string): Promise<number | null>
+  /** true when the folder exists and has nothing in it */
+  isEmptyFolder(path: string): Promise<boolean>
 }
 
 const dirname = (p: string): string => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '')
@@ -164,6 +166,35 @@ export const restoreDraft = async (
   const target = await store.read(joinPath(where.historyDir, `${rev}.md`))
   if (target === null) throw new Error(`No draft ${rev} for ${where.name}`)
   return saveDraft(store, docPath, { ...opts, summary: `Restored ${rev}`, replacementBody: splitRaw(target).body })
+}
+
+export interface RemoveHistoryOptions {
+  /** like SaveDraftOptions.updateCanonical: rewrite the note as it is now */
+  updateCanonical?: (unstamp: (current: string) => string) => Promise<void>
+}
+
+/**
+ * Take a note out of Pentimento: its properties come off the note, then its history folder
+ * (every draft, comment, and approval) is deleted. The note's text is left as it is.
+ */
+export const removeHistory = async (store: DraftStore, docPath: string, opts: RemoveHistoryOptions = {}): Promise<{ historyDir: string; drafts: number }> => {
+  const raw = await store.read(docPath)
+  if (raw === null) throw new Error(`No such document: ${docPath}`)
+  const where = locate(docPath, raw)
+  if (where.historyDir === joinPath(dirname(docPath))) {
+    throw new Error('History Folder points at the note\'s own folder, so it can\'t be deleted safely; remove it by hand')
+  }
+  const since = await store.mtime(joinPath(where.historyDir, '.lock'))
+  if (since !== null && Date.now() - since < LOCK_STALE_MS) throw new Error('A draft of this note is being saved. Try again in a moment.')
+  let drafts = 0
+  try { drafts = parseMeta(await store.read(where.metaPath), where.metaPath).revisions.length } catch { /* unreadable history is still removable */ }
+  if (opts.updateCanonical) await opts.updateCanonical(unstampCanonical)
+  else await store.write(docPath, unstampCanonical(raw))
+  await store.rmdir(where.historyDir)
+  // the shared `.history` folder goes too once its last note leaves
+  const parent = dirname(where.historyDir)
+  if (basename(parent) === '.history' && await store.isEmptyFolder(parent)) await store.rmdir(parent)
+  return { historyDir: where.historyDir, drafts }
 }
 
 export interface DraftStatus {
