@@ -1,11 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.12.0 - 2026-10-01
 
 ### Added
 
-- An Obsidian plugin in `obsidian/`: save drafts from Obsidian (ribbon button, commands, optional daily drafts), the latest draft in the status bar, and a panel with changes, every draft (with restore), and cuttings. The panel shows and hides with a command, the status bar, or its own button. It works on mobile.
-- Taking a note out of Pentimento: `pentimento untrack <doc> --yes`, and "Remove Pentimento from this note…" in the plugin. Both delete the history and remove the Pentimento properties, leaving the text as it is.
+- The [Obsidian plugin](https://github.com/lucastraba/pentimento-obsidian), in its own repository: save drafts from Obsidian (ribbon button, commands, optional daily drafts), the latest draft in the status bar, and a panel with changes, every draft (with restore), and cuttings. The panel shows and hides with a command, the status bar, or its own button. It works on mobile.
+- `pentimento/drafts`, `pentimento/model`, and `pentimento/semdiff` are importable, with type declarations. The Obsidian plugin uses them, so the draft format has one implementation.
+- Taking a note out of Pentimento: `pentimento untrack <doc> --yes`, and "Remove drafts from this note…" in the plugin. Both delete the history and remove the Pentimento properties, leaving the text as it is.
 
 ### Changed
 
