@@ -1,0 +1,348 @@
+import { parseDocument, parse as parseYaml, stringify as stringifyYaml } from 'yaml'
+
+/**
+ * The draft format with no file access: frontmatter stamping, meta.yml parsing and
+ * validation, revision numbering, inline-comment extraction, and snapshot planning.
+ * The CLI (src/core.ts) and the Obsidian plugin both build on it, so a draft saved
+ * by either is byte-for-byte the same.
+ */
+
+export interface RevisionEntry {
+  id: string
+  created_at: string
+  author: string
+  summary: string
+  why?: string
+  source?: string
+}
+
+export interface ReplyEntry {
+  author: string
+  text: string
+  created_at: string
+}
+
+export interface CommentEntry {
+  id: string
+  anchor: string
+  /** W3C-annotation-style anchoring: exact selected text plus surrounding context */
+  quote?: string
+  prefix?: string
+  suffix?: string
+  text: string
+  status: 'open' | 'resolved'
+  created_at: string
+  author: string
+  resolved_in: string | null
+  replies?: ReplyEntry[]
+  /** set when the comment is the reader's answer to a `::: ask` question */
+  answer?: string
+}
+
+export interface NewComment {
+  text: string
+  anchor?: string
+  quote?: string
+  prefix?: string
+  suffix?: string
+  author?: string
+}
+
+export interface Approval {
+  rev: string
+  created_at: string
+  author: string
+}
+
+export interface Meta {
+  revisions: RevisionEntry[]
+  comments: CommentEntry[]
+  /** the reader's sign-offs, oldest first; absent until the first approval */
+  approvals?: Approval[]
+}
+
+
+export const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/
+
+export const splitRaw = (raw: string): { frontmatterRaw: string | null; body: string } => {
+  const m = FRONTMATTER_RE.exec(raw)
+  return m ? { frontmatterRaw: m[1], body: raw.slice(m[0].length) } : { frontmatterRaw: null, body: raw }
+}
+
+export const slugify = (s: string): string =>
+  s.toLowerCase().replace(/`/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+
+const INLINE_COMMENT_RE = /[ \t]*%%\s*@c:\s*([\s\S]*?)%%/g
+
+/** Pull `%% @c: ... %%` inline comments out of the source, anchored to the nearest preceding heading. */
+export const extractInlineComments = (raw: string): { cleaned: string; found: { text: string; anchor: string }[] } => {
+  const found: { text: string; anchor: string }[] = []
+  const headingFor = (index: number): string => {
+    const matches = [...raw.slice(0, index).matchAll(/^#{1,3}\s+(.+)$/gm)]
+    if (!matches.length) return ''
+    const title = matches[matches.length - 1][1]
+    const idm = /<!--[^>]*\bid:\s*([\w-]+)/.exec(title)
+    if (idm) return `#${idm[1]}`
+    return `#${slugify(title.replace(/<!--.*?-->/, '').trim())}`
+  }
+  const cleaned = raw.replace(INLINE_COMMENT_RE, (_m, text: string, offset: number) => {
+    found.push({ text: text.trim(), anchor: headingFor(offset) })
+    return ''
+  })
+  return { cleaned, found }
+}
+
+export const nowStamp = (): string => {
+  const d = new Date()
+  const offsetMin = -d.getTimezoneOffset()
+  const sign = offsetMin >= 0 ? '+' : '-'
+  const abs = Math.abs(offsetMin)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` +
+    `${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`
+  )
+}
+
+export const revId = (n: number): string => `r${String(n).padStart(3, '0')}`
+
+export const parseRevId = (value: unknown): number => {
+  const m = /^r(\d{3,})$/.exec(String(value ?? '').trim())
+  if (!m) throw new Error(`Invalid Current Revision value: ${JSON.stringify(value)} — expected rNNN`)
+  return Number(m[1])
+}
+
+/** Rewrite one scalar frontmatter key, preserving all other formatting (audit H3). */
+export const stampFrontmatter = (raw: string, updates: Record<string, string | boolean | null>): string => {
+  const m = FRONTMATTER_RE.exec(raw)
+  if (m) {
+    const doc = parseDocument(m[1])
+    for (const [k, v] of Object.entries(updates)) v === null ? doc.delete(k) : doc.set(k, v)
+    return `---\n${String(doc).replace(/\n$/, '')}\n---\n${raw.slice(m[0].length)}`
+  }
+  const kept = Object.fromEntries(Object.entries(updates).filter(([, v]) => v !== null))
+  const fmDoc = stringifyYaml(kept).replace(/\n$/, '')
+  return `---\n${fmDoc}\n---\n\n${raw}`
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value)
+
+const metadataError = (metaPath: string, detail: string): never => {
+  throw new Error(`Invalid meta.yml at ${metaPath}: ${detail}`)
+}
+
+export const validateMeta = (value: unknown, metaPath: string): Meta => {
+  if (!isRecord(value)) metadataError(metaPath, 'expected an object')
+  const record = value as Record<string, unknown>
+  if (!Array.isArray(record.revisions)) metadataError(metaPath, '`revisions` must be an array')
+  if (!Array.isArray(record.comments)) metadataError(metaPath, '`comments` must be an array')
+  const revisions = record.revisions as unknown[]
+  const comments = record.comments as unknown[]
+
+  const revisionIds = new Set<string>()
+  revisions.forEach((entry, index) => {
+    if (!isRecord(entry)) metadataError(metaPath, `revisions[${index}] must be an object`)
+    const revision = entry as Record<string, unknown>
+    if (typeof revision.id !== 'string' || !/^r\d{3,}$/.test(revision.id)) {
+      metadataError(metaPath, `revisions[${index}].id must be rNNN`)
+    }
+    if (revisionIds.has(revision.id as string)) metadataError(metaPath, `duplicate revision id ${revision.id}`)
+    revisionIds.add(revision.id as string)
+    for (const field of ['created_at', 'author', 'summary'] as const) {
+      if (typeof revision[field] !== 'string' || !revision[field]) {
+        metadataError(metaPath, `revisions[${index}].${field} must be a non-empty string`)
+      }
+    }
+    if (Number.isNaN(Date.parse(revision.created_at as string))) {
+      metadataError(metaPath, `revisions[${index}].created_at must be an ISO timestamp`)
+    }
+    for (const field of ['why', 'source'] as const) {
+      if (revision[field] !== undefined && typeof revision[field] !== 'string') {
+        metadataError(metaPath, `revisions[${index}].${field} must be a string`)
+      }
+    }
+  })
+
+  const commentIds = new Set<string>()
+  comments.forEach((entry, index) => {
+    if (!isRecord(entry)) metadataError(metaPath, `comments[${index}] must be an object`)
+    const comment = entry as Record<string, unknown>
+    for (const field of ['id', 'anchor', 'text', 'created_at', 'author'] as const) {
+      if (typeof comment[field] !== 'string' || (field !== 'anchor' && !comment[field])) {
+        metadataError(metaPath, `comments[${index}].${field} must be ${field === 'anchor' ? 'a string' : 'a non-empty string'}`)
+      }
+    }
+    if (commentIds.has(comment.id as string)) metadataError(metaPath, `duplicate comment id ${comment.id}`)
+    commentIds.add(comment.id as string)
+    if (Number.isNaN(Date.parse(comment.created_at as string))) {
+      metadataError(metaPath, `comments[${index}].created_at must be an ISO timestamp`)
+    }
+    if (comment.status !== 'open' && comment.status !== 'resolved') {
+      metadataError(metaPath, `comments[${index}].status must be open or resolved`)
+    }
+    if (comment.resolved_in !== null && comment.resolved_in !== undefined) {
+      if (typeof comment.resolved_in !== 'string' || !revisionIds.has(comment.resolved_in)) {
+        metadataError(metaPath, `comments[${index}].resolved_in must name an existing revision`)
+      }
+    }
+    for (const field of ['quote', 'prefix', 'suffix', 'answer'] as const) {
+      if (comment[field] !== undefined && typeof comment[field] !== 'string') {
+        metadataError(metaPath, `comments[${index}].${field} must be a string`)
+      }
+    }
+    if (comment.replies !== undefined) {
+      if (!Array.isArray(comment.replies)) metadataError(metaPath, `comments[${index}].replies must be an array`)
+      const replies = comment.replies as unknown[]
+      replies.forEach((reply, replyIndex) => {
+        if (!isRecord(reply)) metadataError(metaPath, `comments[${index}].replies[${replyIndex}] must be an object`)
+        const replyRecord = reply as Record<string, unknown>
+        for (const field of ['author', 'text', 'created_at'] as const) {
+          if (typeof replyRecord[field] !== 'string' || !replyRecord[field]) {
+            metadataError(metaPath, `comments[${index}].replies[${replyIndex}].${field} must be a non-empty string`)
+          }
+        }
+        if (Number.isNaN(Date.parse(replyRecord.created_at as string))) {
+          metadataError(metaPath, `comments[${index}].replies[${replyIndex}].created_at must be an ISO timestamp`)
+        }
+      })
+    }
+  })
+  if (record.approvals !== undefined) {
+    if (!Array.isArray(record.approvals)) metadataError(metaPath, '`approvals` must be an array')
+    ;(record.approvals as unknown[]).forEach((entry, index) => {
+      if (!isRecord(entry)) metadataError(metaPath, `approvals[${index}] must be an object`)
+      const approval = entry as Record<string, unknown>
+      if (typeof approval.rev !== 'string' || !revisionIds.has(approval.rev)) {
+        metadataError(metaPath, `approvals[${index}].rev must name an existing revision`)
+      }
+      for (const field of ['created_at', 'author'] as const) {
+        if (typeof approval[field] !== 'string' || !approval[field]) {
+          metadataError(metaPath, `approvals[${index}].${field} must be a non-empty string`)
+        }
+      }
+    })
+  }
+  return record as unknown as Meta
+}
+
+export const makeComment = (meta: Meta, input: NewComment): CommentEntry => {
+  const stamp = nowStamp()
+  const date = stamp.slice(0, 10)
+  const seq = Math.max(0, ...meta.comments.map((comment) => {
+    const match = new RegExp(`^c-${date}-(\\d+)$`).exec(comment.id)
+    return match ? Number(match[1]) : 0
+  })) + 1
+  return {
+    id: `c-${date}-${String(seq).padStart(3, '0')}`,
+    anchor: input.anchor ?? '',
+    ...(input.quote ? { quote: input.quote } : {}),
+    ...(input.prefix ? { prefix: input.prefix } : {}),
+    ...(input.suffix ? { suffix: input.suffix } : {}),
+    text: input.text,
+    status: 'open',
+    created_at: stamp,
+    author: input.author ?? 'reader',
+    resolved_in: null,
+  }
+}
+
+/** The most recent approval, if any. */
+export const latestApproval = (meta: Meta): Approval | null =>
+  meta.approvals?.length ? meta.approvals[meta.approvals.length - 1] : null
+
+
+/** Parse meta.yml text (null when the file doesn't exist yet). */
+export const parseMeta = (text: string | null, metaPath: string): Meta => {
+  if (text === null) return { revisions: [], comments: [] }
+  let parsed: unknown
+  try {
+    parsed = parseYaml(text)
+  } catch (error) {
+    throw new Error(`Unreadable meta.yml at ${metaPath} — refusing to touch it: ${error instanceof Error ? error.message : String(error)}`)
+  }
+  return validateMeta(parsed, metaPath)
+}
+
+export const serializeMeta = (meta: Meta, metaPath = 'meta.yml'): string => {
+  validateMeta(meta, metaPath)
+  return stringifyYaml({
+    revisions: meta.revisions,
+    comments: meta.comments,
+    ...(meta.approvals?.length ? { approvals: meta.approvals } : {}),
+  })
+}
+
+export interface SnapshotOptions {
+  /** what changed; computed from the diff (headings name the parts) when omitted */
+  summary?: string
+  why?: string
+  source?: string
+  author?: string
+}
+
+/** The frontmatter keys a snapshot owns. */
+const stampKeys = (rev: string, historyRel: string): Record<string, string | boolean | null> => ({
+  Pentimento: true,
+  Vellum: null, // migrate pre-rename docs: drop the legacy marker on first snapshot
+  'Current Revision': rev,
+  'History Folder': historyRel,
+})
+
+/** The canonical as a snapshot leaves it: inline comments removed, frontmatter stamped. */
+export const stampCanonical = (raw: string, rev: string, historyRel: string): { stamped: string; found: { text: string; anchor: string }[] } => {
+  const { cleaned, found } = extractInlineComments(raw)
+  return { stamped: stampFrontmatter(cleaned, stampKeys(rev, historyRel)), found }
+}
+
+/** The revision a snapshot of this source would create (r001 for a document with none). */
+export const nextRevision = (raw: string): string => {
+  const m = FRONTMATTER_RE.exec(raw)
+  const fm = m ? ((parseYaml(m[1]) ?? {}) as Record<string, unknown>) : {}
+  // 'Vellum: true' is the pre-rename marker; keep reading it so old docs snapshot cleanly
+  const isPentimento = fm['Pentimento'] === true || fm['Vellum'] === true
+  const current = isPentimento && fm['Current Revision'] !== undefined ? parseRevId(fm['Current Revision']) : 0
+  return revId(current + 1)
+}
+
+export interface SnapshotPlan {
+  rev: string
+  /** the new canonical text, which is also the revision file's content */
+  stamped: string
+  /** meta with the new revision and any extracted inline comments appended */
+  meta: Meta
+}
+
+/**
+ * Everything a snapshot writes, computed without touching storage. The caller writes
+ * `stamped` to the revision file and the canonical, and `meta` to meta.yml.
+ */
+export const planSnapshot = (input: {
+  raw: string
+  meta: Meta
+  historyRel: string
+  /** the latest saved revision's body, for computed summaries; null for a first draft */
+  previousBody: string | null
+  opts: SnapshotOptions
+  describe: (previousBody: string | null, body: string) => string
+}): SnapshotPlan => {
+  const rev = nextRevision(input.raw)
+  const { stamped, found } = stampCanonical(input.raw, rev, input.historyRel)
+  const meta: Meta = {
+    ...input.meta,
+    revisions: [...input.meta.revisions],
+    comments: [...input.meta.comments],
+  }
+  const summary = input.opts.summary?.trim() || input.describe(input.previousBody, splitRaw(stamped).body)
+  meta.revisions.push({
+    id: rev,
+    created_at: nowStamp(),
+    author: input.opts.author ?? 'unknown',
+    summary,
+    ...(input.opts.why ? { why: input.opts.why } : {}),
+    ...(input.opts.source ? { source: input.opts.source } : {}),
+  })
+  for (const f of found) meta.comments.push(makeComment(meta, { text: f.text, anchor: f.anchor, author: input.opts.author }))
+  return { rev, stamped, meta }
+}

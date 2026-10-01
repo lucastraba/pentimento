@@ -55,6 +55,8 @@ pentimento cuttings Song.md      # everything you've cut that isn't in the curre
 pentimento revert Song.md r002   # bring back r002, saved as a new draft
 ```
 
+In Obsidian, the [Pentimento plugin](obsidian/README.md) does the same without a terminal: a Save draft button, the latest draft in the status bar, and a panel with the changes, every draft, and your cuttings. It writes the same files, so the plugin and the CLI work on the same notes.
+
 A document without an `Archetype` in its frontmatter is treated as your own writing: single line breaks stay line breaks, as in Obsidian, so lyrics and poems keep their shape. Obsidian syntax renders the way Obsidian shows it: `[[links]]`, `==highlights==`, `> [!note]` callouts, and footnotes, with `%% comments %%` hidden. The `.history/` folder is hidden from Obsidian.
 
 ## Plans with an agent

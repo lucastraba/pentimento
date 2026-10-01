@@ -1,0 +1,10 @@
+{
+  "id": "pentimento",
+  "name": "Pentimento",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "Save drafts of a note and see what changed between them, what you cut, and bring back any earlier draft.",
+  "author": "Lucas Traba",
+  "authorUrl": "https://github.com/lucastraba/pentimento",
+  "isDesktopOnly": false
+}

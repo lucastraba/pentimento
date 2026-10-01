@@ -1,0 +1,44 @@
+/* Pentimento for Obsidian: the history panel and status bar, in Obsidian's own colors. */
+
+.pentimento-statusbar.is-edited { color: var(--text-accent); }
+
+.pentimento-view { padding: var(--size-4-3) var(--size-4-4); font-size: var(--font-ui-small); }
+.pentimento-title { margin: 0 0 var(--size-2-2); font-size: var(--font-ui-medium); }
+.pentimento-status-line { display: flex; align-items: center; gap: var(--size-2-2); flex-wrap: wrap; color: var(--text-muted); }
+.pentimento-rev { color: var(--text-normal); font-weight: var(--font-semibold); font-variant-numeric: tabular-nums; }
+.pentimento-save { margin-left: auto; }
+.pentimento-empty { color: var(--text-muted); }
+
+.pentimento-tabs { display: flex; gap: var(--size-2-1); margin: var(--size-4-3) 0 var(--size-4-2);
+  border-bottom: 1px solid var(--background-modifier-border); }
+.pentimento-tabs button { background: none; box-shadow: none; border: none; border-radius: 0; padding: var(--size-2-2) var(--size-2-3);
+  color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; height: auto; }
+.pentimento-tabs button.is-active { color: var(--text-normal); border-bottom-color: var(--interactive-accent); }
+
+.pentimento-compare, .pentimento-caption { color: var(--text-muted); margin: 0 0 var(--size-4-2); }
+.pentimento-compare select { margin-left: var(--size-2-1); }
+.pentimento-back { display: inline-block; margin-bottom: var(--size-2-3); }
+
+/* the diff, set like the note itself: removed words struck in a warm brown, new ones marked */
+.pentimento-diff { font-family: var(--font-text); font-size: var(--font-text-size); line-height: var(--line-height-normal); }
+.pentimento-diff .rdiff-block { white-space: pre-wrap; overflow-wrap: break-word; margin: var(--size-4-2) 0; }
+.pentimento-diff .rdiff-block.codey { font-family: var(--font-monospace); font-size: var(--font-smaller); }
+.pentimento-diff .rdiff-ctx { font-family: var(--font-interface); font-size: var(--font-ui-smaller); font-weight: var(--font-semibold);
+  color: var(--text-muted); margin-top: var(--size-4-4); }
+.pentimento-diff .rdiff-skip { font-family: var(--font-interface); font-size: var(--font-ui-smaller); color: var(--text-faint); }
+.pentimento-diff del { color: var(--color-orange); text-decoration: line-through; text-decoration-thickness: 1px; opacity: .85; }
+.pentimento-diff ins { text-decoration: none; background: hsla(var(--interactive-accent-hsl), .15);
+  box-shadow: inset 0 -1.5px 0 hsla(var(--interactive-accent-hsl), .5); }
+
+.pentimento-drafts { list-style: none; padding: 0; margin: 0; }
+.pentimento-drafts li { padding: var(--size-4-2) 0; border-bottom: 1px solid var(--background-modifier-border); }
+.pentimento-draft-top { display: flex; justify-content: space-between; gap: var(--size-2-3); }
+.pentimento-when { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.pentimento-summary { color: var(--text-normal); margin-top: var(--size-2-1); }
+.pentimento-why { color: var(--text-muted); }
+.pentimento-actions { display: flex; gap: var(--size-4-3); margin-top: var(--size-2-2); }
+
+.pentimento-cutting { margin: 0 0 var(--size-4-4); }
+.pentimento-cutting-text { margin: 0; padding-left: var(--size-4-3); border-left: 2px dotted var(--color-orange);
+  white-space: pre-wrap; font-family: var(--font-text); font-size: var(--font-text-size); background: none; }
+.pentimento-cutting-meta { display: flex; gap: var(--size-4-3); margin: var(--size-2-2) 0 0 var(--size-4-3); color: var(--text-muted); }

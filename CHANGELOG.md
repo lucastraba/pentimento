@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- An Obsidian plugin in `obsidian/`: save drafts from Obsidian (ribbon button, commands, optional daily drafts), the latest draft in the status bar, and a panel with changes, every draft (with restore), and cuttings. It works on mobile.
+
+### Changed
+
+- The draft format (frontmatter stamping, `meta.yml`, revision numbering) moved into `src/model.ts`, which has no file access. `src/drafts.ts` saves drafts through an async storage interface for hosts without Node; tests check it writes exactly what the CLI writes.
+
 ## 0.11.0 - 2026-09-30
 
 Pentimento 0.11 reframes the tool around rounds of drafts and makes the page much quieter. (0.8.0 through 0.10.0 were published while moving releases to CI and contain the 0.7 code.)
