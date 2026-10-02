@@ -7,7 +7,7 @@ import path from 'node:path'
 import { createTwoFilesPatch } from 'diff'
 import { configPath } from './config.js'
 import {
-  addComment, addReply, approve, canonicalRevisionState, latestApproval, loadDoc, readMeta, readRevision,
+  addComment, addReply, approve, canonicalRevisionState, describeImageComment, latestApproval, loadDoc, readMeta, readRevision,
   resolveComment, revert, snapshot, splitRaw, untrack,
 } from './core.js'
 import { renderDiffPage, renderToFile } from './render.js'
@@ -139,13 +139,14 @@ const main = (): void => {
       const saved = readMeta(loadDoc(doc).historyDir).revisions.find((r) => r.id === res.rev)
       console.log(`${res.rev} → ${res.historyFile}`)
       if (!flags.summary && saved) console.log(`summary: ${saved.summary}`)
-      const style = lintDoc(loadDoc(doc).raw)
+      for (const missing of res.missingImages) console.log(`warning: ${missing} isn't there, so ${res.rev} was saved without it`)
+      const style = lintDoc(loadDoc(doc).raw, loadDoc(doc).canonicalPath)
       if (style.length) console.log(`${style.length} style warning(s) — run: pentimento lint ${positional[0]}`)
       break
     }
     case 'lint': {
       if (!doc) fail('lint needs a document path')
-      const findings = lintDoc(loadDoc(doc).raw)
+      const findings = lintDoc(loadDoc(doc).raw, loadDoc(doc).canonicalPath)
       if (!findings.length) { console.log('no style warnings'); break }
       for (const f of findings) console.log(`  L${String(f.line).padStart(3)} [${f.rule}] ${f.message}`)
       console.log(`${findings.length} style warning(s)`)
@@ -295,7 +296,8 @@ const main = (): void => {
       if (!meta.comments.length) { console.log('no comments'); break }
       for (const c of open) {
         console.log(`[${c.id}] OPEN ${c.anchor || '(document)'} — ${c.author}, ${c.created_at.slice(0, 10)}`)
-        if (c.quote) console.log(`    > ${c.quote}`)
+        if (c.image) console.log(`    on the image ${c.image.ref}${c.image.box ? ' (a marked part)' : ''}`)
+        else if (c.quote) console.log(`    > ${c.quote}`)
         console.log(`    ${c.text}`)
         for (const r of c.replies ?? []) console.log(`    ↳ ${r.author}: ${r.text}`)
       }
@@ -328,6 +330,14 @@ const main = (): void => {
           console.log(`[${c.id}] answer to the question at ${c.anchor} — ${c.author}, ${c.created_at.slice(0, 10)}`)
           if (c.quote) console.log(`  question: "${c.quote}"`)
           console.log(`  answer: ${c.answer}`)
+          console.log('')
+          continue
+        }
+        if (c.image) {
+          console.log(`[${c.id}] on an image at ${c.anchor || '(document)'} — ${c.author}, ${c.created_at.slice(0, 10)}`)
+          for (const line of describeImageComment(doc, c)) console.log(line)
+          console.log(`  comment: ${c.text}`)
+          for (const r of c.replies ?? []) console.log(`  reply (${r.author}): ${r.text}`)
           console.log('')
           continue
         }

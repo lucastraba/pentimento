@@ -1,4 +1,5 @@
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
+import { ASSET_RE } from './imageref.js'
 
 /**
  * The draft format with no file access: frontmatter stamping, meta.yml parsing and
@@ -14,12 +15,27 @@ export interface RevisionEntry {
   summary: string
   why?: string
   source?: string
+  /** the image each reference pointed to when this draft was saved: path as written → hash */
+  images?: Record<string, string>
 }
 
 export interface ReplyEntry {
   author: string
   text: string
   created_at: string
+}
+
+/** What a comment on an image points at. */
+export interface ImageMark {
+  /** the image as the document writes it: a path, or `[[name]]` for an Obsidian embed */
+  ref: string
+  /** the stored image the comment was made on, `<hash>.<ext>` */
+  asset: string
+  /** the part the reader marked, as fractions of the image's width and height; absent for the whole image */
+  box?: { x: number; y: number; w: number; h: number }
+  /** the image's size in pixels, as the reader's browser loaded it */
+  width?: number
+  height?: number
 }
 
 export interface CommentEntry {
@@ -37,6 +53,8 @@ export interface CommentEntry {
   replies?: ReplyEntry[]
   /** set when the comment is the reader's answer to a `::: ask` question */
   answer?: string
+  /** set when the comment is on an image rather than on selected text */
+  image?: ImageMark
 }
 
 export interface NewComment {
@@ -46,6 +64,27 @@ export interface NewComment {
   prefix?: string
   suffix?: string
   author?: string
+  image?: ImageMark
+}
+
+const isFraction = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= 1
+
+/** Why an image mark is malformed, or null when it's fine. */
+export const imageMarkProblem = (value: unknown): string | null => {
+  if (!isRecord(value)) return 'must be an object'
+  if (typeof value.ref !== 'string' || !value.ref) return 'needs the image reference'
+  if (typeof value.asset !== 'string' || !ASSET_RE.test(value.asset)) return 'needs a stored image name (<hash>.<ext>)'
+  if (value.box !== undefined) {
+    const box = value.box as Record<string, unknown>
+    if (!isRecord(box) || ![box.x, box.y, box.w, box.h].every(isFraction)) return 'box needs x, y, w, and h between 0 and 1'
+    if ((box.w as number) <= 0 || (box.h as number) <= 0 || (box.x as number) + (box.w as number) > 1.0001 || (box.y as number) + (box.h as number) > 1.0001) {
+      return 'box must have a size and stay inside the image'
+    }
+  }
+  for (const side of ['width', 'height'] as const) {
+    if (value[side] !== undefined && !(Number.isInteger(value[side]) && (value[side] as number) > 0)) return `${side} must be a whole number of pixels`
+  }
+  return null
 }
 
 export interface Approval {
@@ -183,6 +222,11 @@ export const validateMeta = (value: unknown, metaPath: string): Meta => {
         metadataError(metaPath, `revisions[${index}].${field} must be a string`)
       }
     }
+    if (revision.images !== undefined) {
+      if (!isRecord(revision.images) || !Object.values(revision.images).every((h) => typeof h === 'string' && /^[0-9a-f]{16}$/.test(h))) {
+        metadataError(metaPath, `revisions[${index}].images must map each image path to a 16-character hash`)
+      }
+    }
   })
 
   const commentIds = new Set<string>()
@@ -211,6 +255,10 @@ export const validateMeta = (value: unknown, metaPath: string): Meta => {
       if (comment[field] !== undefined && typeof comment[field] !== 'string') {
         metadataError(metaPath, `comments[${index}].${field} must be a string`)
       }
+    }
+    if (comment.image !== undefined) {
+      const problem = imageMarkProblem(comment.image)
+      if (problem) metadataError(metaPath, `comments[${index}].image ${problem}`)
     }
     if (comment.replies !== undefined) {
       if (!Array.isArray(comment.replies)) metadataError(metaPath, `comments[${index}].replies must be an array`)
@@ -260,6 +308,7 @@ export const makeComment = (meta: Meta, input: NewComment): CommentEntry => {
     ...(input.quote ? { quote: input.quote } : {}),
     ...(input.prefix ? { prefix: input.prefix } : {}),
     ...(input.suffix ? { suffix: input.suffix } : {}),
+    ...(input.image ? { image: input.image } : {}),
     text: input.text,
     status: 'open',
     created_at: stamp,

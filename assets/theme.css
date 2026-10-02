@@ -261,6 +261,14 @@ table.options td:first-child, table.options th:first-child { padding-left: .6rem
 .diagram .flow { stroke: var(--faint); fill: none; marker-end: url(#arr); }
 .diagram .lbl { fill: var(--soft); font-size: 10.5px; }
 
+/* images: an image alone in its paragraph is a figure at the width diffs use */
+.shot { width: min(var(--breakout), calc(100vw - 2.8rem)); margin: 1.6rem 0 1.6rem 50%; transform: translateX(-50%); }
+.shot img { display: block; max-width: 100%; height: auto; margin: 0 auto; border: 1px solid var(--line); border-radius: 6px; }
+.shot figcaption { margin-top: .5rem; font-size: .75rem; color: var(--soft); text-align: center; }
+.image-missing { font: italic .92em var(--serif); color: var(--soft); }
+.image-missing::before { content: "Missing image: "; font: .8em var(--sans); }
+.image-link::before { content: "Image: "; color: var(--soft); }
+
 /* proposed code changes */
 .diff { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; container-type: inline-size;
   width: min(var(--breakout), calc(100vw - 2.8rem)); margin: 1.2rem 0 1.2rem 50%; transform: translateX(-50%); }
@@ -299,6 +307,13 @@ table.options td:first-child, table.options th:first-child { padding-left: .6rem
 .rdiff-block.codey { font: .76rem/1.6 var(--mono); overflow-x: auto; }
 .rdiff-skip { color: var(--soft); font-size: .74rem; margin: .6rem 0; }
 .rdiff-ctx { color: var(--soft); font-weight: 600; font-size: .78rem; margin: 1rem 0 .1rem; }
+/* a changed image: both versions side by side, stacked when there's no room */
+.rdiff-shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: .8rem; white-space: normal; }
+.rdiff-shot { margin: 0; }
+.rdiff-shot figcaption { font: .72rem var(--sans); color: var(--soft); margin-bottom: .3rem; }
+.rdiff-shot img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; }
+.rdiff-shot.now img, .rdiff-shot.added img { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.rdiff-shot.was img, .rdiff-shot.cut img { opacity: .7; }
 ins, .rdiff ins { text-decoration: none; background: var(--wash); box-shadow: inset 0 -1.5px 0 color-mix(in srgb, var(--accent) 45%, transparent);
   color: inherit; }
 del, .rdiff del { color: var(--trace); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--trace) 70%, transparent);
@@ -315,6 +330,7 @@ main.traces .tr-old * { color: inherit !important; border-color: color-mix(in sr
 main.traces .tr-old::before { content: attr(data-label); display: block; font: 500 .68rem var(--sans); text-decoration: none;
   color: var(--trace); margin-bottom: .1rem; }
 main.traces .tr-new { margin: .9rem 0; padding-left: 1.1rem; border-left: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); }
+main.traces .tr-old img { opacity: .55; }
 main.traces .tr-new > :first-child, main.traces .tr-old > :first-child { margin-top: 0; }
 main.traces .tr-new > :last-child, main.traces .tr-old > :last-child { margin-bottom: 0; }
 /* in the live viewer the bar carries the traces switch */
@@ -335,6 +351,8 @@ main.traces .tr-heading { font: 600 1.1rem var(--serif); color: var(--trace); te
 .appendix details[open] > summary h2::after { content: " ▾"; }
 .appendix h2 { font-size: .82rem; font-weight: 600; color: var(--soft); letter-spacing: .01em; margin: 0 0 .7rem; }
 .cutting { margin: 1rem 0 0; }
+.cutting-shot { display: block; max-width: 14rem; max-height: 10rem; width: auto; height: auto; margin: 0 0 .4rem 1.1rem;
+  border: 1px solid var(--line); border-radius: 4px; }
 .cutting-text { margin: 0; padding-left: 1.1rem; border-left: 2px dotted color-mix(in srgb, var(--trace) 60%, transparent);
   white-space: pre-wrap; font: inherit; font-size: .98rem; color: var(--ink); }
 .cuttings-meta { display: flex; gap: .7rem; align-items: baseline; margin: .3rem 0 0 1.1rem; font-size: .74rem; color: var(--soft); }
@@ -416,6 +434,24 @@ html[data-scrubbing] main { transition: opacity .12s; }
 .vc-drawer-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: .3rem; }
 .vc-h { font: 600 .72rem var(--sans); color: var(--soft); margin: 1rem 0 .3rem; }
 .vc-empty { color: var(--soft); }
+/* comments on images: a box over the marked part, or a pin for the whole image */
+.vc-imgwrap { position: relative; display: inline-block; max-width: 100%; vertical-align: bottom; }
+.shot .vc-imgwrap { display: block; width: fit-content; margin: 0 auto; }
+.vc-imgwrap > img { display: block; }
+:root.vc-images main img[data-asset] { cursor: crosshair; }
+.vc-marking { touch-action: none; }
+.vc-mark { position: absolute; padding: 0; border: 2px solid var(--high); border-radius: 4px; cursor: pointer;
+  background: color-mix(in srgb, var(--high) 14%, transparent); }
+.vc-mark.whole { top: .45rem; right: .45rem; width: 1.8rem; height: 1.8rem; border-radius: 50%; background: var(--raise);
+  display: grid; place-items: center; color: var(--ink); }
+.vc-mark.whole .comment-icon { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-width: 1.5;
+  stroke-linecap: round; stroke-linejoin: round; }
+.vc-mark.whole .comment-dots { stroke-width: 2.1; }
+.vc-imgwrap:has(> .vc-mark.whole) > img { outline: 2px solid var(--high); outline-offset: 2px; }
+.vc-mark.pending { border-style: dashed; border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent);
+  pointer-events: none; }
+.vc-mark.vc-flash { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 40%, transparent); }
+.vc-form .vc-note, .vc-card .vc-note { display: block; margin: 0 0 .5rem; font: .76rem var(--sans); color: var(--soft); }
 .vc-card { padding: .65rem 0; border-top: 1px solid var(--line); }
 .vc-card[data-status="resolved"] { color: var(--soft); }
 .vc-card.vc-focus { background: var(--wash); border-radius: 6px; }
@@ -466,11 +502,11 @@ html[data-scrubbing] main { transition: opacity .12s; }
 /* print: interface gone, every fold open, sections whole */
 @media print {
   :root { --bg: #fff; --raise: #fff; --sunk: #f4f4f4; --ink: #000; --soft: #444; --faint: #777; --line: #ccc; --accent: #000; }
-  .meta-tools, .drafts-scrub, .vbar, .vbar-pad, .vc-drawer, .vc-add, .vc-form, .vc-toast, .vc-hint, .anch, .rail, .toc-inline,
+  .meta-tools, .drafts-scrub, .vbar, .vbar-pad, .vc-drawer, .vc-add, .vc-form, .vc-toast, .vc-hint, .vc-mark, .anch, .rail, .toc-inline,
   .viewer-stopped-status, .cut-copy { display: none !important; }
   .wrap { max-width: none; padding: 0; }
-  .tablewrap, .diff { width: auto; margin: 1rem 0; transform: none; overflow: visible; }
-  section, .finding, .timeline li, .callout, .diff, .diagram, .ask { break-inside: avoid; }
+  .tablewrap, .diff, .shot { width: auto; margin: 1rem 0; transform: none; overflow: visible; }
+  section, .finding, .timeline li, .callout, .diff, .diagram, .shot, .rdiff-shots, .ask { break-inside: avoid; }
   h1, h2, h3 { break-after: avoid; }
   a[href^="http"]::after { content: " (" attr(href) ")"; font-size: .8em; color: #555; word-break: break-all; }
 }

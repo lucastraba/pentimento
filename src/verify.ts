@@ -1,6 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { loadDoc, parseRevId, readMeta, revId, splitRaw } from './core.js'
+import { imageExtension } from './imageref.js'
+import { assetsDir, imagesDiffer } from './images.js'
 
 export interface Issue {
   level: 'error' | 'warn' | 'info'
@@ -117,10 +119,22 @@ export const verifyDoc = (docPath: string): Issue[] => {
     }
   }
 
+  for (const r of meta.revisions) {
+    for (const [ref, hash] of Object.entries(r.images ?? {})) {
+      const asset = `${hash}.${imageExtension(ref.replace(/^\[\[|\]\]$/g, '')) ?? 'png'}`
+      if (!fs.existsSync(path.join(assetsDir(doc.historyDir), asset))) {
+        err(`${r.id} shows ${ref}, but its saved copy assets/${asset} is missing`)
+      }
+    }
+  }
+
   if (last && files.includes(last)) {
     const lastBody = splitRaw(fs.readFileSync(path.join(doc.historyDir, `${last}.md`), 'utf8')).body
+    const saved = meta.revisions[meta.revisions.length - 1].images
     if (lastBody.trim() !== doc.body.trim()) {
       info(`canonical has changes not yet snapshotted (differs from ${last})`)
+    } else if (saved && imagesDiffer(doc.canonicalPath, doc.body, saved)) {
+      info(`images changed since ${last} and aren't in a draft yet`)
     }
   }
 

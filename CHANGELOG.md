@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Images. A local image renders in the page, as a figure when it is alone in its paragraph (its title becomes the caption), and `![[shot.png]]` embeds are found the way Obsidian finds them. A static page carries each image once, inside the page; the live viewer serves them by content hash.
+- Each draft keeps the images it was saved with, in `.history/<name>/assets/`, and its `meta.yml` entry records which copy each path pointed to. Stepping back to a draft shows its pictures. A new screenshot at the same path shows in "What changed" as both versions side by side, traces fold the old image under the new one, and removed images appear under cuttings. `revert` puts a draft's images back, storing any file it overwrites first, and `verify` reports a stored image that has gone missing.
+- A new screenshot with no markdown edit counts as an unsaved change, and the viewer updates when an image file changes.
+- Comments on images. In the viewer, click an image to comment on all of it, or drag across it to mark a part; on a phone, tap the image, then drag while the comment is open. The mark stays on the image until a draft replaces it, and then the comment links to the draft that had it. `pentimento address` prints the image's file and the marked part in pixels.
+- Lint warns about images that are missing, remote, outside the document's folder, in an unsupported format, over 1 MB, or without alt text. Snapshot warns when an image it should save isn't there.
+- `pentimento guide` covers mocks and prototypes: build them as HTML, screenshot them headlessly, and embed the screenshots. Skill revision 12.
+
+### Changed
+
+- `renderDiffHtml` in `pentimento/semdiff` takes an optional third argument with image URLs and labels. Bodies without images render as before.
+
 ## 0.12.1 - 2026-10-02
 
 ### Fixed

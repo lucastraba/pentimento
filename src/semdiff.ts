@@ -1,4 +1,5 @@
 import { diffArrays, diffWords } from 'diff'
+import { imageBlock, keyedImages, stripImageMarks } from './imageref.js'
 
 export interface BlockPart {
   type: 'same' | 'add' | 'del' | 'change'
@@ -160,11 +161,42 @@ const lineDiffHtml = (oldS: string, newS: string): string => {
 const blockDiffHtml = (oldS: string, newS: string): string =>
   isLineShaped(oldS) || isLineShaped(newS) ? lineDiffHtml(oldS, newS) : wordDiffHtml(oldS, newS)
 
+export interface DiffOptions {
+  /** the URL of a stored image; null leaves `src` off for the page to fill in from `data-asset` */
+  imageUrl?: (asset: string) => string | null
+  /** what the two versions of a changed image are called, such as the drafts they come from */
+  labels?: [string, string]
+}
+
+const shotHtml = (asset: string, alt: string, label: string, kind: string, opts: DiffOptions): string => {
+  const url = opts.imageUrl?.(asset) ?? null
+  return `<figure class="rdiff-shot ${kind}"><figcaption>${escapeHtml(label)}</figcaption>` +
+    `<img${url ? ` src="${escapeHtml(url)}"` : ''} data-asset="${escapeHtml(asset)}" alt="${escapeHtml(alt)}" loading="lazy"></figure>`
+}
+
+const shotsHtml = (shots: string[]): string => `<div class="rdiff-block rdiff-shots">${shots.join('')}</div>`
+
+/** The images inside a changed paragraph that are new, cut, or replaced, paired in order. */
+const imageChangesHtml = (oldS: string, newS: string, opts: DiffOptions, labels: [string, string]): string => {
+  const before = keyedImages(oldS)
+  const after = keyedImages(newS)
+  const gone = before.filter((b) => !after.some((a) => a.asset === b.asset))
+  const came = after.filter((a) => !before.some((b) => b.asset === a.asset))
+  const shots: string[] = []
+  for (let i = 0; i < Math.max(gone.length, came.length); i++) {
+    if (gone[i]) shots.push(shotHtml(gone[i].asset, gone[i].ref.alt, came[i] ? labels[0] : 'Cut', came[i] ? 'was' : 'cut', opts))
+    if (came[i]) shots.push(shotHtml(came[i].asset, came[i].ref.alt, gone[i] ? labels[1] : 'New', gone[i] ? 'now' : 'added', opts))
+  }
+  return shots.length ? shotsHtml(shots) : ''
+}
+
 /**
  * Reader-facing revision diff: changed blocks with word-level ins/del marks (line-level for
  * stanzas and lists), unchanged runs collapsed, the nearest heading shown before each change.
+ * In keyed bodies, a changed image shows as its two versions side by side.
  */
-export const renderDiffHtml = (oldBody: string, newBody: string): string => {
+export const renderDiffHtml = (oldBody: string, newBody: string, opts: DiffOptions = {}): string => {
+  const labels = opts.labels ?? ['Before', 'After']
   const parts = diffBlocks(oldBody, newBody)
   const out: string[] = []
   let skip = 0
@@ -197,10 +229,26 @@ export const renderDiffHtml = (oldBody: string, newBody: string): string => {
       out.push(`<div class="rdiff-ctx">${escapeHtml(pendingCtx)}</div>`)
       pendingCtx = null
     }
-    const cls = `rdiff-block${isCodey(p.new ?? p.old ?? '') ? ' codey' : ''}`
-    if (p.type === 'change') out.push(`<div class="${cls}">${blockDiffHtml(p.old!, p.new!)}</div>`)
-    else if (p.type === 'add') out.push(`<div class="${cls}"><ins>${escapeHtml(p.new!)}</ins></div>`)
-    else out.push(`<div class="${cls}"><del>${escapeHtml(p.old!)}</del></div>`)
+    const oldShot = p.old !== undefined ? imageBlock(p.old) : null
+    const newShot = p.new !== undefined ? imageBlock(p.new) : null
+    if (p.type === 'change' && oldShot?.asset && newShot?.asset) {
+      out.push(shotsHtml([
+        shotHtml(oldShot.asset, oldShot.ref.alt, labels[0], 'was', opts),
+        shotHtml(newShot.asset, newShot.ref.alt, labels[1], 'now', opts),
+      ]))
+      continue
+    }
+    if (p.type === 'add' && newShot?.asset) { out.push(shotsHtml([shotHtml(newShot.asset, newShot.ref.alt, 'New', 'added', opts)])); continue }
+    if (p.type === 'del' && oldShot?.asset) { out.push(shotsHtml([shotHtml(oldShot.asset, oldShot.ref.alt, 'Cut', 'cut', opts)])); continue }
+    // image markers never show as text; images inside a changed paragraph follow it
+    const o = p.old === undefined ? '' : stripImageMarks(p.old)
+    const n = p.new === undefined ? '' : stripImageMarks(p.new)
+    const cls = `rdiff-block${isCodey(n || o) ? ' codey' : ''}`
+    if (p.type === 'change') {
+      if (o !== n) out.push(`<div class="${cls}">${blockDiffHtml(o, n)}</div>`)
+      out.push(imageChangesHtml(p.old!, p.new!, opts, labels))
+    } else if (p.type === 'add') out.push(`<div class="${cls}"><ins>${escapeHtml(n)}</ins></div>`)
+    else out.push(`<div class="${cls}"><del>${escapeHtml(o)}</del></div>`)
   }
   flushSkip()
   if (!changed) {
@@ -305,7 +353,11 @@ export const tracePlan = (oldBody: string, newBody: string): TracePart[] => {
     }
     // changed block
     if (isHeading(p.new!)) { out.push({ kind: 'same', text: p.new! }); continue }
-    if (isCodey(p.old!) && isCodey(p.new!)) { out.push({ kind: 'swap', old: p.old!, text: p.new! }); continue }
+    // directives, code, and images can't be marked word by word: the new one shows, the old one folds
+    if ((isCodey(p.old!) && isCodey(p.new!)) || (imageBlock(p.old!) && imageBlock(p.new!))) {
+      out.push({ kind: 'swap', old: p.old!, text: p.new! })
+      continue
+    }
     const marked = similarity(p.old!, p.new!) >= 0.25 ? inlineTrace(p.old!, p.new!) : null
     if (marked !== null) out.push({ kind: 'inline', text: marked })
     else {
@@ -410,7 +462,8 @@ export const collectCuttings = (drafts: { id: string; body: string }[]): Cutting
       let cut: string | null = null
       if (p.type === 'del') cut = oldBlock!
       else if (p.type === 'change' && similarity(oldBlock!, p.new!) < 0.5) cut = oldBlock!
-      if (!cut || isCodey(cut) || words(cut).length < 4) continue
+      // an image is worth keeping however few words its alt text has
+      if (!cut || isCodey(cut) || (words(cut).length < 4 && !imageBlock(cut))) continue
       const norm = normalizeText(cut)
       if (seen.has(norm) || current.includes(norm)) continue
       seen.add(norm)
@@ -421,4 +474,4 @@ export const collectCuttings = (drafts: { id: string; body: string }[]): Cutting
 }
 
 export const wordCount = (body: string): number =>
-  body.replace(/<!--[\s\S]*?-->/g, '').match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu)?.length ?? 0
+  stripImageMarks(body).replace(/<!--[\s\S]*?-->/g, '').match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu)?.length ?? 0

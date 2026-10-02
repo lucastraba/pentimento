@@ -10,12 +10,93 @@ import {
   type CommentEntry, type Doc, type Meta,
 } from './core.js'
 import { renderFlowSvg } from './flow.js'
+import { assetsIn, IMAGE_MARK_RE, imageBlock, imageExtension, isRemote, stripImageMarks } from './imageref.js'
+import { dataUri, imageKeys, type ImageKeys } from './images.js'
 import {
   collectCuttings, renderDiffHtml, TRACE, tracePlan, wordCount, type Cutting,
 } from './semdiff.js'
 import { schemeToggle, themeInitSnippet } from './themes.js'
 
 const ASSETS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../assets')
+
+/**
+ * How the page being rendered shows stored images. The live viewer serves them by URL. A
+ * static page carries each one once: inline in the current draft, and in a store template
+ * for images only earlier drafts show; every other copy names its image in `data-asset`
+ * and chrome.js fills it in.
+ */
+interface ImageContext {
+  keys: ImageKeys | null
+  url?: (asset: string) => string
+  /** true while rendering the current draft of a static page */
+  carry: boolean
+  carried: Set<string>
+  wanted: Set<string>
+  data: Map<string, string | null>
+}
+const freshImages = (keys: ImageKeys | null, url?: (asset: string) => string): ImageContext =>
+  ({ keys, url, carry: false, carried: new Set(), wanted: new Set(), data: new Map() })
+let images: ImageContext = freshImages(null)
+
+const imageData = (asset: string): string | null => {
+  if (!images.data.has(asset)) {
+    const file = images.keys?.file(asset) ?? null
+    images.data.set(asset, file ? dataUri(file, asset) : null)
+  }
+  return images.data.get(asset) ?? null
+}
+
+/** `src` and `data-asset` for a stored image, as this page shows it. */
+const imageAttrs = (asset: string): string => {
+  if (images.url) return ` src="${escapeHtml(images.url(asset))}" data-asset="${asset}"`
+  // the first copy in the current draft carries the data; any other copy points at it
+  const uri = images.carry && !images.carried.has(asset) ? imageData(asset) : null
+  if (uri) {
+    images.carried.add(asset)
+    return ` src="${uri}" data-asset="${asset}"`
+  }
+  images.wanted.add(asset)
+  return ` data-asset="${asset}"`
+}
+
+/** Render with the current draft's images carried inline (static pages). */
+const carrying = <T>(fn: () => T): T => {
+  const previous = images.carry
+  images.carry = true
+  try { return fn() } finally { images.carry = previous }
+}
+
+/** Images other copies on a static page point at but the current draft doesn't carry. */
+const imageStore = (): string => {
+  if (images.url) return ''
+  const items = [...images.wanted].filter((a) => !images.carried.has(a))
+    .map((a) => { const uri = imageData(a); return uri ? `<img data-asset="${a}" src="${uri}" alt="">` : '' })
+    .filter(Boolean)
+  return items.length ? `<template id="pentimento-images">${items.join('')}</template>` : ''
+}
+
+/** No URL: the page fills `src` in from its store. */
+const noUrl = (): null => null
+
+const assetAfter = (tokens: { type: string; content: string }[], idx: number): string | null =>
+  tokens[idx + 1]?.type === 'pentimento_asset' ? tokens[idx + 1].content : null
+
+const safeDecode = (s: string): string => {
+  try { return decodeURI(s) } catch { return s }
+}
+
+const imageHtml = (img: { asset: string | null; src: string; alt: string; title: string; figure: boolean }): string => {
+  const alt = escapeHtml(img.alt)
+  const title = img.title ? ` title="${escapeHtml(img.title)}"` : ''
+  let tag: string
+  if (img.asset) tag = `<img${imageAttrs(img.asset)} alt="${alt}"${title} loading="lazy">`
+  else if (/^data:image\/(?:png|jpeg|gif|webp);/i.test(img.src)) tag = `<img src="${escapeHtml(img.src)}" alt="${alt}"${title}>`
+  // the page makes no outside requests, so a remote image is a link to it
+  else if (isRemote(img.src)) return `<a class="image-link" href="${escapeHtml(img.src)}">${alt || escapeHtml(img.src)}</a>`
+  else return `<span class="image-missing" title="Image not found: ${escapeHtml(safeDecode(img.src))}">${alt || escapeHtml(safeDecode(img.src))}</span>`
+  if (!img.figure) return tag
+  return `<figure class="shot">${tag}${img.title ? `<figcaption>${escapeHtml(img.title)}</figcaption>` : ''}</figure>`
+}
 
 /** Footnote numbering for the document being rendered, set by prepare(). */
 const footnotes: { numbers: Map<string, number>; referenced: Set<string> } = { numbers: new Map(), referenced: new Set() }
@@ -39,17 +120,61 @@ const makeMd = (breaks: boolean): MarkdownIt => {
     if (!silent) {
       const token = state.push('obsidian_wikilink', '', 0)
       token.content = (match[3] ?? match[2].replace(/#\^?/, ' › ')).trim()
-      token.meta = { embed: match[1] === '!' }
+      const target = match[2].replace(/#.*$/, '').trim()
+      const alias = match[3]?.trim()
+      token.meta = {
+        embed: match[1] === '!',
+        target,
+        // Obsidian reads `![[shot.png|300]]` as a width, not a caption
+        alt: alias && !/^\d+(?:x\d+)?$/.test(alias) ? alias : target.slice(target.lastIndexOf('/') + 1).replace(/\.[^.]+$/, ''),
+      }
     }
     state.pos += match[0].length
     return true
   })
   m.renderer.rules.obsidian_wikilink = (tokens, idx) => {
     const t = tokens[idx]
+    if (t.meta.embed && imageExtension(t.meta.target)) {
+      return imageHtml({ asset: assetAfter(tokens, idx), src: t.meta.target, alt: t.meta.alt, title: '', figure: Boolean(t.meta.figure) })
+    }
     return t.meta.embed
       ? `<span class="embed">${escapeHtml(t.content)}</span>`
       : `<span class="wikilink">${escapeHtml(t.content)}</span>`
   }
+  // the marker a keyed body puts after each image names the stored copy to show
+  m.inline.ruler.before('text', 'pentimento_asset', (state, silent) => {
+    const match = /^\uE020([0-9a-f]{16}\.[a-z]+)\uE021/.exec(state.src.slice(state.pos))
+    if (!match) return false
+    if (!silent) state.push('pentimento_asset', '', 0).content = match[1]
+    state.pos += match[0].length
+    return true
+  })
+  m.renderer.rules.pentimento_asset = () => ''
+  m.renderer.rules.image = (tokens, idx, options, env, self) => {
+    const t = tokens[idx]
+    return imageHtml({
+      asset: assetAfter(tokens, idx),
+      src: t.attrGet('src') ?? '',
+      alt: self.renderInlineAsText(t.children ?? [], options, env),
+      title: t.attrGet('title') ?? '',
+      figure: Boolean(t.meta?.figure),
+    })
+  }
+  // an image alone in its paragraph is a figure, at the width diffs use
+  m.core.ruler.push('pentimento_figure', (state) => {
+    const tokens = state.tokens
+    for (let i = 0; i + 2 < tokens.length; i++) {
+      const [open, inline, close] = [tokens[i], tokens[i + 1], tokens[i + 2]]
+      if (open.type !== 'paragraph_open' || open.hidden || inline.type !== 'inline' || close.type !== 'paragraph_close') continue
+      const kids = (inline.children ?? []).filter((t) => t.type !== 'softbreak' && !(t.type === 'text' && !t.content.trim()))
+      const [first, second] = kids
+      const isImage = first?.type === 'image' || (first?.type === 'obsidian_wikilink' && first.meta?.embed && imageExtension(first.meta.target))
+      if (kids.length !== 2 || !isImage || second.type !== 'pentimento_asset') continue
+      first.meta = { ...(first.meta ?? {}), figure: true }
+      open.hidden = true
+      close.hidden = true
+    }
+  })
   m.inline.ruler.before('emphasis', 'obsidian_mark', (state, silent) => {
     if (state.src.charCodeAt(state.pos) !== 0x3D || state.src.charCodeAt(state.pos + 1) !== 0x3D) return false
     const end = state.src.indexOf('==', state.pos + 2)
@@ -110,17 +235,20 @@ export const FAVICON_TAG = `<link rel="icon" type="image/svg+xml" href="${FAVICO
 
 const scriptHash = (source: string): string => `'sha256-${crypto.createHash('sha256').update(source).digest('base64')}'`
 
-/** Add a deterministic CSP whose hashes cover only the scripts already present in the page. */
-export const contentSecurityPolicy = (html: string, includeFrameAncestors = false): string => {
+/**
+ * Add a deterministic CSP whose hashes cover only the scripts already present in the page.
+ * Static pages carry their images as data: URIs; the live viewer also serves them itself.
+ */
+export const contentSecurityPolicy = (html: string, includeFrameAncestors = false, selfImages = false): string => {
   const hashes = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)]
     .map((match) => scriptHash(match[1]))
   const scripts = hashes.length ? [...new Set(hashes)].join(' ') : "'none'"
-  return `default-src 'none'; style-src 'unsafe-inline'; script-src ${scripts}; img-src data:; connect-src 'self'; base-uri 'none'; object-src 'none'; form-action 'none'${includeFrameAncestors ? "; frame-ancestors 'none'" : ''}`
+  return `default-src 'none'; style-src 'unsafe-inline'; script-src ${scripts}; img-src ${selfImages ? "'self' " : ''}data:; connect-src 'self'; base-uri 'none'; object-src 'none'; form-action 'none'${includeFrameAncestors ? "; frame-ancestors 'none'" : ''}`
 }
 
-export const secureHtml = (html: string): string => {
+export const secureHtml = (html: string, opts: { selfImages?: boolean } = {}): string => {
   const clean = html.replace(/<meta http-equiv="Content-Security-Policy"[^>]*>\n?/i, '')
-  const policy = contentSecurityPolicy(clean)
+  const policy = contentSecurityPolicy(clean, false, opts.selfImages)
   const meta = `<meta http-equiv="Content-Security-Policy" content="${policy}">`
   return clean.replace(/(<meta name="viewport"[^>]*>)/i, `$1\n${meta}`)
 }
@@ -185,7 +313,7 @@ const parseAttrs = (s: string): Record<string, string> => {
 }
 
 // Private-use characters mark renderer-internal lines. Source text never gets to use them.
-const INTERNAL_CHARS_RE = /[-]/g
+const INTERNAL_CHARS_RE = /[\uE000\uE001\uE010-\uE013\uE020\uE021]/g
 const scrubInternal = (s: string): string => s.replace(INTERNAL_CHARS_RE, '�')
 
 /** Per-render facts directive handlers need: the reader's answers to `::: ask` questions. */
@@ -839,6 +967,8 @@ export interface RenderOptions {
    * 'all'. Default 10. The live viewer passes 0; its bar fetches drafts from the server.
    */
   drafts?: number | 'all'
+  /** where the live viewer serves a stored image; without it, the page carries its images */
+  imageUrl?: (asset: string) => string
 }
 
 const DEFAULT_EMBEDDED_DRAFTS = 10
@@ -875,10 +1005,14 @@ const usesLineBreaks = (doc: Doc): boolean => {
 
 interface Draft { id: string; body: string }
 
+/** A saved draft's body, keyed with the images it was saved with. */
+const draftBody = (doc: Doc, meta: Meta, rev: string): string =>
+  images.keys!.key(scrubInternal(splitRaw(readRevision(doc.canonicalPath, rev)).body), meta.revisions.find((r) => r.id === rev)?.images)
+
 const readDrafts = (doc: Doc, meta: Meta): Draft[] => {
   const drafts: Draft[] = []
   for (const r of meta.revisions) {
-    try { drafts.push({ id: r.id, body: scrubInternal(splitRaw(readRevision(doc.canonicalPath, r.id)).body) }) } catch { /* verify reports it */ }
+    try { drafts.push({ id: r.id, body: draftBody(doc, meta, r.id) }) } catch { /* verify reports it */ }
   }
   return drafts
 }
@@ -895,10 +1029,13 @@ const receiptsHtml = (resolved: CommentEntry[]): string => {
 
 const cuttingsHtml = (cuttings: Cutting[], open: boolean): string => {
   if (!cuttings.length) return ''
-  const one = (c: Cutting): string =>
-    `<div class="cutting"><pre class="cutting-text">${escapeHtml(c.text)}</pre>` +
-    `<div class="cuttings-meta"><span>${c.section ? `${escapeHtml(c.section)} · ` : ''}cut in ${escapeHtml(c.cutIn === 'canonical' ? 'the unsaved draft' : c.cutIn)}</span>` +
-    `<button class="cut-copy" type="button" data-copy>Copy</button></div></div>`
+  const one = (c: Cutting): string => {
+    const shot = imageBlock(c.text)
+    const thumb = shot?.asset ? `<img class="cutting-shot"${imageAttrs(shot.asset)} alt="${escapeHtml(shot.ref.alt)}" loading="lazy">` : ''
+    return `<div class="cutting">${thumb}<pre class="cutting-text">${escapeHtml(stripImageMarks(c.text))}</pre>` +
+      `<div class="cuttings-meta"><span>${c.section ? `${escapeHtml(c.section)} · ` : ''}cut in ${escapeHtml(c.cutIn === 'canonical' ? 'the unsaved draft' : c.cutIn)}</span>` +
+      `<button class="cut-copy" type="button" data-copy>Copy</button></div></div>`
+  }
   const shown = cuttings.slice(0, 12).map(one).join('')
   const rest = cuttings.length > 12
     ? `<details class="cuttings-more"><summary>${cuttings.length - 12} older cuttings</summary>${cuttings.slice(12).map(one).join('')}</details>`
@@ -931,7 +1068,8 @@ const historyHtml = (meta: Meta, drafts: Draft[]): string => {
   return `<section class="history" id="history"><h2>History · ${meta.revisions.length} draft${meta.revisions.length > 1 ? 's' : ''}</h2>${spark}<ol>${items}</ol></section>`
 }
 
-const chrome = (doc: Doc, meta: Meta, prepared: Prepared, opts: RenderOptions): string => {
+/** The page around a document. `body` is the draft being shown, scrubbed and keyed. */
+const chrome = (doc: Doc, meta: Meta, body: string, opts: RenderOptions): string => {
   const css = renderStylesheet()
   const js = fs.readFileSync(path.join(ASSETS, 'chrome.js'), 'utf8')
   const archetype = doc.frontmatter['Archetype'] ? String(doc.frontmatter['Archetype']) : ''
@@ -942,7 +1080,9 @@ const chrome = (doc: Doc, meta: Meta, prepared: Prepared, opts: RenderOptions): 
   const date = latest ? latest.created_at.slice(0, 10) : ''
   const pathLabel = doc.canonicalPath.split(path.sep).slice(-3).join('/')
   const inline = (s: string): string => renderInline(s)
-  const body = scrubInternal(doc.body)
+  // the current draft first, so a static page carries each of its images here and only here
+  const prepared = carrying(() => prepare(body))
+  const mainHtml = carrying(() => renderSections(prepared))
 
   // --- baseline: what this view is compared against --------------------------------
   const revIds = meta.revisions.map((r) => r.id)
@@ -953,7 +1093,7 @@ const chrome = (doc: Doc, meta: Meta, prepared: Prepared, opts: RenderOptions): 
   else if (meta.revisions.length >= 2) baselineId = meta.revisions[meta.revisions.length - 2].id
   let baselineBody: string | null = null
   if (baselineId) {
-    try { baselineBody = scrubInternal(splitRaw(readRevision(doc.canonicalPath, baselineId)).body) } catch { baselineId = null }
+    try { baselineBody = draftBody(doc, meta, baselineId) } catch { baselineId = null }
   }
 
   let changes = ''
@@ -973,7 +1113,11 @@ const chrome = (doc: Doc, meta: Meta, prepared: Prepared, opts: RenderOptions): 
       ? `Unsaved changes since ${escapeHtml(baselineId)}`
       : `What changed since ${escapeHtml(baselineId)}`
     changes = `<details class="changes"><summary>${label}${extras ? `<span class="delta"> · ${extras}</span>` : ''}</summary>` +
-      `${receiptsHtml(resolved)}<div class="rdiff">${renderDiffHtml(baselineBody, body)}</div></details>`
+      `${receiptsHtml(resolved)}<div class="rdiff">${renderDiffHtml(baselineBody, body, {
+        imageUrl: images.url ?? noUrl,
+        labels: [baselineId, currentId === 'canonical' || !currentId ? 'now' : currentId],
+      })}</div></details>`
+    if (!images.url) for (const a of [...assetsIn(baselineBody), ...assetsIn(body)]) images.wanted.add(a)
     try {
       traces = `<template id="traces-tpl">${renderTraces(baselineBody, body, baselineId)}</template>`
     } catch { /* a traces failure never blocks the page */ }
@@ -1043,9 +1187,10 @@ ${rail}
 </header>
 
 <main>
-${renderSections(prepared)}
+${mainHtml}
 </main>
 ${traces}
+${imageStore()}
 ${appendix ? `<div class="appendix">\n${appendix}\n</div>` : ''}
 <footer class="doc">
   <code>${escapeHtml(pathLabel)}</code>
@@ -1055,7 +1200,7 @@ ${appendix ? `<div class="appendix">\n${appendix}\n</div>` : ''}
 ${js}</script>
 `
 
-  if (opts.artifact) return `<title>${title}</title>\n<style>\n${css}</style>\n\n${page}`
+  if (opts.artifact) return `<title>${title}</title>\n<style>\n${css}</style>\n\n${page.replace(IMAGE_MARK_RE, '')}`
 
   return secureHtml(`<!doctype html>
 <html lang="en">
@@ -1068,20 +1213,22 @@ ${FAVICON_TAG}
 ${css}</style>
 </head>
 <body>
-${page}</body>
+${page.replace(IMAGE_MARK_RE, '')}</body>
 </html>
-`)
+`, { selfImages: Boolean(opts.imageUrl) })
 }
 
-const withDocument = <T>(doc: Doc, meta: Meta, fn: () => T): T => {
-  const previous = { md, context, numbers: footnotes.numbers, referenced: footnotes.referenced }
+const withDocument = <T>(doc: Doc, meta: Meta, opts: RenderOptions, fn: () => T): T => {
+  const previous = { md, context, images, numbers: footnotes.numbers, referenced: footnotes.referenced }
   md = usesLineBreaks(doc) ? mdVerse : mdPlan
   context = contextFor(meta)
+  images = freshImages(imageKeys(doc.canonicalPath, doc.historyDir), opts.imageUrl)
   footnotes.numbers = new Map()
   footnotes.referenced = new Set()
   try { return fn() } finally {
     md = previous.md
     context = previous.context
+    images = previous.images
     footnotes.numbers = previous.numbers
     footnotes.referenced = previous.referenced
   }
@@ -1090,7 +1237,7 @@ const withDocument = <T>(doc: Doc, meta: Meta, fn: () => T): T => {
 export const render = (docPath: string, opts: RenderOptions = {}): string => {
   const doc = loadDoc(docPath)
   const meta = readMeta(doc.historyDir)
-  return withDocument(doc, meta, () => chrome(doc, meta, prepare(scrubInternal(doc.body)), opts))
+  return withDocument(doc, meta, opts, () => chrome(doc, meta, images.keys!.key(scrubInternal(doc.body)), opts))
 }
 
 export const renderToFile = (docPath: string, outPath?: string, opts: RenderOptions = {}): string => {
@@ -1120,19 +1267,31 @@ export const renderRevisionHtml = (docPath: string, rev: string, opts: RenderOpt
     comments: meta.comments,
     approvals: (meta.approvals ?? []).filter((a) => meta.revisions.findIndex((r) => r.id === a.rev) <= idx),
   }
-  const revDoc: Doc = { ...doc, raw, body, frontmatter }
-  return withDocument(revDoc, trimmed, () => chrome(revDoc, trimmed, prepare(scrubInternal(body)), opts))
+  const revDoc: Doc = { ...doc, raw, body, frontmatter, revision: rev }
+  return withDocument(revDoc, trimmed, opts, () => chrome(revDoc, trimmed, draftBody(revDoc, meta, rev), opts))
 }
 
 /** Standalone page showing the changes between two revisions ('canonical' = current file). */
-export const renderDiffPage = (docPath: string, a: string, b: string): string => {
+export const renderDiffPage = (docPath: string, a: string, b: string, opts: Pick<RenderOptions, 'imageUrl'> = {}): string => {
   const doc = loadDoc(docPath)
+  const meta = readMeta(doc.historyDir)
   const css = renderStylesheet()
   const js = fs.readFileSync(path.join(ASSETS, 'chrome.js'), 'utf8')
-  const bodyOf = (rev: string): string =>
-    rev === 'canonical' ? doc.body : splitRaw(readRevision(docPath, rev)).body
-  const rdiff = renderDiffHtml(bodyOf(a), bodyOf(b))
   const label = (rev: string): string => (rev === 'canonical' ? 'now' : rev)
+  const previous = images
+  images = freshImages(imageKeys(doc.canonicalPath, doc.historyDir), opts.imageUrl)
+  let rdiff: string
+  let store: string
+  try {
+    const bodyOf = (rev: string): string =>
+      rev === 'canonical' ? images.keys!.key(scrubInternal(doc.body)) : draftBody(doc, meta, rev)
+    const [before, after] = [bodyOf(a), bodyOf(b)]
+    rdiff = renderDiffHtml(before, after, { imageUrl: images.url ?? noUrl, labels: [label(a), label(b)] })
+    if (!images.url) for (const asset of [...assetsIn(before), ...assetsIn(after)]) images.wanted.add(asset)
+    store = imageStore()
+  } finally {
+    images = previous
+  }
   const title = `${doc.name}: ${label(a)} → ${label(b)}`
   return secureHtml(`<!doctype html>
 <html lang="en">
@@ -1155,9 +1314,10 @@ ${RESTORE_SNIPPET}
 <main>
 <div class="rdiff">${rdiff}</div>
 </main>
+${store}
 </div>
 <script>${js}</script>
 </body>
 </html>
-`)
+`, { selfImages: Boolean(opts.imageUrl) })
 }

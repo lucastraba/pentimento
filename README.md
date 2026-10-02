@@ -73,10 +73,12 @@ Then ask: *"Write a plan for X as a Pentimento document."* The agent writes the 
 
 The loop from there:
 
-1. **Read and comment.** Select any text and leave a comment. When the agent asked you something with a question block, click an answer.
+1. **Read and comment.** Select any text and leave a comment, or click an image (drag across it to mark a part). When the agent asked you something with a question block, click an answer.
 2. **Tell the agent.** "I left comments." It revises the file and saves the next draft. The page updates in place.
 3. **See what it did.** "What changed since r002" opens the diff, and lists each of your comments the new draft answered.
 4. **Approve.** When the plan is right, press Approve. The agent sees the approval and gets to work. If the plan changes after that, the page offers everything that changed since you signed off.
+
+Ask for a mock or a prototype and the agent builds it as HTML, screenshots it headlessly, and puts the screenshots in the plan, where you comment on them like the rest of it.
 
 The skill keeps plans quiet on purpose: mostly prose, with a small set of structured blocks (decisions, a phase list with status, findings by severity, an options table, a diagram, a question for you) used only where they carry information. `pentimento lint` warns when a document leans on them, and flags the usual generated-prose habits.
 
@@ -86,13 +88,15 @@ If the agent runs on a remote machine, `pentimento serve . --tailscale` binds th
 
 There is one look. Content is set in a serif, the interface in your system's sans, and code in monospace. Light and dark follow your system; the toggle in the header overrides it for your browser. Nothing on the page is configurable by the document, which is why a plan an agent wrote in March and a song you wrote in May look like they came from the same place.
 
+Images are ordinary markdown images of local files: `![Settings page](mocks/settings.png)`, or `![[settings.png]]` in Obsidian. Each draft keeps the images it was saved with, so stepping back to an earlier draft shows the pictures it had, and a replaced image shows in the diff as both versions side by side.
+
 A static page for sharing or printing:
 
 ```bash
 pentimento render Plan.md
 ```
 
-It has everything except commenting and approval. The scrubber works from the last 10 drafts, embedded in the file (`--drafts all` for every one, `--drafts 0` for none), so you can send someone `Song.html` and they can step through how it developed. The page makes no outside requests.
+It has everything except commenting and approval, and it carries its images inside it. The scrubber works from the last 10 drafts, embedded in the file (`--drafts all` for every one, `--drafts 0` for none), so you can send someone `Song.html` and they can step through how it developed. The page makes no outside requests.
 
 ## Writing reference
 

@@ -5,6 +5,8 @@ import {
   FRONTMATTER_RE, makeComment, nowStamp, parseMeta, planSnapshot, serializeMeta, splitRaw, unstampCanonical,
   type Approval, type CommentEntry, type Meta, type NewComment, type SnapshotOptions,
 } from './model.js'
+import { keyedImages } from './imageref.js'
+import { imageKeys, imagesDiffer, restoreImages, storeImages } from './images.js'
 import { describeChanges } from './semdiff.js'
 
 export * from './model.js'
@@ -16,6 +18,8 @@ export interface Doc {
   frontmatter: Record<string, unknown>
   body: string
   raw: string
+  /** set when the body is an earlier draft rather than the file on disk */
+  revision?: string
 }
 
 
@@ -102,11 +106,20 @@ const withLock = <T>(historyDir: string, fn: () => T): T => {
 export interface SnapshotResult {
   rev: string
   historyFile: string
+  /** images the draft shows that weren't there to save, as written in the document */
+  missingImages: string[]
 }
 
-const snapshotWithBody = (docPath: string, opts: SnapshotOptions, replacementBody?: string): SnapshotResult => {
+const snapshotWithBody = (
+  docPath: string,
+  opts: SnapshotOptions,
+  replacementBody?: string,
+  /** runs under the lock before anything is read, e.g. to put a draft's images back */
+  before?: (doc: Doc) => void,
+): SnapshotResult => {
   const initial = loadDoc(docPath)
   return withLock(initial.historyDir, () => {
+    if (before) before(initial)
     const doc = loadDoc(docPath)
     if (doc.historyDir !== initial.historyDir) throw new Error('History Folder changed while waiting for the lock')
     const historyRel = path
@@ -119,19 +132,28 @@ const snapshotWithBody = (docPath: string, opts: SnapshotOptions, replacementBod
     const current = readMeta(doc.historyDir)
     const latest = current.revisions[current.revisions.length - 1]
     const latestFile = latest ? path.join(doc.historyDir, `${latest.id}.md`) : null
+    const stored = storeImages(doc.canonicalPath, doc.historyDir, splitRaw(sourceRaw).body)
+    // summaries see image changes too: a new screenshot at the same path is an edit
+    const keys = imageKeys(doc.canonicalPath, doc.historyDir)
     const plan = planSnapshot({
       raw: sourceRaw,
       meta: current,
       historyRel,
       previousBody: latestFile && fs.existsSync(latestFile) ? splitRaw(fs.readFileSync(latestFile, 'utf8')).body : null,
       opts,
-      describe: describeChanges,
+      describe: (previous, body) => describeChanges(
+        previous === null ? null : keys.key(previous, latest?.images),
+        keys.key(body, stored.images),
+      ),
     })
     const next = plan.rev
     const stamped = plan.stamped
     const meta = plan.meta
+    if (Object.keys(stored.images).length) meta.revisions[meta.revisions.length - 1].images = stored.images
     const historyFile = path.join(doc.historyDir, `${next}.md`)
+    const dropAssets = (): void => { for (const f of stored.written) fs.rmSync(f, { force: true }) }
     if (fs.existsSync(historyFile)) {
+      dropAssets()
       throw new Error(`${historyFile} already exists — history and frontmatter disagree; refusing to overwrite`)
     }
     const metaPath = path.join(doc.historyDir, 'meta.yml')
@@ -159,10 +181,11 @@ const snapshotWithBody = (docPath: string, opts: SnapshotOptions, replacementBod
           rollbackErrors.push(`revision rollback failed: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`)
         }
       }
+      try { dropAssets() } catch { /* an orphaned asset is harmless */ }
       const detail = error instanceof Error ? error.message : String(error)
       throw new Error(`Snapshot failed without changing the canonical document: ${detail}${rollbackErrors.length ? `; ${rollbackErrors.join('; ')}` : ''}`)
     }
-    return { rev: next, historyFile }
+    return { rev: next, historyFile, missingImages: stored.missing.map((m) => m.ref.ref) }
   })
 }
 
@@ -311,7 +334,10 @@ export const canonicalRevisionState = (doc: Doc, meta: Meta): CanonicalRevisionS
   const latest = meta.revisions[meta.revisions.length - 1]?.id ?? null
   if (!latest) return { latest: null, dirty: true, label: 'Draft' }
   const savedBody = splitRaw(readRevision(doc.canonicalPath, latest)).body
-  const dirty = savedBody.trim() !== doc.body.trim()
+  const saved = meta.revisions[meta.revisions.length - 1].images
+  // a new screenshot at the same path is an unsaved change too; drafts from before 0.13 record no images
+  const dirty = savedBody.trim() !== doc.body.trim() ||
+    (!doc.revision && saved !== undefined && imagesDiffer(doc.canonicalPath, doc.body, saved))
   return { latest, dirty, label: dirty ? `Draft after ${latest}` : latest }
 }
 
@@ -325,7 +351,54 @@ export const revert = (docPath: string, rev: string, author?: string): SnapshotR
     summary: `Restored content of ${rev}`,
     why: `pentimento revert ${rev}`,
     author,
-  }, targetBody)
+  }, targetBody, (doc) => {
+    // the draft's images go back to their paths too, so the folder matches what was restored
+    const images = readMeta(doc.historyDir).revisions.find((r) => r.id === rev)?.images
+    if (images) restoreImages(doc.canonicalPath, doc.historyDir, targetBody, images)
+  })
+}
+
+/** The file behind a stored image: the history's copy, or a file on disk with that hash. */
+export const imageFile = (docPath: string, asset: string): string | null => {
+  const doc = loadDoc(docPath)
+  const keys = imageKeys(doc.canonicalPath, doc.historyDir)
+  const stored = keys.file(asset)
+  if (stored) return stored
+  // the document as it is now, and drafts saved before drafts kept their images, show what's on disk
+  keys.key(doc.body)
+  for (const r of readMeta(doc.historyDir).revisions) {
+    if (r.images) continue
+    try { keys.key(splitRaw(readRevision(docPath, r.id)).body) } catch { /* verify reports it */ }
+  }
+  return keys.file(asset)
+}
+
+/** How the document as it is now writes the image a stored copy shows, if it still shows it. */
+export const imageRefFor = (docPath: string, asset: string): string | null => {
+  const doc = loadDoc(docPath)
+  const keyed = imageKeys(doc.canonicalPath, doc.historyDir).key(doc.body)
+  return keyedImages(keyed).find((k) => k.asset === asset)?.ref.ref ?? null
+}
+
+const span = (from: number, size: number, scale: number): string =>
+  `${Math.round(from * scale)}–${Math.round((from + size) * scale)}`
+
+/**
+ * What an agent needs to act on a comment about an image: the file to open and, for a
+ * marked part, where it is in pixels ("box 120–480 × 60–200 of 1280 × 800").
+ */
+export const describeImageComment = (docPath: string, c: CommentEntry): string[] => {
+  if (!c.image) return []
+  const { ref, asset, box, width, height } = c.image
+  const file = imageFile(docPath, asset)
+  const lines = [`  image: ${ref}${c.quote ? ` ("${c.quote}")` : ''}`]
+  lines.push(file
+    ? `  file: ${path.relative(process.cwd(), file) || file}`
+    : `  file: not on disk any more (${asset})`)
+  if (!box) lines.push('  on: the whole image')
+  else if (width && height) lines.push(`  on: box ${span(box.x, box.w, width)} × ${span(box.y, box.h, height)} of ${width} × ${height}`)
+  else lines.push(`  on: box ${span(box.x, box.w, 100)}% × ${span(box.y, box.h, 100)}% of the width and height`)
+  return lines
 }
 
 /** Take a document out of Pentimento: drop its frontmatter keys, then delete its history folder. */
