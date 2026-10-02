@@ -143,17 +143,24 @@ const snapshotWithBody = (
     const stored = storeImages(doc.canonicalPath, doc.historyDir, splitRaw(sourceRaw).body)
     // summaries see image changes too: a new screenshot at the same path is an edit
     const keys = imageKeys(doc.canonicalPath, doc.historyDir)
-    const plan = planSnapshot({
-      raw: sourceRaw,
-      meta: current,
-      historyRel,
-      previousBody: latestFile && fs.existsSync(latestFile) ? splitRaw(fs.readFileSync(latestFile, 'utf8')).body : null,
-      opts,
-      describe: (previous, body) => describeChanges(
-        previous === null ? null : keys.key(previous, revisionImages(latest)),
-        keys.key(body, stored.images ?? undefined),
-      ),
-    })
+    let plan: ReturnType<typeof planSnapshot>
+    try {
+      plan = planSnapshot({
+        raw: sourceRaw,
+        meta: current,
+        historyRel,
+        previousBody: latestFile && fs.existsSync(latestFile) ? splitRaw(fs.readFileSync(latestFile, 'utf8')).body : null,
+        opts,
+        describe: (previous, body) => describeChanges(
+          previous === null ? null : keys.key(previous, revisionImages(latest)),
+          keys.key(body, stored.images ?? undefined),
+        ),
+      })
+    } catch (error) {
+      // nothing was saved, so neither are the copies made for it
+      for (const f of stored.written) fs.rmSync(f, { force: true })
+      throw error
+    }
     const next = plan.rev
     const stamped = plan.stamped
     const meta = plan.meta
