@@ -11,6 +11,10 @@
 - Lint warns about images that are missing, remote, outside the document's folder, in an unsupported format, over 1 MB, or without alt text. Snapshot warns when an image it should save isn't there.
 - `pentimento guide` covers mocks and prototypes: build them as HTML, screenshot them headlessly, and embed the screenshots. Skill revision 12.
 
+### Fixed
+
+- The viewer no longer crashes when the machine runs out of file watchers. It watches folders instead of every file, skips `node_modules`, `.git`, `dist`, Python environments, and other tool folders, and when a folder can't be watched it says so once and keeps serving without live updates for that folder. Over a folder of 16 repositories this is 6,124 watches instead of 519,544.
+
 ### Changed
 
 - `renderDiffHtml` in `pentimento/semdiff` takes an optional third argument with image URLs and labels. Bodies without images render as before.

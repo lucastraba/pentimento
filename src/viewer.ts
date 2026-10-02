@@ -14,6 +14,7 @@ import {
 } from './core.js'
 import { ASSET_RE, imageExtension } from './imageref.js'
 import { MIME } from './images.js'
+import { watchTree, type TreeWatcher } from './watch.js'
 import {
   contentSecurityPolicy, FAVICON_TAG, render, renderDiffPage, renderRevisionHtml, renderStylesheet,
   RESTORE_SNIPPET, secureHtml,
@@ -572,7 +573,7 @@ export const serveViewer = (root: string, { host, port, author, writeToken }: Se
   }
   const absRoot = path.resolve(root)
   let timer: NodeJS.Timeout | null = null
-  let watcher: fs.FSWatcher | null = null
+  let watcher: TreeWatcher | null = null
   let server: HttpServer | null = null
   let stopping = false
   const onShutdown = () => {
@@ -595,10 +596,7 @@ export const serveViewer = (root: string, { host, port, author, writeToken }: Se
   const docs = new Set<string>()
   const metas = new Set<string>()
   let imagesChanged = false
-  watcher = fs.watch(absRoot, { recursive: true }, (_event, fname) => {
-    if (!fname) return
-    const f = String(fname).split(path.sep).join('/')
-    if (f.includes('node_modules') || f.includes('.git/')) return
+  watcher = watchTree(absRoot, (f) => {
     if (/\.md$/.test(f)) docs.add(f)
     else if (/\.yml$/.test(f)) metas.add(f)
     else if (imageExtension(f) && !f.includes('.history/')) imagesChanged = true
@@ -610,7 +608,7 @@ export const serveViewer = (root: string, { host, port, author, writeToken }: Se
       metas.clear()
       imagesChanged = false
     }, 200)
-  })
+  }, (message) => console.error(`pentimento: ${message}`))
 
   server = serve({ fetch: app.fetch, hostname: host, port }) as HttpServer
   return server
