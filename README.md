@@ -73,7 +73,7 @@ Then ask: *"Write a plan for X as a Pentimento document."* The agent writes the 
 
 The loop from there:
 
-1. **Read and comment.** Select any text and leave a comment. When the agent asked you something with a question block, click an answer.
+1. **Read and comment.** Select any text and leave a comment, or click an image (drag across it to mark a part). When the agent asked you something with a question block, click an answer.
 2. **Tell the agent.** "I left comments." It revises the file and saves the next draft. The page updates in place.
 3. **See what it did.** "What changed since r002" opens the diff, and lists each of your comments the new draft answered.
 4. **Approve.** When the plan is right, press Approve. The agent sees the approval and gets to work. If the plan changes after that, the page offers everything that changed since you signed off.

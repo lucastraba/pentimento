@@ -5,6 +5,7 @@ import {
   FRONTMATTER_RE, makeComment, nowStamp, parseMeta, planSnapshot, serializeMeta, splitRaw, unstampCanonical,
   type Approval, type CommentEntry, type Meta, type NewComment, type SnapshotOptions,
 } from './model.js'
+import { keyedImages } from './imageref.js'
 import { imageKeys, imagesDiffer, restoreImages, storeImages } from './images.js'
 import { describeChanges } from './semdiff.js'
 
@@ -355,6 +356,49 @@ export const revert = (docPath: string, rev: string, author?: string): SnapshotR
     const images = readMeta(doc.historyDir).revisions.find((r) => r.id === rev)?.images
     if (images) restoreImages(doc.canonicalPath, doc.historyDir, targetBody, images)
   })
+}
+
+/** The file behind a stored image: the history's copy, or a file on disk with that hash. */
+export const imageFile = (docPath: string, asset: string): string | null => {
+  const doc = loadDoc(docPath)
+  const keys = imageKeys(doc.canonicalPath, doc.historyDir)
+  const stored = keys.file(asset)
+  if (stored) return stored
+  // the document as it is now, and drafts saved before drafts kept their images, show what's on disk
+  keys.key(doc.body)
+  for (const r of readMeta(doc.historyDir).revisions) {
+    if (r.images) continue
+    try { keys.key(splitRaw(readRevision(docPath, r.id)).body) } catch { /* verify reports it */ }
+  }
+  return keys.file(asset)
+}
+
+/** How the document as it is now writes the image a stored copy shows, if it still shows it. */
+export const imageRefFor = (docPath: string, asset: string): string | null => {
+  const doc = loadDoc(docPath)
+  const keyed = imageKeys(doc.canonicalPath, doc.historyDir).key(doc.body)
+  return keyedImages(keyed).find((k) => k.asset === asset)?.ref.ref ?? null
+}
+
+const span = (from: number, size: number, scale: number): string =>
+  `${Math.round(from * scale)}–${Math.round((from + size) * scale)}`
+
+/**
+ * What an agent needs to act on a comment about an image: the file to open and, for a
+ * marked part, where it is in pixels ("box 120–480 × 60–200 of 1280 × 800").
+ */
+export const describeImageComment = (docPath: string, c: CommentEntry): string[] => {
+  if (!c.image) return []
+  const { ref, asset, box, width, height } = c.image
+  const file = imageFile(docPath, asset)
+  const lines = [`  image: ${ref}${c.quote ? ` ("${c.quote}")` : ''}`]
+  lines.push(file
+    ? `  file: ${path.relative(process.cwd(), file) || file}`
+    : `  file: not on disk any more (${asset})`)
+  if (!box) lines.push('  on: the whole image')
+  else if (width && height) lines.push(`  on: box ${span(box.x, box.w, width)} × ${span(box.y, box.h, height)} of ${width} × ${height}`)
+  else lines.push(`  on: box ${span(box.x, box.w, 100)}% × ${span(box.y, box.h, 100)}% of the width and height`)
+  return lines
 }
 
 /** Take a document out of Pentimento: drop its frontmatter keys, then delete its history folder. */

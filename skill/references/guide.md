@@ -81,7 +81,9 @@ whether a sentence or a plain list would do. Usually it would.
 surrounding context, every answer to an `::: ask` question, and whether the user approved
 a draft.
 
-1. Revise the markdown. The quote and context locate the passage even if it moved.
+1. Revise the markdown. The quote and context locate the passage even if it moved. A
+   comment on an image names the image's file and, when the reader marked a part, the
+   box in pixels; open the file and look at that region.
 2. Save one draft for the round, with a summary that names what changed:
    `pentimento snapshot <Name>.md --summary "Merge conflicts keep both versions" --why "Answered the merge question"`
 3. For each comment the new draft addresses:

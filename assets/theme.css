@@ -434,6 +434,24 @@ html[data-scrubbing] main { transition: opacity .12s; }
 .vc-drawer-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: .3rem; }
 .vc-h { font: 600 .72rem var(--sans); color: var(--soft); margin: 1rem 0 .3rem; }
 .vc-empty { color: var(--soft); }
+/* comments on images: a box over the marked part, or a pin for the whole image */
+.vc-imgwrap { position: relative; display: inline-block; max-width: 100%; vertical-align: bottom; }
+.shot .vc-imgwrap { display: block; width: fit-content; margin: 0 auto; }
+.vc-imgwrap > img { display: block; }
+:root.vc-images main img[data-asset] { cursor: crosshair; }
+.vc-marking { touch-action: none; }
+.vc-mark { position: absolute; padding: 0; border: 2px solid var(--high); border-radius: 4px; cursor: pointer;
+  background: color-mix(in srgb, var(--high) 14%, transparent); }
+.vc-mark.whole { top: .45rem; right: .45rem; width: 1.8rem; height: 1.8rem; border-radius: 50%; background: var(--raise);
+  display: grid; place-items: center; color: var(--ink); }
+.vc-mark.whole .comment-icon { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-width: 1.5;
+  stroke-linecap: round; stroke-linejoin: round; }
+.vc-mark.whole .comment-dots { stroke-width: 2.1; }
+.vc-imgwrap:has(> .vc-mark.whole) > img { outline: 2px solid var(--high); outline-offset: 2px; }
+.vc-mark.pending { border-style: dashed; border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent);
+  pointer-events: none; }
+.vc-mark.vc-flash { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 40%, transparent); }
+.vc-form .vc-note, .vc-card .vc-note { display: block; margin: 0 0 .5rem; font: .76rem var(--sans); color: var(--soft); }
 .vc-card { padding: .65rem 0; border-top: 1px solid var(--line); }
 .vc-card[data-status="resolved"] { color: var(--soft); }
 .vc-card.vc-focus { background: var(--wash); border-radius: 6px; }
@@ -484,7 +502,7 @@ html[data-scrubbing] main { transition: opacity .12s; }
 /* print: interface gone, every fold open, sections whole */
 @media print {
   :root { --bg: #fff; --raise: #fff; --sunk: #f4f4f4; --ink: #000; --soft: #444; --faint: #777; --line: #ccc; --accent: #000; }
-  .meta-tools, .drafts-scrub, .vbar, .vbar-pad, .vc-drawer, .vc-add, .vc-form, .vc-toast, .vc-hint, .anch, .rail, .toc-inline,
+  .meta-tools, .drafts-scrub, .vbar, .vbar-pad, .vc-drawer, .vc-add, .vc-form, .vc-toast, .vc-hint, .vc-mark, .anch, .rail, .toc-inline,
   .viewer-stopped-status, .cut-copy { display: none !important; }
   .wrap { max-width: none; padding: 0; }
   .tablewrap, .diff, .shot { width: auto; margin: 1rem 0; transform: none; overflow: visible; }

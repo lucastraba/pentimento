@@ -2,7 +2,9 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { canonicalRevisionState, loadDoc, readMeta, revert, snapshot, untrack } from '../src/core.js'
+import {
+  addComment, canonicalRevisionState, describeImageComment, loadDoc, readMeta, revert, snapshot, untrack,
+} from '../src/core.js'
 import { findImageRefs, imageBlock, keyImages, stripImageMarks } from '../src/imageref.js'
 import { lintDoc } from '../src/lint.js'
 import { parseMeta, serializeMeta } from '../src/model.js'
@@ -257,5 +259,55 @@ describe('images in the viewer', () => {
     expect((await app.request('/asset/Plan.md/0000000000000000.png')).status).toBe(404)
     expect((await app.request('/asset/Plan.md/..%2F..%2Fetc%2Fpasswd')).status).toBe(404)
     expect((await app.request(`/asset/Nope.md/${stored}.png`)).status).toBe(404)
+  })
+})
+
+describe('comments on images', () => {
+  const setup = () => {
+    write('mocks/settings.png', 'first image')
+    const p = write('Plan.md', PLAN)
+    snapshot(p, { summary: 'one', author: 'test' })
+    const hash = readMeta(loadDoc(p).historyDir).revisions[0].images!['mocks/settings.png']
+    return { p, asset: `${hash}.png` }
+  }
+  const post = (app: ReturnType<typeof createApp>['app'], body: Record<string, unknown>) =>
+    app.request('/api/comment', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+
+  it('stores the image a comment is on, with the reference taken from the document', async () => {
+    const { p, asset } = setup()
+    const { app } = createApp(dir)
+    const res = await post(app, {
+      rel: 'Plan.md', text: 'Move the toggle left', quote: 'Settings page', anchor: '#layout',
+      image: { asset, box: { x: 0.1, y: 0.2, w: 0.3, h: 0.25 }, width: 1280, height: 800, ref: 'ignored.png' },
+    })
+    expect(res.status).toBe(200)
+    const [c] = readMeta(loadDoc(p).historyDir).comments
+    expect(c.image).toEqual({ ref: 'mocks/settings.png', asset, box: { x: 0.1, y: 0.2, w: 0.3, h: 0.25 }, width: 1280, height: 800 })
+    const payload = await (await app.request('/api/comments?rel=Plan.md')).json() as { assets: Record<string, string> }
+    expect(payload.assets[asset]).toBe('r001')
+  })
+
+  it('refuses an image that is not in the document, or a box outside the image', async () => {
+    const { asset } = setup()
+    const { app } = createApp(dir)
+    expect((await post(app, { rel: 'Plan.md', text: 'x', image: { asset: '0000000000000000.png' } })).status).toBe(400)
+    expect((await post(app, { rel: 'Plan.md', text: 'x', image: { asset, box: { x: 0.9, y: 0, w: 0.5, h: 0.5 } } })).status).toBe(400)
+    expect((await post(app, { rel: 'Plan.md', text: 'x', image: { asset, width: -3 } })).status).toBe(400)
+  })
+
+  it('tells the agent which file to open and where the box is, in pixels', () => {
+    const { p, asset } = setup()
+    const box = addComment(p, { text: 'Too cramped', quote: 'Settings page', image: { ref: 'mocks/settings.png', asset, box: { x: 0.1, y: 0.25, w: 0.5, h: 0.25 }, width: 1200, height: 800 } })
+    const whole = addComment(p, { text: 'Darker', image: { ref: 'mocks/settings.png', asset } })
+    const lines = describeImageComment(p, box).join('\n')
+    expect(lines).toContain('image: mocks/settings.png ("Settings page")')
+    expect(lines).toMatch(new RegExp(`file: .*\\.history/Plan/assets/${asset.replace('.', '\\.')}`))
+    expect(lines).toContain('on: box 120–720 × 200–400 of 1200 × 800')
+    expect(describeImageComment(p, whole).join('\n')).toContain('on: the whole image')
+  })
+
+  it('rejects malformed image marks in meta.yml', () => {
+    const text = 'revisions: []\ncomments:\n  - id: c-1\n    anchor: ""\n    text: t\n    status: open\n    created_at: 2026-10-02T10:00:00+02:00\n    author: a\n    resolved_in: null\n    image:\n      ref: a.png\n      asset: nope\n'
+    expect(() => parseMeta(text, 'meta.yml')).toThrow(/stored image name/)
   })
 })

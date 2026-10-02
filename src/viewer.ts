@@ -8,12 +8,12 @@ import { Hono, type Context } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { getCookie, setCookie } from 'hono/cookie'
 import {
-  addComment, addReply, answerQuestion, approve, canonicalRevisionState, deleteComment, isPathInside,
-  latestApproval, loadDoc, readMeta, readRevision, reopenComment, resolveComment, resolveContainedPath, splitRaw,
-  type Meta,
+  addComment, addReply, answerQuestion, approve, canonicalRevisionState, deleteComment, imageFile, imageMarkProblem,
+  imageRefFor, isPathInside, latestApproval, loadDoc, readMeta, reopenComment, resolveComment, resolveContainedPath,
+  type ImageMark, type Meta,
 } from './core.js'
 import { ASSET_RE, imageExtension } from './imageref.js'
-import { imageKeys, MIME } from './images.js'
+import { MIME } from './images.js'
 import {
   contentSecurityPolicy, FAVICON_TAG, render, renderDiffPage, renderRevisionHtml, renderStylesheet,
   RESTORE_SNIPPET, secureHtml,
@@ -259,11 +259,24 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
     return readMeta(loadDoc(abs).historyDir).revisions.some((entry) => entry.id === rev)
   }
 
+  /** The first draft that saved each stored image, so a comment on a replaced image can link to it. */
+  const assetDrafts = (meta: Meta): Record<string, string> => {
+    const out: Record<string, string> = {}
+    for (const r of meta.revisions) {
+      for (const [ref, hash] of Object.entries(r.images ?? {})) {
+        const asset = `${hash}.${imageExtension(ref.replace(/^\[\[|\]\]$/g, ''))}`
+        if (!(asset in out)) out[asset] = r.id
+      }
+    }
+    return out
+  }
+
   const commentsPayload = (abs: string) => {
     const meta = readMeta(loadDoc(abs).historyDir)
     return {
       comments: meta.comments,
       revisions: meta.revisions.map((r) => r.id),
+      assets: assetDrafts(meta),
     }
   }
 
@@ -272,19 +285,19 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
   }
   const imageUrl = (rel: string) => (asset: string): string => `/asset/${encodeURIComponent(rel)}/${asset}`
 
-  /** The file behind a stored image: the history's copy, or a file on disk with that hash. */
-  const assetFile = (abs: string, asset: string): string | null => {
-    const doc = loadDoc(abs)
-    const keys = imageKeys(doc.canonicalPath, doc.historyDir)
-    const stored = keys.file(asset)
-    if (stored) return stored
-    // the current file, and drafts saved before drafts kept their images, show what's on disk
-    keys.key(doc.body)
-    for (const r of readMeta(doc.historyDir).revisions) {
-      if (r.images) continue
-      try { keys.key(splitRaw(readRevision(abs, r.id)).body) } catch { /* verify reports it */ }
-    }
-    return keys.file(asset)
+  /** A comment on an image names it by its stored copy; the reference comes from the document itself. */
+  const imageMark = (abs: string, raw: unknown): ImageMark | string | null => {
+    if (raw === undefined || raw === null) return null
+    const r = (typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+    const asset = typeof r.asset === 'string' && ASSET_RE.test(r.asset) ? r.asset : ''
+    const ref = asset ? imageRefFor(abs, asset) : null
+    if (!ref) return 'the image is not in the document'
+    const mark: ImageMark = { ref, asset }
+    if (r.box !== undefined && r.box !== null) mark.box = r.box as ImageMark['box']
+    if (r.width !== undefined) mark.width = r.width as number
+    if (r.height !== undefined) mark.height = r.height as number
+    const problem = imageMarkProblem(mark)
+    return problem ? `image ${problem}` : mark
   }
   const ownerKey = (abs: string, id: string): string => `${abs}\0${id}`
   const tooLong = (value: unknown, max: number): boolean => typeof value === 'string' && value.length > max
@@ -333,6 +346,7 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
       author: viewerOpts.author ?? 'reader',
       comments: meta.comments,
       revisions: meta.revisions.map((r) => r.id),
+      assets: assetDrafts(meta),
       stops: scrubStops(meta, revisionState.dirty),
       dirty: revisionState.dirty,
     }
@@ -352,7 +366,7 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
     const abs = resolveDoc(rel)
     if (!abs) return c.notFound()
     let file: string | null
-    try { file = assetFile(abs, asset) } catch { return c.notFound() }
+    try { file = imageFile(abs, asset) } catch { return c.notFound() }
     if (!file) return c.notFound()
     c.header('Content-Type', MIME[imageExtension(asset)!])
     c.header('Cache-Control', 'private, max-age=31536000, immutable')
@@ -385,6 +399,8 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
     if (!abs) return c.notFound()
     const text = String(b.text ?? '').trim()
     if (!text) return c.text('missing text', 400)
+    const image = imageMark(abs, b.image)
+    if (typeof image === 'string') return c.text(image, 400)
     const entry = addComment(abs, {
       text,
       anchor: typeof b.anchor === 'string' ? b.anchor : '',
@@ -392,6 +408,7 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
       prefix: typeof b.prefix === 'string' && b.prefix ? b.prefix : undefined,
       suffix: typeof b.suffix === 'string' && b.suffix ? b.suffix : undefined,
       author: viewerOpts.author ?? 'reader',
+      ...(image ? { image } : {}),
     })
     if (typeof b.session === 'string' && b.session) owners.set(ownerKey(abs, entry.id), b.session)
     return c.json(entry)
