@@ -169,6 +169,7 @@ export const renderDiffHtml = (oldBody: string, newBody: string): string => {
   const out: string[] = []
   let skip = 0
   let pendingCtx: string | null = null
+  let changed = false
   const flushSkip = () => {
     if (skip) {
       out.push(`<div class="rdiff-skip">${skip} unchanged block${skip > 1 ? 's' : ''}</div>`)
@@ -182,6 +183,16 @@ export const renderDiffHtml = (oldBody: string, newBody: string): string => {
       continue
     }
     flushSkip()
+    changed = true
+    // a heading that came, went, or was renamed is shown as the section label it is
+    if ((p.new !== undefined && isHeading(p.new)) || (p.old !== undefined && isHeading(p.old))) {
+      pendingCtx = null
+      const label = p.type === 'add' ? `<ins>${escapeHtml(headingText(p.new!))}</ins>`
+        : p.type === 'del' ? `<del>${escapeHtml(headingText(p.old!))}</del>`
+        : wordDiffHtml(headingText(p.old!), headingText(p.new!))
+      out.push(`<div class="rdiff-ctx">${label}</div>`)
+      continue
+    }
     if (pendingCtx) {
       out.push(`<div class="rdiff-ctx">${escapeHtml(pendingCtx)}</div>`)
       pendingCtx = null
@@ -192,7 +203,7 @@ export const renderDiffHtml = (oldBody: string, newBody: string): string => {
     else out.push(`<div class="${cls}"><del>${escapeHtml(p.old!)}</del></div>`)
   }
   flushSkip()
-  if (!out.some((h) => h.includes('rdiff-block'))) {
+  if (!changed) {
     return '<div class="rdiff-skip">No content changes in the body (frontmatter or metadata only).</div>'
   }
   return out.join('\n')

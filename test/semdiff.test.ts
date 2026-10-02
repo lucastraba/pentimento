@@ -39,6 +39,20 @@ describe('renderDiffHtml', () => {
     expect(html).toContain('<ins>new</ins>')
   })
 
+  it('shows added, removed, and renamed headings as section labels', () => {
+    const before = '## Verse\n\nline one\n\n## Bridge\n\nold bridge words\n'
+    const after = '## Verse\n\nline one\n\n## Outro\n\nnew outro words\n'
+    const html = renderDiffHtml(before, after)
+    expect(html).not.toContain('##')
+    // a section replaced in place reads as a rename: old label struck, new one marked
+    expect(html).toContain('<div class="rdiff-ctx"><del>Bridge</del><ins>Outro</ins></div>')
+    const added = renderDiffHtml('## Verse\n\nline one\n', '## Verse\n\nline one\n\n## Outro\n\nnew words here\n')
+    expect(added).toContain('<div class="rdiff-ctx"><ins>Outro</ins></div>')
+    const removed = renderDiffHtml('## Verse\n\nline one\n\n## Bridge\n\nold words here\n', '## Verse\n\nline one\n')
+    expect(removed).toContain('<div class="rdiff-ctx"><del>Bridge</del></div>')
+    expect(renderDiffHtml('## Chorus\n\nx\n', '## Chorus 2\n\nx\n')).toContain('<div class="rdiff-ctx">Chorus <ins>2</ins></div>')
+  })
+
   it('shows whole added/removed blocks', () => {
     const html = renderDiffHtml('stays\n', 'stays\n\nBrand new paragraph.\n')
     expect(html).toContain('<ins>Brand new paragraph.</ins>')

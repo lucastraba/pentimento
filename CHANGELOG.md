@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.1 - 2026-10-02
+
+### Fixed
+
+- In "What changed", a heading that was added, removed, or renamed shows as a section label (new ones marked, removed ones struck through) instead of raw `## Heading` text under the previous section.
+
 ## 0.12.0 - 2026-10-01
 
 ### Added
