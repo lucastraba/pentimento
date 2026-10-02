@@ -272,9 +272,10 @@ export const storedImage = (historyDir: string, asset: string): string | null =>
 /** Write bytes through a temporary file, readable by everyone and executable by no one. */
 const writeFile = (dest: string, bytes: Buffer): void => {
   fs.mkdirSync(path.dirname(dest), { recursive: true })
-  const tmp = `${dest}.tmp-${process.pid}`
+  // created exclusively, under a name nobody can guess, so a link planted there can't redirect it
+  const tmp = `${dest}.tmp-${process.pid}-${crypto.randomBytes(6).toString('hex')}`
   try {
-    fs.writeFileSync(tmp, bytes, { mode: 0o644 })
+    fs.writeFileSync(tmp, bytes, { mode: 0o644, flag: 'wx' })
     fs.renameSync(tmp, dest)
   } catch (error) {
     fs.rmSync(tmp, { force: true })

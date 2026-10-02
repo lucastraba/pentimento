@@ -387,7 +387,9 @@ describe('pre-release review: image files', () => {
     try {
       expect(() => render(p)).not.toThrow()
       expect(() => canonicalRevisionState(loadDoc(p), readMeta(loadDoc(p).historyDir))).not.toThrow()
-      expect(snapshot(p, { summary: 'two', author: 'test' }).missingImages).toEqual(['mocks/settings.png'])
+      const missing = snapshot(p, { summary: 'two', author: 'test' }).missingImages
+      // root reads the file anyway, so only an ordinary user sees it as unreadable
+      if (process.getuid?.() !== 0) expect(missing).toEqual(['mocks/settings.png'])
     } finally {
       fs.chmodSync(shot, 0o644)
     }
@@ -499,6 +501,9 @@ describe('pre-release review: the viewer', () => {
     expect(first.headers.get('etag')).toBe(`"${asset}"`)
     const again = await app.request(`/asset/Plan.md/${asset}`, { headers: { 'if-none-match': `"${asset}"` } })
     expect(again.status).toBe(304)
+    for (const tags of [`"other", W/"${asset}"`, '*']) {
+      expect((await app.request(`/asset/Plan.md/${asset}`, { headers: { 'if-none-match': tags } })).status).toBe(304)
+    }
   })
 
   it('lists every document even when one has an unreadable image', async () => {

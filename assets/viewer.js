@@ -172,7 +172,12 @@
   // the same image can appear twice; a comment belongs to the copy under its heading
   const imageNear = (asset, anchor) => {
     const copies = [...main.querySelectorAll('img[data-asset="' + asset + '"]')]
-    return copies.find((img) => nearestAnchor(img) === anchor) || copies[0] || null
+    const under = copies.find((img) => nearestAnchor(img) === anchor)
+    if (under || !anchor) return under || copies[0] || null
+    // the heading is still there but its copy is gone: never borrow another copy. When the
+    // heading itself was renamed and there's one copy, that copy is the one
+    const headingGone = !main.querySelector('[id="' + CSS.escape(anchor.slice(1)) + '"]')
+    return headingGone && copies.length === 1 ? copies[0] : null
   }
   const applyImageMarks = () => {
     marksById.clear()
@@ -360,7 +365,7 @@
     if (c.image) {
       div.appendChild(el('blockquote', '', 'Image' + (c.quote ? ': ' + c.quote : '') + (c.image.box ? ' · a marked part' : '')))
       // the mark stays on the image it was drawn on; once a draft replaces it, point at that draft
-      if (c.status === 'open' && !imageFor(c.image.asset)) {
+      if (c.status === 'open' && !imageNear(c.image.asset, c.anchor)) {
         const rev = state.assets[c.image.asset]
         if (rev) {
           const a = el('a', 'vc-note', 'On the version of this image in ' + rev)
@@ -1035,7 +1040,7 @@
       const img = imageNear(draft.image.asset, draft.anchor)
       openForm(img
         ? { ...draft, target: img, rect: img.getBoundingClientRect() }
-        : { ...draft, image: undefined, note: 'This was a comment on an image that has changed since. It will be saved as a comment on the text.' })
+        : { ...draft, image: undefined, note: 'The image this comment was on has changed or moved since. It will be saved as a comment on the text.' })
     } else if (draft && draft.text) {
       const r = findRange(draft)
       openForm({ ...draft, range: r, rect: r && r.getBoundingClientRect() })

@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { parse as parseYaml } from 'yaml'
@@ -25,9 +26,10 @@ export interface Doc {
 
 
 export const atomicWrite = (filePath: string, content: string): void => {
-  const tmp = `${filePath}.tmp-${process.pid}`
+  // created exclusively, under a name nobody can guess, so a link planted there can't redirect it
+  const tmp = `${filePath}.tmp-${process.pid}-${crypto.randomBytes(6).toString('hex')}`
   try {
-    fs.writeFileSync(tmp, content, 'utf8')
+    fs.writeFileSync(tmp, content, { encoding: 'utf8', flag: 'wx' })
     fs.renameSync(tmp, filePath)
   } catch (error) {
     fs.rmSync(tmp, { force: true })
