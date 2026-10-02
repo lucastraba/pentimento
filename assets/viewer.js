@@ -1040,7 +1040,13 @@
       const img = imageNear(draft.image.asset, draft.anchor)
       openForm(img
         ? { ...draft, target: img, rect: img.getBoundingClientRect() }
-        : { ...draft, image: undefined, note: 'The image this comment was on has changed or moved since. It will be saved as a comment on the text.' })
+        : {
+            ...draft,
+            image: undefined,
+            // the alt text matches nothing on the page; say what the comment was about instead
+            quote: 'Image: ' + (draft.quote || 'an image that has changed'),
+            note: 'The image this comment was on has changed or moved since. It will be saved as a comment on its section.',
+          })
     } else if (draft && draft.text) {
       const r = findRange(draft)
       openForm({ ...draft, range: r, rect: r && r.getBoundingClientRect() })

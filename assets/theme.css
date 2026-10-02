@@ -440,7 +440,7 @@ html[data-scrubbing] main { transition: opacity .12s; }
 .vc-imgwrap > img { display: block; }
 :root.vc-images main img[data-asset]:not(a[href] img) { cursor: crosshair; }
 .vc-marking { touch-action: none; }
-.vc-mark { position: absolute; padding: 0; border: 2px solid var(--high); border-radius: 4px; cursor: pointer;
+.vc-mark { position: absolute; box-sizing: border-box; padding: 0; border: 2px solid var(--high); border-radius: 4px; cursor: pointer;
   background: color-mix(in srgb, var(--high) 14%, transparent); }
 .vc-mark.whole { top: .45rem; right: .45rem; width: 1.8rem; height: 1.8rem; border-radius: 50%; background: var(--raise);
   display: grid; place-items: center; color: var(--ink); }
