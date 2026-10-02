@@ -48,6 +48,66 @@ describe('watchTree', () => {
     await until(() => seen.includes('notes/later/shot.png'))
   })
 
+  it('reports files already in a folder that arrives whole', async () => {
+    // a folder made elsewhere and moved in: its files were written before any watch existed
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'pentimento-outside-'))
+    try {
+      fs.mkdirSync(path.join(outside, 'mocks', 'deep'), { recursive: true })
+      fs.writeFileSync(path.join(outside, 'mocks', 'shot.png'), 'png')
+      fs.writeFileSync(path.join(outside, 'mocks', 'deep', 'Plan.md'), 'x')
+      const seen: string[] = []
+      watcher = watchTree(dir, (rel) => seen.push(rel), () => {})
+      fs.renameSync(path.join(outside, 'mocks'), path.join(dir, 'mocks'))
+      await until(() => seen.includes('mocks/shot.png') && seen.includes('mocks/deep/Plan.md'))
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
+  it('watches the new folder when another takes the old one\'s path', async () => {
+    mkdir('notes')
+    const seen: string[] = []
+    watcher = watchTree(dir, (rel) => seen.push(rel), () => {})
+    fs.renameSync(path.join(dir, 'notes'), path.join(dir, 'old-notes'))
+    mkdir('notes')
+    await new Promise((r) => setTimeout(r, 200))
+    fs.writeFileSync(path.join(dir, 'notes', 'Plan.md'), 'x')
+    await until(() => seen.includes('notes/Plan.md'))
+  })
+
+  it('never follows a link to a folder, even one made later', async () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'pentimento-outside-'))
+    try {
+      fs.mkdirSync(path.join(outside, 'a', 'b'), { recursive: true })
+      const seen: string[] = []
+      watcher = watchTree(dir, (rel) => seen.push(rel), () => {})
+      fs.symlinkSync(outside, path.join(dir, 'link'))
+      await until(() => seen.includes('link'))
+      await new Promise((r) => setTimeout(r, 100))
+      expect(watcher.size()).toBe(1)
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
+  it('rescans a folder when an event comes without a name', () => {
+    mkdir('notes')
+    const listeners = new Map<string, (event: string, name: string | null) => void>()
+    const realWatch = fs.watch
+    vi.spyOn(fs, 'watch').mockImplementation(((target: string, listener: (event: string, name: string | null) => void) => {
+      listeners.set(String(target), listener)
+      return realWatch(target, () => {})
+    }) as unknown as typeof fs.watch)
+    const seen: string[] = []
+    watcher = watchTree(dir, (rel) => seen.push(rel), () => {})
+    fs.writeFileSync(path.join(dir, 'notes', 'Plan.md'), 'x')
+    mkdir('notes/new')
+    fs.writeFileSync(path.join(dir, 'notes', 'new', 'shot.png'), 'png')
+    listeners.get(path.join(dir, 'notes'))!('rename', null)
+    expect(seen).toEqual(expect.arrayContaining(['notes/Plan.md', 'notes/new/shot.png']))
+    expect(watcher.size()).toBe(3)
+  })
+
   it('warns once and keeps going when the system is out of watchers', () => {
     mkdir('a/b')
     const watch = vi.spyOn(fs, 'watch').mockImplementation(() => {
@@ -55,7 +115,8 @@ describe('watchTree', () => {
     })
     const problems: string[] = []
     watcher = watchTree(dir, () => {}, (m) => problems.push(m))
-    expect(watch).toHaveBeenCalledTimes(3)
+    // out of watchers at the root, there's no point trying the folders below it
+    expect(watch).toHaveBeenCalledTimes(1)
     expect(problems).toHaveLength(1)
     expect(problems[0]).toContain('run out of file watchers')
   })
