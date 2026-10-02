@@ -443,6 +443,8 @@
     try { msg = JSON.parse(e.data) } catch (err) { return }
     if (msg.metas && msg.metas.length) refreshComments()
     if (!viewingRev && msg.docs && msg.docs.indexOf(cfg.rel) >= 0) queueMorph()
+    // a new screenshot changes the page without a markdown edit
+    else if (!viewingRev && msg.images) queueMorph()
     // approvals and answers live in meta.yml and change what the page shows
     else if (!viewingRev && msg.metas && msg.metas.length) queueMorph()
   }

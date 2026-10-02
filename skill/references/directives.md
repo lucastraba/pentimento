@@ -139,13 +139,21 @@ Node names and labels are plain text. Keep diagrams to what a reader needs to fo
 
 Documents written in Obsidian render the way Obsidian shows them:
 
-- `[[Note]]` and `[[Note|label]]` show as the link text (the page can't open other notes), and `![[file]]` as a marked mention.
+- `[[Note]]` and `[[Note|label]]` show as the link text (the page can't open other notes), and `![[file]]` as a marked mention. `![[shot.png]]` shows the image, found the way Obsidian finds it: next to the note, in the attachment folder, then by name anywhere in the vault.
 - `==text==` is highlighted.
 - `%% text %%` is hidden, as in Obsidian's reading view. (`%% @c: … %%` is still a comment for the agent, moved into `meta.yml` at snapshot.)
 - `> [!note] Title` callouts use the callout styles; `warning`, `caution`, and `attention` render as warnings, `danger`, `error`, `bug`, and `failure` as risks, everything else as a note. `[!type]-` starts folded.
 - Footnotes: `text[^1]` with `[^1]: the note` anywhere in the file, numbered in order of first use.
 
 Agents writing plans should prefer the directives and plain markdown, but these are safe to use.
+
+## Images
+
+```markdown
+![Settings page with the daily drafts toggle on](mocks/settings.png "Settings, desktop")
+```
+
+A local image alone in its paragraph renders as a figure at the width diffs use, with the title as its caption; inside a paragraph it renders inline. Paths are relative to the document and stay inside its folder (inside the vault for an Obsidian note). PNG, JPEG, GIF, WebP, and SVG. A remote image renders as a link to it. Always write alt text: it is what the reader sees when the file is missing. `pentimento guide` covers mocks and prototypes.
 
 ## Headings and ids
 

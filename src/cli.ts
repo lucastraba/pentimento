@@ -139,13 +139,14 @@ const main = (): void => {
       const saved = readMeta(loadDoc(doc).historyDir).revisions.find((r) => r.id === res.rev)
       console.log(`${res.rev} → ${res.historyFile}`)
       if (!flags.summary && saved) console.log(`summary: ${saved.summary}`)
-      const style = lintDoc(loadDoc(doc).raw)
+      for (const missing of res.missingImages) console.log(`warning: ${missing} isn't there, so ${res.rev} was saved without it`)
+      const style = lintDoc(loadDoc(doc).raw, loadDoc(doc).canonicalPath)
       if (style.length) console.log(`${style.length} style warning(s) — run: pentimento lint ${positional[0]}`)
       break
     }
     case 'lint': {
       if (!doc) fail('lint needs a document path')
-      const findings = lintDoc(loadDoc(doc).raw)
+      const findings = lintDoc(loadDoc(doc).raw, loadDoc(doc).canonicalPath)
       if (!findings.length) { console.log('no style warnings'); break }
       for (const f of findings) console.log(`  L${String(f.line).padStart(3)} [${f.rule}] ${f.message}`)
       console.log(`${findings.length} style warning(s)`)

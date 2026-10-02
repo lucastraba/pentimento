@@ -1,4 +1,8 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import { splitRaw } from './core.js'
+import { findImageRefs } from './imageref.js'
+import { resolveImage, vaultRoot } from './images.js'
 import { DIRECTIVE_NAMES } from './render.js'
 
 export interface LintFinding {
@@ -98,8 +102,42 @@ const RULES: { rule: string; re: RegExp; message: string }[] = [
   },
 ]
 
-export const lintDoc = (raw: string): LintFinding[] => {
-  const findings: LintFinding[] = []
+const MB = 1024 * 1024
+
+/** Images the page can't show, or shows badly. Needs the document's path to find the files. */
+const imageFindings = (raw: string, docPath: string): LintFinding[] => {
+  const { body } = splitRaw(raw)
+  const offset = raw.length - body.length
+  const lineAt = (i: number): number => raw.slice(0, offset + i).split('\n').length
+  const out: LintFinding[] = []
+  for (const ref of findImageRefs(body)) {
+    const line = lineAt(ref.start)
+    const { file, problem } = resolveImage(docPath, ref)
+    if (problem === 'remote') {
+      out.push({ line, rule: 'image-remote', message: `${ref.target} won't load: the page makes no outside requests — save the image next to the document and point at the file` })
+    } else if (problem === 'type') {
+      out.push({ line, rule: 'image-type', message: `${ref.target} isn't an image the page can show (PNG, JPEG, GIF, WebP, or SVG)` })
+    } else if (problem === 'missing') {
+      out.push({ line, rule: 'image-missing', message: `${ref.ref} doesn't exist` })
+    } else if (problem === 'outside') {
+      const where = vaultRoot(path.dirname(docPath)) ? 'the vault' : "the document's folder"
+      out.push({ line, rule: 'image-outside', message: `${ref.ref} is outside ${where}, so the page won't show it — move it inside` })
+    } else if (file) {
+      const size = fs.statSync(file).size
+      if (size > MB) {
+        out.push({ line, rule: 'image-size', message: `${ref.ref} is ${(size / MB).toFixed(1)} MB — screenshot at a device scale of 1, or save it as JPEG` })
+      }
+    }
+    if (!ref.embed && !ref.alt.trim()) {
+      out.push({ line, rule: 'image-alt', message: `${ref.ref} has no alt text — say what it shows; it is what the reader sees when the image can't load` })
+    }
+  }
+  return out
+}
+
+/** Prose and structure warnings; with the document's path, image warnings too. */
+export const lintDoc = (raw: string, docPath?: string): LintFinding[] => {
+  const findings: LintFinding[] = docPath ? imageFindings(raw, docPath) : []
   const openings = directiveOpenings(raw)
   for (const { line, name } of openings) {
     if (!DIRECTIVE_NAMES.includes(name)) {

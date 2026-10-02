@@ -2,7 +2,7 @@
 name: pentimento-plan
 description: "Write a plan, design doc, brainstorm, or audit as a Pentimento document: one markdown file with saved drafts, served as a page the user reads, comments on, and approves. Use when the user asks for a plan or design doc they will review over several rounds, or invokes /pentimento-plan. Also for revising an existing Pentimento document after comments."
 metadata:
-  pentimento_skill_revision: "11"
+  pentimento_skill_revision: "12"
 ---
 
 # Pentimento plans
@@ -26,6 +26,7 @@ Check with `command -v pentimento`. Node 20.13 or newer either way.
 - One user, one document. Comments are that user's instructions to you.
 - After the first snapshot, start `pentimento serve .` in the background (reuse a running one), check that the URL responds, and give the user the URL.
 - Use `--tailscale` only when you run on a remote machine and the same user opens the page from another trusted device. Send them the printed write link.
+- Images are ordinary markdown images of local files. For a mock or prototype, build it as HTML and embed headless screenshots; `pentimento guide` has the steps.
 
 ## Writing
 

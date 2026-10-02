@@ -14,6 +14,8 @@ export interface RevisionEntry {
   summary: string
   why?: string
   source?: string
+  /** the image each reference pointed to when this draft was saved: path as written → hash */
+  images?: Record<string, string>
 }
 
 export interface ReplyEntry {
@@ -181,6 +183,11 @@ export const validateMeta = (value: unknown, metaPath: string): Meta => {
     for (const field of ['why', 'source'] as const) {
       if (revision[field] !== undefined && typeof revision[field] !== 'string') {
         metadataError(metaPath, `revisions[${index}].${field} must be a string`)
+      }
+    }
+    if (revision.images !== undefined) {
+      if (!isRecord(revision.images) || !Object.values(revision.images).every((h) => typeof h === 'string' && /^[0-9a-f]{16}$/.test(h))) {
+        metadataError(metaPath, `revisions[${index}].images must map each image path to a 16-character hash`)
       }
     }
   })

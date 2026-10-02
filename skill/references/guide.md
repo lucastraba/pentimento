@@ -99,13 +99,66 @@ settled: stop revising and do the work. If you change the document after an appr
 the reader sees "Approved r003" beside the newer draft and a link to everything that
 changed since they signed off.
 
+## Images, mocks, and prototypes
+
+Put an image in a document with an ordinary markdown image on its own line:
+
+```markdown
+![Settings page with the daily drafts toggle on](mocks/settings.png "Settings, desktop")
+```
+
+An image alone in its paragraph renders as a figure, with the title as its caption. Keep
+image files in the document's folder or below it (in an Obsidian vault, anywhere in the
+vault), as PNG, JPEG, GIF, WebP, or SVG. Remote images aren't loaded, because the page makes
+no outside requests. Each draft keeps the images it was saved with, so when you revise an
+image, overwrite the file: the history keeps the earlier one, and the reader's diff shows
+both versions side by side.
+
+When the user asks for a mock, wireframe, or prototype:
+
+1. Build it as a standalone HTML file next to the document, such as `mocks/settings.html`,
+   with its CSS inline. A stylesheet that fails to load produces a blank screenshot.
+2. Screenshot it headlessly at the size the design is for (1280 × 800 for a desktop,
+   390 × 844 for a phone) at a device scale of 1. That keeps a screen well under 200 KB;
+   lint warns above 1 MB.
+3. Embed one image per state the reader needs to judge (empty, filled, an error), each on
+   its own line, with alt text that names the state.
+4. After comments, edit the HTML, take the screenshot again over the same PNG, and save
+   the next draft.
+
+Use whatever browser tool you have. Without one, either of these works:
+
+```bash
+npx playwright screenshot --viewport-size=1280,800 --full-page "file://$PWD/mocks/settings.html" mocks/settings.png
+chromium --headless --hide-scrollbars --window-size=1280,800 --screenshot="$PWD/mocks/settings.png" "file://$PWD/mocks/settings.html"
+```
+
+`npx playwright` won't run until `npx playwright install chromium` has downloaded the
+browser build that matches it. Chromium's `--screenshot` captures the window rather than the
+page, so set the height to fit the content. A snap-packaged Chromium (Ubuntu's default)
+can't write to `/tmp`, so keep the files inside the project.
+
+The HTML isn't part of the document and isn't saved in its history. The screenshots are
+what the user reviews and approves. When the user wants to click through a prototype, send
+them a link in chat. On the same machine, that's the file's path. When they read from
+another device, serve only the mocks folder, on the Tailscale address the viewer uses:
+
+```bash
+npx -y http-server mocks -a "$(tailscale ip -4)" -p 4835 -c-1
+```
+
+Serving the project folder instead would put every file in it on the tailnet, `.env`
+included. Don't link to the server from the document: the link stops working when the
+server stops.
+
 ## What the reader gets without your help
 
 Don't write any of this by hand; the render computes it.
 
 - The label, revision, and date line above the title, and the latest summary under it.
 - "What changed since rNNN": a word-level diff (line-level for lists and verse) with
-  computed tallies such as `+1 done · −2 high`, and the comments that draft answered.
+  computed tallies such as `+1 done · −2 high`, and the comments that draft answered. A
+  changed image shows as its two versions side by side.
 - Traces: the current draft with the previous one showing through, deleted words struck
   in sepia. The reader toggles it with the Traces button or the T key.
 - A contents rail with a dot beside every section that changed.

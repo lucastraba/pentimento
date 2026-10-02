@@ -10,6 +10,25 @@
     } catch (err) {}
   }
 
+  // --- images: a static page carries each one once, and every other copy names it in
+  // data-asset (earlier drafts, traces, the diff, cuttings); fill those in from the carried ones
+  const imageSrc = new Map()
+  const learnImages = (scope) => {
+    scope.querySelectorAll('img[data-asset][src]').forEach((img) => {
+      if (!imageSrc.has(img.dataset.asset)) imageSrc.set(img.dataset.asset, img.getAttribute('src'))
+    })
+  }
+  const fillImages = (scope) => {
+    learnImages(scope)
+    scope.querySelectorAll('img[data-asset]:not([src])').forEach((img) => {
+      const src = imageSrc.get(img.dataset.asset)
+      if (src) img.setAttribute('src', src)
+    })
+  }
+  learnImages(document)
+  const imageStore = document.getElementById('pentimento-images')
+  if (imageStore) learnImages(imageStore.content)
+
   // --- color scheme: auto → dark → light → auto -----------------------------
   const syncScheme = () => {
     const t = root.dataset.theme || ''
@@ -31,9 +50,11 @@
     if (want && !has) {
       stash.set(main, main.innerHTML)
       main.innerHTML = tpl.innerHTML
+      fillImages(main)
       main.classList.add('traces')
     } else if (!want && has) {
       main.innerHTML = stash.get(main) ?? main.innerHTML
+      fillImages(main)
       main.classList.remove('traces')
     }
     document.querySelectorAll('[data-traces-toggle]').forEach((b) => {
@@ -65,6 +86,7 @@
     if (currentMain === null) currentMain = main.innerHTML
     const tpl = templates[i]
     main.innerHTML = tpl ? tpl.innerHTML : currentMain
+    fillImages(main)
     if (tpl) root.dataset.viewingDraft = tpl.dataset.rev
     else delete root.dataset.viewingDraft
     if (label) label.textContent = tpl ? tpl.dataset.rev + ' · earlier draft' : label.dataset.current
@@ -144,7 +166,7 @@
     if (!ticking) { ticking = true; requestAnimationFrame(syncRail) }
   }, { passive: true })
 
-  window.__pSyncChrome = () => { syncScheme(); applyTraces(); syncRail() }
+  window.__pSyncChrome = () => { fillImages(document); syncScheme(); applyTraces(); syncRail() }
   window.__pSyncChrome()
 
   // print with every fold open, then restore; CSS alone can't force <details> open

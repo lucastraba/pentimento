@@ -9,8 +9,11 @@ import { bodyLimit } from 'hono/body-limit'
 import { getCookie, setCookie } from 'hono/cookie'
 import {
   addComment, addReply, answerQuestion, approve, canonicalRevisionState, deleteComment, isPathInside,
-  latestApproval, loadDoc, readMeta, reopenComment, resolveComment, resolveContainedPath, type Meta,
+  latestApproval, loadDoc, readMeta, readRevision, reopenComment, resolveComment, resolveContainedPath, splitRaw,
+  type Meta,
 } from './core.js'
+import { ASSET_RE, imageExtension } from './imageref.js'
+import { imageKeys, MIME } from './images.js'
 import {
   contentSecurityPolicy, FAVICON_TAG, render, renderDiffPage, renderRevisionHtml, renderStylesheet,
   RESTORE_SNIPPET, secureHtml,
@@ -208,7 +211,7 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
   const viewerJs = fs.readFileSync(path.join(ASSETS, 'viewer.js'), 'utf8')
   const app = new Hono()
   const clients = new Set<(data: string) => void>()
-  const broadcast = (payload: { docs: string[]; metas: string[] }) => {
+  const broadcast = (payload: { docs: string[]; metas: string[]; images?: boolean }) => {
     const data = JSON.stringify(payload)
     clients.forEach((send) => send(data))
   }
@@ -218,8 +221,8 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
   const canStop = (c: Context): boolean => Boolean(viewerOpts.onShutdown) && canWrite(c)
   const expectedOrigin = (c: Context): string => viewerOpts.origin ?? new URL(c.req.url).origin
   const htmlResponse = (c: Context, html: string): Response => {
-    const secured = secureHtml(html)
-    c.header('Content-Security-Policy', contentSecurityPolicy(secured, true))
+    const secured = secureHtml(html, { selfImages: true })
+    c.header('Content-Security-Policy', contentSecurityPolicy(secured, true, true))
     c.header('Referrer-Policy', 'no-referrer')
     c.header('X-Content-Type-Options', 'nosniff')
     c.header('X-Frame-Options', 'DENY')
@@ -267,6 +270,22 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
   const decodeRel = (encoded: string): string | null => {
     try { return decodeURIComponent(encoded) } catch { return null }
   }
+  const imageUrl = (rel: string) => (asset: string): string => `/asset/${encodeURIComponent(rel)}/${asset}`
+
+  /** The file behind a stored image: the history's copy, or a file on disk with that hash. */
+  const assetFile = (abs: string, asset: string): string | null => {
+    const doc = loadDoc(abs)
+    const keys = imageKeys(doc.canonicalPath, doc.historyDir)
+    const stored = keys.file(asset)
+    if (stored) return stored
+    // the current file, and drafts saved before drafts kept their images, show what's on disk
+    keys.key(doc.body)
+    for (const r of readMeta(doc.historyDir).revisions) {
+      if (r.images) continue
+      try { keys.key(splitRaw(readRevision(abs, r.id)).body) } catch { /* verify reports it */ }
+    }
+    return keys.file(asset)
+  }
   const ownerKey = (abs: string, id: string): string => `${abs}\0${id}`
   const tooLong = (value: unknown, max: number): boolean => typeof value === 'string' && value.length > max
 
@@ -296,8 +315,8 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
     try {
       // the viewer replaces the static header panel with its drawer
       html = rev
-        ? renderRevisionHtml(abs, rev, { omitCommentsPanel: true, since, drafts: 0 })
-        : render(abs, { omitCommentsPanel: true, since, drafts: 0 })
+        ? renderRevisionHtml(abs, rev, { omitCommentsPanel: true, since, drafts: 0, imageUrl: imageUrl(rel) })
+        : render(abs, { omitCommentsPanel: true, since, drafts: 0, imageUrl: imageUrl(rel) })
     } catch (e) {
       return c.text(e instanceof Error ? e.message : String(e), 500)
     }
@@ -319,6 +338,28 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
     }
     const cfgScript = `<script>window.__pentimento=${JSON.stringify(cfg).replace(/</g, '\\u003c')}</script>\n<script>\n${viewerJs}</script>`
     return htmlResponse(c, html.replace('</body>', `${viewerBar(meta, rev, revisionState.dirty, canWrite(c), stoppable)}\n${cfgScript}\n${stoppable ? STOP_SNIPPET : ''}\n</body>`))
+  })
+
+  // Images by content hash, so the browser keeps them across the page re-fetches after every
+  // change. The sandbox policy matters for SVG: opened directly at this address, its scripts
+  // would otherwise run on the viewer's origin, where the write cookie goes with every request.
+  app.get('/asset/*', (c) => {
+    const rest = c.req.path.slice('/asset/'.length)
+    const slash = rest.lastIndexOf('/')
+    const rel = slash > 0 ? decodeRel(rest.slice(0, slash)) : null
+    const asset = rest.slice(slash + 1)
+    if (rel === null || !ASSET_RE.test(asset)) return c.notFound()
+    const abs = resolveDoc(rel)
+    if (!abs) return c.notFound()
+    let file: string | null
+    try { file = assetFile(abs, asset) } catch { return c.notFound() }
+    if (!file) return c.notFound()
+    c.header('Content-Type', MIME[imageExtension(asset)!])
+    c.header('Cache-Control', 'private, max-age=31536000, immutable')
+    c.header('Content-Security-Policy', "sandbox; default-src 'none'; style-src 'unsafe-inline'")
+    c.header('X-Content-Type-Options', 'nosniff')
+    c.header('Referrer-Policy', 'no-referrer')
+    return c.body(fs.readFileSync(file))
   })
 
   app.get('/api/comments', (c) => {
@@ -458,7 +499,7 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
     if (!a) return c.text('missing ?a=<rev>', 400)
     if ((a !== 'canonical' && !hasRevision(abs, a)) || (b !== 'canonical' && !hasRevision(abs, b))) return c.notFound()
     try {
-      const html = renderDiffPage(abs, a, b)
+      const html = renderDiffPage(abs, a, b, { imageUrl: imageUrl(rel) })
       return htmlResponse(c, html.replace('</body>', `${SSE_SNIPPET}\n</body>`))
     } catch (e) {
       return c.text(e instanceof Error ? e.message : String(e), 500)
@@ -532,21 +573,25 @@ export const serveViewer = (root: string, { host, port, author, writeToken }: Se
   })
 
   // Batch watcher hits into one typed event: .md paths morph the affected document
-  // page, .yml paths make every page re-fetch its comments.
+  // page, .yml paths make every page re-fetch its comments, and a changed image morphs
+  // every page, since a new screenshot changes the page without a markdown edit.
   const docs = new Set<string>()
   const metas = new Set<string>()
+  let imagesChanged = false
   watcher = fs.watch(absRoot, { recursive: true }, (_event, fname) => {
     if (!fname) return
     const f = String(fname).split(path.sep).join('/')
     if (f.includes('node_modules') || f.includes('.git/')) return
     if (/\.md$/.test(f)) docs.add(f)
     else if (/\.yml$/.test(f)) metas.add(f)
+    else if (imageExtension(f) && !f.includes('.history/')) imagesChanged = true
     else return
     if (timer) clearTimeout(timer)
     timer = setTimeout(() => {
-      broadcast({ docs: [...docs], metas: [...metas] })
+      broadcast({ docs: [...docs], metas: [...metas], ...(imagesChanged ? { images: true } : {}) })
       docs.clear()
       metas.clear()
+      imagesChanged = false
     }, 200)
   })
 
