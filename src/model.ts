@@ -101,6 +101,16 @@ export interface Meta {
 }
 
 
+/**
+ * The folders a note's history can go in, beside the note: hidden `.history`, the default,
+ * or `_history`, which Obsidian Sync carries (it skips hidden folders). A note keeps the
+ * folder its first draft chose, in its `History Folder` property.
+ */
+export const HISTORY_FOLDERS = ['.history', '_history'] as const
+export type HistoryFolder = typeof HISTORY_FOLDERS[number]
+export const isHistoryFolder = (value: unknown): value is HistoryFolder =>
+  (HISTORY_FOLDERS as readonly unknown[]).includes(value)
+
 export const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/
 
 export const splitRaw = (raw: string): { frontmatterRaw: string | null; body: string } => {

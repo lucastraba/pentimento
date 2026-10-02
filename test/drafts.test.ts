@@ -44,6 +44,50 @@ describe('paths', () => {
   })
 })
 
+describe('the history folder for Obsidian Sync', () => {
+  it('starts a note\'s history in _history when the host asks, and keeps it there', async () => {
+    fs.writeFileSync(path.join(dir, 'Note.md'), song)
+    fs.writeFileSync(path.join(dir, 'Old.md'), song)
+    const store = folderStore(dir)
+    await saveDraft(store, 'Old.md')
+    expect((await saveDraft(store, 'Note.md', { historyFolder: '_history' })).revisionPath).toBe('_history/Note/r001.md')
+    expect(fs.readFileSync(path.join(dir, 'Note.md'), 'utf8')).toContain('History Folder: _history/Note')
+    // once a note has drafts, its own folder wins over the host's choice
+    expect((await saveDraft(store, 'Note.md')).revisionPath).toBe('_history/Note/r002.md')
+    expect((await saveDraft(store, 'Old.md', { historyFolder: '_history' })).revisionPath).toBe('.history/Old/r002.md')
+    expect(() => locate('Note.md', song, 'drafts' as never)).toThrow('historyFolder must be one of .history, _history')
+  })
+
+  it('follows the plugin\'s choice from the command line, in that vault only', () => {
+    const settings = path.join(dir, 'vault', '.obsidian', 'plugins', 'pentimento')
+    fs.mkdirSync(settings, { recursive: true })
+    fs.writeFileSync(path.join(settings, 'data.json'), JSON.stringify({ historyFolder: '_history' }))
+    fs.mkdirSync(path.join(dir, 'vault', 'Songs'))
+    fs.writeFileSync(path.join(dir, 'vault', 'Songs', 'Harbor.md'), song)
+    fs.writeFileSync(path.join(dir, 'Outside.md'), song)
+    expect(snapshot(path.join(dir, 'vault', 'Songs', 'Harbor.md'), {}).historyFile).toBe(path.join(fs.realpathSync(dir), 'vault', 'Songs', '_history', 'Harbor', 'r001.md'))
+    expect(snapshot(path.join(dir, 'Outside.md'), {}).historyFile).toBe(path.join(fs.realpathSync(dir), '.history', 'Outside', 'r001.md'))
+    // a value the plugin never writes is ignored
+    fs.writeFileSync(path.join(settings, 'data.json'), JSON.stringify({ historyFolder: '../../etc' }))
+    fs.writeFileSync(path.join(dir, 'vault', 'Other.md'), song)
+    expect(snapshot(path.join(dir, 'vault', 'Other.md'), {}).historyFile).toContain(path.join('vault', '.history', 'Other'))
+  })
+
+  it('writes the same _history files from the CLI and the plugin', async () => {
+    const settings = path.join(dir, 'cli', '.obsidian', 'plugins', 'pentimento')
+    fs.mkdirSync(settings, { recursive: true })
+    fs.writeFileSync(path.join(settings, 'data.json'), JSON.stringify({ historyFolder: '_history' }))
+    fs.mkdirSync(path.join(dir, 'vault'))
+    fs.writeFileSync(path.join(dir, 'cli', 'Harbor.md'), song)
+    fs.writeFileSync(path.join(dir, 'vault', 'Harbor.md'), song)
+    snapshot(path.join(dir, 'cli', 'Harbor.md'), { author: 'L' })
+    await saveDraft(folderStore(path.join(dir, 'vault')), 'Harbor.md', { author: 'L', historyFolder: '_history' })
+    for (const f of ['Harbor.md', '_history/Harbor/r001.md']) {
+      expect(fs.readFileSync(path.join(dir, 'vault', f), 'utf8')).toBe(fs.readFileSync(path.join(dir, 'cli', f), 'utf8'))
+    }
+  })
+})
+
 describe('saveDraft', () => {
   it('writes the same files the CLI writes', async () => {
     fs.mkdirSync(path.join(dir, 'cli'))
