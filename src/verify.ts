@@ -20,6 +20,8 @@ export const findPentimentoDocs = (root: string): string[] => {
     } catch {
       return // unreadable directory — skip
     }
+    // a draft history, wherever `History Folder` put it: its rNNN.md copies aren't documents
+    if (entries.some((e) => e.name === 'meta.yml') && entries.some((e) => /^r\d{3,}\.md$/.test(e.name))) return
     for (const entry of entries) {
       if (entry.isSymbolicLink()) continue
       if (entry.isDirectory()) {

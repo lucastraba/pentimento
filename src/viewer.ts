@@ -601,7 +601,8 @@ export const serveViewer = (root: string, { host, port, author, writeToken }: Se
     if (f.includes('node_modules') || f.includes('.git/')) return
     if (/\.md$/.test(f)) docs.add(f)
     else if (/\.yml$/.test(f)) metas.add(f)
-    else if (imageExtension(f) && !f.includes('.history/')) imagesChanged = true
+    // stored copies are named by their hash and change only with a snapshot, which morphs the page anyway
+    else if (imageExtension(f) && !ASSET_RE.test(f.slice(f.lastIndexOf('/') + 1))) imagesChanged = true
     else return
     if (timer) clearTimeout(timer)
     timer = setTimeout(() => {

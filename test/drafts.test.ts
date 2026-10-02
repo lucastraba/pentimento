@@ -7,7 +7,7 @@ import { snapshot } from '../src/core.js'
 import { joinPath, locate, readHistory, removeHistory, restoreDraft, saveDraft, type DraftStore } from '../src/drafts.js'
 import { untrack } from '../src/core.js'
 import { unstampCanonical } from '../src/model.js'
-import { verifyDoc } from '../src/verify.js'
+import { findPentimentoDocs, verifyDoc } from '../src/verify.js'
 
 /** A store over a real folder, so drafts saved here can be checked by the CLI. */
 const folderStore = (root: string): DraftStore => {
@@ -164,6 +164,54 @@ describe('taking a note out of Pentimento', () => {
     expect(untrack(p)).toMatchObject({ drafts: 1 })
     expect(fs.readFileSync(p, 'utf8')).toBe(song)
     expect(fs.existsSync(path.join(dir, '.history'))).toBe(false)
+  })
+
+  it('cleans up a history folder by any name, as Obsidian Sync needs', async () => {
+    // `.history` doesn't sync with Obsidian Sync; `_history` does
+    const synced = (title: string) => `---\nHistory Folder: _history/${title}\n---\n# ${title}\n\nsome text here\n`
+    fs.writeFileSync(path.join(dir, 'Note.md'), synced('Note'))
+    fs.writeFileSync(path.join(dir, 'Other.md'), synced('Other'))
+    const store = folderStore(dir)
+    await saveDraft(store, 'Note.md')
+    await saveDraft(store, 'Other.md')
+    expect(fs.existsSync(path.join(dir, '_history', 'Note', 'r001.md'))).toBe(true)
+    await removeHistory(store, 'Note.md')
+    expect(fs.existsSync(path.join(dir, '_history', 'Other'))).toBe(true)
+    await removeHistory(store, 'Other.md')
+    expect(fs.existsSync(path.join(dir, '_history'))).toBe(false)
+
+    const p = path.join(dir, 'Cli.md')
+    fs.writeFileSync(p, synced('Cli'))
+    snapshot(p, {})
+    untrack(p)
+    expect(fs.existsSync(path.join(dir, '_history'))).toBe(false)
+
+    // a renamed note keeps its old history folder name
+    fs.writeFileSync(path.join(dir, 'Renamed.md'), synced('Old Title').replace('# Old Title', '# Renamed'))
+    await saveDraft(store, 'Renamed.md')
+    await removeHistory(store, 'Renamed.md')
+    expect(fs.existsSync(path.join(dir, '_history'))).toBe(false)
+  })
+
+  it('never mistakes saved drafts for documents, wherever the history is', async () => {
+    fs.writeFileSync(path.join(dir, 'Note.md'), '---\nHistory Folder: _history/Note\n---\n# Note\n\nsome text here\n')
+    fs.writeFileSync(path.join(dir, 'Plain.md'), song)
+    const store = folderStore(dir)
+    await saveDraft(store, 'Note.md')
+    await saveDraft(store, 'Note.md')
+    await saveDraft(store, 'Plain.md')
+    expect(findPentimentoDocs(dir).map((p) => path.relative(dir, p))).toEqual(['Note.md', 'Plain.md'])
+  })
+
+  it('leaves the user\'s own folders alone', async () => {
+    fs.mkdirSync(path.join(dir, 'drafts'))
+    fs.writeFileSync(path.join(dir, 'Note.md'), '---\nHistory Folder: drafts/history-of-note\n---\n# Note\n\nsome text here\n')
+    const store = folderStore(dir)
+    await saveDraft(store, 'Note.md')
+    await removeHistory(store, 'Note.md')
+    expect(fs.existsSync(path.join(dir, 'drafts', 'history-of-note'))).toBe(false)
+    // not `<folder>/<note>`, so `drafts` is the user's, and stays
+    expect(fs.existsSync(path.join(dir, 'drafts'))).toBe(true)
   })
 
   it('only removes the keys Pentimento owns', () => {
