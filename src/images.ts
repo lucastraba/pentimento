@@ -122,7 +122,7 @@ const sniff = (head: Buffer): string | null => {
   return null
 }
 
-interface FileFacts { stamp: string; type: string | null; hash?: string }
+interface FileFacts { stamp: string; type: string | null; hash?: string; size?: { width: number; height: number } | null }
 const facts = new Map<string, FileFacts>()
 
 // A file changed within this window may still be being written; its facts aren't cached.
@@ -160,6 +160,58 @@ const hashFile = (file: string): string => {
   const { hash } = readImage(file)
   if (hit && hit.stamp === stamp) hit.hash = hash
   return hash
+}
+
+/** Width and height from an image's header, so a page can hold its place before it loads. */
+const dimensions = (head: Buffer, type: string | null): { width: number; height: number } | null => {
+  const ok = (width: number, height: number) => (width > 0 && height > 0 && width < 100000 && height < 100000 ? { width, height } : null)
+  if (type === 'png' && head.length >= 24) return ok(head.readUInt32BE(16), head.readUInt32BE(20))
+  if (type === 'gif' && head.length >= 10) return ok(head.readUInt16LE(6), head.readUInt16LE(8))
+  if (type === 'webp' && head.length >= 30) {
+    const chunk = head.subarray(12, 16).toString('latin1')
+    if (chunk === 'VP8 ') return ok(head.readUInt16LE(26) & 0x3fff, head.readUInt16LE(28) & 0x3fff)
+    if (chunk === 'VP8L') {
+      const bits = head.readUInt32LE(21)
+      return ok((bits & 0x3fff) + 1, ((bits >> 14) & 0x3fff) + 1)
+    }
+    if (chunk === 'VP8X') return ok(head.readUIntLE(24, 3) + 1, head.readUIntLE(27, 3) + 1)
+  }
+  if (type === 'jpg') {
+    let i = 2
+    while (i + 9 < head.length && head[i] === 0xff) {
+      const marker = head[i + 1]
+      const length = head.readUInt16BE(i + 2)
+      // a start-of-frame marker carries the size; C4, C8, and CC are other tables
+      if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) return ok(head.readUInt16BE(i + 7), head.readUInt16BE(i + 5))
+      i += 2 + length
+    }
+  }
+  if (type === 'svg') {
+    const root = /<svg\b[^>]*>/i.exec(head.toString('utf8'))?.[0] ?? ''
+    const px = (name: string) => Number(new RegExp(`\\s${name}\\s*=\\s*["']\\s*([\\d.]+)\\s*(?:px)?\\s*["']`, 'i').exec(root)?.[1])
+    return ok(Math.round(px('width')), Math.round(px('height')))
+  }
+  return null
+}
+
+/** An image's width and height in pixels, when its header says. */
+export const imageSize = (file: string): { width: number; height: number } | null => {
+  try {
+    const st = fs.statSync(file)
+    const stamp = stampOf(st)
+    const hit = facts.get(file)
+    if (hit && hit.stamp === stamp && hit.size !== undefined) return hit.size
+    // a JPEG's size can sit after a large metadata block
+    const head = Buffer.alloc(Math.min(st.size, 65536))
+    const fd = fs.openSync(file, 'r')
+    let n: number
+    try { n = fs.readSync(fd, head, 0, head.length, 0) } finally { fs.closeSync(fd) }
+    const size = dimensions(head.subarray(0, n), sniff(head.subarray(0, n)))
+    if (hit && hit.stamp === stamp) hit.size = size
+    return size
+  } catch {
+    return null
+  }
 }
 
 export type ImageProblem = 'remote' | 'type' | 'missing' | 'outside' | 'unreadable' | 'large'

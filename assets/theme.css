@@ -65,7 +65,7 @@ li { margin: .3rem 0; padding-left: .15rem; }
 li::marker { color: var(--faint); }
 blockquote { margin: 1.1rem 0; padding: 0 0 0 1.1rem; border-left: 2px solid var(--line); color: var(--soft); }
 hr { border: none; height: 1px; background: var(--line); margin: 2.5rem 0; }
-img { max-width: 100%; }
+img { max-width: 100%; height: auto; }
 section:target h2, h3:target, [id]:target { animation: target-flash 1.8s ease-out; }
 @keyframes target-flash { 0%, 35% { background: var(--wash); } 100% { background: transparent; } }
 
@@ -435,10 +435,10 @@ html[data-scrubbing] main { transition: opacity .12s; }
 .vc-h { font: 600 .72rem var(--sans); color: var(--soft); margin: 1rem 0 .3rem; }
 .vc-empty { color: var(--soft); }
 /* comments on images: a box over the marked part, or a pin for the whole image */
-.vc-imgwrap { position: relative; display: inline-block; max-width: 100%; vertical-align: bottom; }
+.vc-imgwrap { position: relative; display: inline-block; max-width: 100%; vertical-align: baseline; }
 .shot .vc-imgwrap { display: block; width: fit-content; margin: 0 auto; }
 .vc-imgwrap > img { display: block; }
-:root.vc-images main img[data-asset] { cursor: crosshair; }
+:root.vc-images main img[data-asset]:not(a[href] img) { cursor: crosshair; }
 .vc-marking { touch-action: none; }
 .vc-mark { position: absolute; padding: 0; border: 2px solid var(--high); border-radius: 4px; cursor: pointer;
   background: color-mix(in srgb, var(--high) 14%, transparent); }
@@ -493,6 +493,14 @@ html[data-scrubbing] main { transition: opacity .12s; }
   .scrub-label { min-width: 0; }
   .vbar .vb, .vbar > a { height: 2.6rem; }
   .vc-drawer { top: auto; left: 0; right: 0; bottom: var(--vbar-height, 3rem); width: auto; max-height: 70vh; border-radius: 12px 12px 0 0; }
+}
+/* small phones: everything in the bar fits, Approve included, without scrolling it sideways */
+@media (max-width: 26rem) {
+  .vbar { gap: .1rem; }
+  .vbar .vb, .vbar > a { padding: 0 .4rem; }
+  .vbar .sep { display: none; }
+  .scrub { padding: 0 .25rem; gap: .35rem; }
+  .scrub input[type="range"] { width: 4rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

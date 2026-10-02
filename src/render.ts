@@ -11,7 +11,7 @@ import {
 } from './core.js'
 import { renderFlowSvg } from './flow.js'
 import { assetsIn, IMAGE_MARK_RE, imageBlock, imageExtension, isRemote, stripImageMarks } from './imageref.js'
-import { dataUri, imageKeys, type ImageKeys } from './images.js'
+import { dataUri, imageKeys, imageSize, type ImageKeys } from './images.js'
 import {
   collectCuttings, renderDiffHtml, TRACE, tracePlan, wordCount, type Cutting,
 } from './semdiff.js'
@@ -44,6 +44,13 @@ const imageData = (asset: string): string | null => {
     images.data.set(asset, file ? dataUri(file, asset) : null)
   }
   return images.data.get(asset) ?? null
+}
+
+/** The image's size, so the page holds its place before it loads and nothing shifts. */
+const sizeAttrs = (asset: string): string => {
+  const file = images.keys?.file(asset)
+  const size = file ? imageSize(file) : null
+  return size ? ` width="${size.width}" height="${size.height}"` : ''
 }
 
 /** `src` and `data-asset` for a stored image, as this page shows it. */
@@ -102,7 +109,7 @@ const imageHtml = (img: { asset: string | null; src: string; alt: string; title:
   const alt = escapeHtml(img.alt)
   const title = img.title ? ` title="${escapeHtml(img.title)}"` : ''
   let tag: string
-  if (img.asset) tag = `<img${imageAttrs(img.asset)} alt="${alt}"${title} loading="lazy">`
+  if (img.asset) tag = `<img${imageAttrs(img.asset)}${sizeAttrs(img.asset)} alt="${alt}"${title} loading="lazy">`
   else if (/^data:image\/(?:png|jpeg|gif|webp);/i.test(img.src)) tag = `<img src="${escapeHtml(img.src)}" alt="${alt}"${title}>`
   // the page makes no outside requests, so a remote image is a link to it, or just its text inside a link
   else if (/^https?:\/\//i.test(img.src)) {

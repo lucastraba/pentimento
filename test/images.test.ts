@@ -526,3 +526,23 @@ describe('pre-release review: the viewer', () => {
     expect(html).not.toContain('href="javascript:')
   })
 })
+
+describe('pre-release review: image sizes', () => {
+  it('reads width and height from PNG, JPEG, GIF, WebP, and SVG headers', () => {
+    const png = Buffer.concat([img(''), Buffer.from([0, 0, 0, 13]), Buffer.from('IHDR'), Buffer.from([0, 0, 5, 0, 0, 0, 2, 208])])
+    const jpg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 4, 0, 0, 0xff, 0xc0, 0, 17, 8, 1, 44, 1, 144, 3])
+    const gif = Buffer.concat([Buffer.from('GIF89a'), Buffer.from([64, 0, 32, 0])])
+    const webp = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBPVP8X'), Buffer.alloc(8), Buffer.from([99, 0, 0, 49, 0, 0])])
+    const svg = Buffer.from('<?xml version="1.0"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80px"></svg>')
+    const files: Record<string, Buffer> = { 'a.png': png, 'b.jpg': jpg, 'c.gif': gif, 'd.webp': webp, 'e.svg': svg }
+    for (const [name, bytes] of Object.entries(files)) write(`shots/${name}`, bytes)
+    const p = write('Plan.md', `# T\n\n## A\n\n${Object.keys(files).map((n) => `![${n}](shots/${n})`).join('\n\n')}\n`)
+    const html = render(p)
+    const size = (alt: string) => new RegExp(`<img [^>]*width="(\\d+)" height="(\\d+)" alt="${alt.replace('.', '\\.')}"`).exec(html)?.slice(1).join('x')
+    expect(size('a.png')).toBe('1280x720')
+    expect(size('b.jpg')).toBe('400x300')
+    expect(size('c.gif')).toBe('64x32')
+    expect(size('d.webp')).toBe('100x50')
+    expect(size('e.svg')).toBe('120x80')
+  })
+})
