@@ -117,6 +117,10 @@ const imageFindings = (raw: string, docPath: string): LintFinding[] => {
       out.push({ line, rule: 'image-remote', message: `${ref.target} won't load: the page makes no outside requests — save the image next to the document and point at the file` })
     } else if (problem === 'type') {
       out.push({ line, rule: 'image-type', message: `${ref.target} isn't an image the page can show (PNG, JPEG, GIF, WebP, or SVG)` })
+    } else if (problem === 'large') {
+      out.push({ line, rule: 'image-size', message: `${ref.ref} is over 20 MB, so the page won't carry it — screenshot at a device scale of 1, or save it as JPEG` })
+    } else if (problem === 'unreadable') {
+      out.push({ line, rule: 'image-missing', message: `${ref.ref} can't be read` })
     } else if (problem === 'missing') {
       out.push({ line, rule: 'image-missing', message: `${ref.ref} doesn't exist` })
     } else if (problem === 'outside') {

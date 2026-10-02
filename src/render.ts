@@ -6,7 +6,7 @@ import MarkdownIt from 'markdown-it'
 import sanitizeHtml from 'sanitize-html'
 import { parse as parseYaml } from 'yaml'
 import {
-  canonicalRevisionState, latestApproval, loadDoc, readMeta, readRevision, slugify, splitRaw,
+  canonicalRevisionState, latestApproval, loadDoc, readMeta, readRevision, revisionImages, slugify, splitRaw,
   type CommentEntry, type Doc, type Meta,
 } from './core.js'
 import { renderFlowSvg } from './flow.js'
@@ -105,7 +105,7 @@ const imageHtml = (img: { asset: string | null; src: string; alt: string; title:
   if (img.asset) tag = `<img${imageAttrs(img.asset)} alt="${alt}"${title} loading="lazy">`
   else if (/^data:image\/(?:png|jpeg|gif|webp);/i.test(img.src)) tag = `<img src="${escapeHtml(img.src)}" alt="${alt}"${title}>`
   // the page makes no outside requests, so a remote image is a link to it, or just its text inside a link
-  else if (isRemote(img.src)) {
+  else if (/^https?:\/\//i.test(img.src)) {
     return img.inLink
       ? `<span class="image-link">${alt || escapeHtml(img.src)}</span>`
       : `<a class="image-link" href="${escapeHtml(img.src)}">${alt || escapeHtml(img.src)}</a>`
@@ -238,7 +238,7 @@ const mdPlan = makeMd(false)
 const mdVerse = makeMd(true)
 let md: MarkdownIt = mdPlan
 // Reader comments arrive over HTTP. Both renderers reject raw HTML and javascript: links.
-const mdUntrusted: MarkdownIt = new MarkdownIt({ html: false, linkify: false, typographer: false })
+const mdUntrusted: MarkdownIt = new MarkdownIt({ html: false, linkify: false, typographer: false }).disable('image')
 
 const escapeHtml = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -1028,7 +1028,7 @@ interface Draft { id: string; body: string }
 
 /** A saved draft's body, keyed with the images it was saved with. */
 const draftBody = (doc: Doc, meta: Meta, rev: string): string =>
-  images.keys!.key(scrubInternal(splitRaw(readRevision(doc.canonicalPath, rev)).body), meta.revisions.find((r) => r.id === rev)?.images)
+  images.keys!.key(scrubInternal(splitRaw(readRevision(doc.canonicalPath, rev)).body), revisionImages(meta.revisions.find((r) => r.id === rev)))
 
 const readDrafts = (doc: Doc, meta: Meta): Draft[] => {
   const drafts: Draft[] = []

@@ -26,7 +26,7 @@
     })
   }
   learnImages(document)
-  const imageStore = document.getElementById('pentimento-images')
+  const imageStore = document.querySelector('template#pentimento-images')
   if (imageStore) learnImages(imageStore.content)
 
   // --- color scheme: auto → dark → light → auto -----------------------------
@@ -43,7 +43,7 @@
   const stash = new WeakMap()
   const applyTraces = () => {
     const main = document.querySelector('main')
-    const tpl = document.getElementById('traces-tpl')
+    const tpl = document.querySelector('template#traces-tpl')
     if (!main) return
     const want = root.dataset.traces === 'on' && Boolean(tpl)
     const has = main.classList.contains('traces')
@@ -144,7 +144,7 @@
     if (e.key !== 't' || e.metaKey || e.ctrlKey || e.altKey) return
     const tag = (e.target && e.target.tagName) || ''
     if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag) || e.target.isContentEditable) return
-    if (!document.getElementById('traces-tpl')) return
+    if (!document.querySelector('template#traces-tpl')) return
     setTraces(root.dataset.traces !== 'on')
   })
 

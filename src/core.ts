@@ -2,11 +2,11 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import {
-  FRONTMATTER_RE, makeComment, nowStamp, parseMeta, planSnapshot, serializeMeta, splitRaw, unstampCanonical,
+  commentImage, FRONTMATTER_RE, makeComment, nowStamp, parseMeta, planSnapshot, revisionImages, serializeMeta, splitRaw, unstampCanonical,
   type Approval, type CommentEntry, type Meta, type NewComment, type SnapshotOptions,
 } from './model.js'
 import { keyedImages } from './imageref.js'
-import { imageKeys, imagesDiffer, restoreImages, storeImages } from './images.js'
+import { imageKeys, imagesDiffer, restoreImages, storeImages, undoRestore, type RestoredImages } from './images.js'
 import { holdsHistories } from './drafts.js'
 import { describeChanges } from './semdiff.js'
 
@@ -111,6 +111,13 @@ export interface SnapshotResult {
   missingImages: string[]
 }
 
+export interface RevertResult extends SnapshotResult {
+  /** image files put back as the earlier draft had them */
+  restoredImages: string[]
+  /** images not put back, and why */
+  skippedImages: RestoredImages['skipped']
+}
+
 const snapshotWithBody = (
   docPath: string,
   opts: SnapshotOptions,
@@ -143,14 +150,14 @@ const snapshotWithBody = (
       previousBody: latestFile && fs.existsSync(latestFile) ? splitRaw(fs.readFileSync(latestFile, 'utf8')).body : null,
       opts,
       describe: (previous, body) => describeChanges(
-        previous === null ? null : keys.key(previous, latest?.images),
-        keys.key(body, stored.images),
+        previous === null ? null : keys.key(previous, revisionImages(latest)),
+        keys.key(body, stored.images ?? undefined),
       ),
     })
     const next = plan.rev
     const stamped = plan.stamped
     const meta = plan.meta
-    if (Object.keys(stored.images).length) meta.revisions[meta.revisions.length - 1].images = stored.images
+    if (stored.images) meta.revisions[meta.revisions.length - 1].images = stored.images
     const historyFile = path.join(doc.historyDir, `${next}.md`)
     const dropAssets = (): void => { for (const f of stored.written) fs.rmSync(f, { force: true }) }
     if (fs.existsSync(historyFile)) {
@@ -335,7 +342,7 @@ export const canonicalRevisionState = (doc: Doc, meta: Meta): CanonicalRevisionS
   const latest = meta.revisions[meta.revisions.length - 1]?.id ?? null
   if (!latest) return { latest: null, dirty: true, label: 'Draft' }
   const savedBody = splitRaw(readRevision(doc.canonicalPath, latest)).body
-  const saved = meta.revisions[meta.revisions.length - 1].images
+  const saved = revisionImages(meta.revisions[meta.revisions.length - 1])
   // a new screenshot at the same path is an unsaved change too; drafts from before 0.13 record no images
   const dirty = savedBody.trim() !== doc.body.trim() ||
     (!doc.revision && saved !== undefined && imagesDiffer(doc.canonicalPath, doc.body, saved))
@@ -343,20 +350,28 @@ export const canonicalRevisionState = (doc: Doc, meta: Meta): CanonicalRevisionS
 }
 
 /** Restore an earlier revision's body as a new revision (history stays append-only). */
-export const revert = (docPath: string, rev: string, author?: string): SnapshotResult => {
+export const revert = (docPath: string, rev: string, author?: string): RevertResult => {
   const target = readRevision(docPath, rev)
   const targetBody = FRONTMATTER_RE.exec(target)
     ? target.slice(FRONTMATTER_RE.exec(target)![0].length)
     : target
-  return snapshotWithBody(docPath, {
-    summary: `Restored content of ${rev}`,
-    why: `pentimento revert ${rev}`,
-    author,
-  }, targetBody, (doc) => {
-    // the draft's images go back to their paths too, so the folder matches what was restored
-    const images = readMeta(doc.historyDir).revisions.find((r) => r.id === rev)?.images
-    if (images) restoreImages(doc.canonicalPath, doc.historyDir, targetBody, images)
-  })
+  let images: RestoredImages = { restored: [], skipped: [] }
+  try {
+    const saved = snapshotWithBody(docPath, {
+      summary: `Restored content of ${rev}`,
+      why: `pentimento revert ${rev}`,
+      author,
+    }, targetBody, (doc) => {
+      // the draft's images go back to their paths too, so the folder matches what was restored
+      const map = revisionImages(readMeta(doc.historyDir).revisions.find((r) => r.id === rev))
+      if (map) images = restoreImages(doc.canonicalPath, doc.historyDir, targetBody, map)
+    })
+    return { ...saved, restoredImages: images.restored.map((r) => r.file), skippedImages: images.skipped }
+  } catch (error) {
+    // nothing was saved, so the image files go back to how they were
+    undoRestore(images.restored)
+    throw error
+  }
 }
 
 /** The file behind a stored image: the history's copy, or a file on disk with that hash. */
@@ -368,7 +383,7 @@ export const imageFile = (docPath: string, asset: string): string | null => {
   // the document as it is now, and drafts saved before drafts kept their images, show what's on disk
   keys.key(doc.body)
   for (const r of readMeta(doc.historyDir).revisions) {
-    if (r.images) continue
+    if (revisionImages(r)) continue
     try { keys.key(splitRaw(readRevision(docPath, r.id)).body) } catch { /* verify reports it */ }
   }
   return keys.file(asset)
@@ -389,8 +404,9 @@ const span = (from: number, size: number, scale: number): string =>
  * marked part, where it is in pixels ("box 120–480 × 60–200 of 1280 × 800").
  */
 export const describeImageComment = (docPath: string, c: CommentEntry): string[] => {
-  if (!c.image) return []
-  const { ref, asset, box, width, height } = c.image
+  const mark = commentImage(c)
+  if (!mark) return []
+  const { ref, asset, box, width, height } = mark
   const file = imageFile(docPath, asset)
   const lines = [`  image: ${ref}${c.quote ? ` ("${c.quote}")` : ''}`]
   lines.push(file

@@ -541,7 +541,7 @@
 
   // --- after any content swap: rebind everything that reads the page --------
   const syncTracesButton = () => {
-    const has = Boolean(document.getElementById('traces-tpl'))
+    const has = Boolean(document.querySelector('template#traces-tpl'))
     document.querySelectorAll('.vbar [data-traces-toggle]').forEach((b) => { b.hidden = !has })
   }
   const syncAsk = () => {
