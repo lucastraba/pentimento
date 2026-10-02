@@ -96,7 +96,7 @@ A static page for sharing or printing:
 pentimento render Plan.md
 ```
 
-It has everything except commenting and approval, and it carries its images inside it. The scrubber works from the last 10 drafts, embedded in the file (`--drafts all` for every one, `--drafts 0` for none), so you can send someone `Song.html` and they can step through how it developed. The page makes no outside requests.
+It has everything except commenting and approval, and it carries its images inside it. The scrubber works from the last 10 drafts, embedded in the file (`--drafts all` for every one, `--drafts 0` for none), so you can send someone `Song.html` and they can step through how it developed. Earlier drafts and cuttings travel with their images, so before you send a page, check that nothing you cut is something you'd rather not share. The page makes no outside requests.
 
 ## Writing reference
 

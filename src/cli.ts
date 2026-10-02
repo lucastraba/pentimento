@@ -7,7 +7,7 @@ import path from 'node:path'
 import { createTwoFilesPatch } from 'diff'
 import { configPath } from './config.js'
 import {
-  addComment, addReply, approve, canonicalRevisionState, describeImageComment, latestApproval, loadDoc, readMeta, readRevision,
+  addComment, addReply, approve, canonicalRevisionState, commentImage, describeImageComment, latestApproval, loadDoc, readMeta, readRevision,
   resolveComment, revert, snapshot, splitRaw, untrack,
 } from './core.js'
 import { renderDiffPage, renderToFile } from './render.js'
@@ -242,6 +242,9 @@ const main = (): void => {
       if (!doc || !positional[1]) fail('revert needs a document path and a revision (e.g. r002)')
       const res = revert(doc, positional[1], flags.author ?? defaultAuthor())
       console.log(`canonical restored from ${positional[1]}; recorded as ${res.rev}`)
+      for (const file of res.restoredImages) console.log(`image put back: ${path.relative(process.cwd(), file) || file}`)
+      for (const s of res.skippedImages) console.log(`image not put back: ${s.ref} (${s.reason})`)
+      for (const missing of res.missingImages) console.log(`warning: ${missing} isn't there, so ${res.rev} was saved without it`)
       break
     }
     case 'untrack': {
@@ -296,7 +299,8 @@ const main = (): void => {
       if (!meta.comments.length) { console.log('no comments'); break }
       for (const c of open) {
         console.log(`[${c.id}] OPEN ${c.anchor || '(document)'} — ${c.author}, ${c.created_at.slice(0, 10)}`)
-        if (c.image) console.log(`    on the image ${c.image.ref}${c.image.box ? ' (a marked part)' : ''}`)
+        const mark = commentImage(c)
+        if (mark) console.log(`    on the image ${mark.ref}${mark.box ? ' (a marked part)' : ''}`)
         else if (c.quote) console.log(`    > ${c.quote}`)
         console.log(`    ${c.text}`)
         for (const r of c.replies ?? []) console.log(`    ↳ ${r.author}: ${r.text}`)
@@ -333,7 +337,7 @@ const main = (): void => {
           console.log('')
           continue
         }
-        if (c.image) {
+        if (commentImage(c)) {
           console.log(`[${c.id}] on an image at ${c.anchor || '(document)'} — ${c.author}, ${c.created_at.slice(0, 10)}`)
           for (const line of describeImageComment(doc, c)) console.log(line)
           console.log(`  comment: ${c.text}`)

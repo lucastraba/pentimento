@@ -156,7 +156,29 @@
     mark.style.width = box.w * 100 + '%'
     mark.style.height = box.h * 100 + '%'
   }
+  const nearestAnchor = (startNode) => {
+    let node = startNode.nodeType === 1 ? startNode : startNode.parentElement
+    if (!node) return ''
+    const closest = node.closest('[id]')
+    if (closest && main.contains(closest)) return '#' + closest.id
+    let best = ''
+    for (const cand of main.querySelectorAll('[id]')) {
+      if (cand.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING) best = '#' + cand.id
+    }
+    return best
+  }
+
   const imageFor = (asset) => main.querySelector('img[data-asset="' + asset + '"]')
+  // the same image can appear twice; a comment belongs to the copy under its heading
+  const imageNear = (asset, anchor) => {
+    const copies = [...main.querySelectorAll('img[data-asset="' + asset + '"]')]
+    const under = copies.find((img) => nearestAnchor(img) === anchor)
+    if (under || !anchor) return under || copies[0] || null
+    // the heading is still there but its copy is gone: never borrow another copy. When the
+    // heading itself was renamed and there's one copy, that copy is the one
+    const headingGone = !main.querySelector('[id="' + CSS.escape(anchor.slice(1)) + '"]')
+    return headingGone && copies.length === 1 ? copies[0] : null
+  }
   const applyImageMarks = () => {
     marksById.clear()
     main.querySelectorAll('.vc-mark:not(.pending)').forEach((m) => m.remove())
@@ -165,7 +187,7 @@
     document.documentElement.classList.toggle('vc-images', canCommentNow())
     for (const c of state.comments) {
       if (c.status !== 'open' || !c.image) continue
-      const img = imageFor(c.image.asset)
+      const img = imageNear(c.image.asset, c.anchor)
       if (!img) continue
       const mark = el('button', 'vc-mark' + (c.image.box ? '' : ' whole'))
       mark.type = 'button'
@@ -343,10 +365,10 @@
     if (c.image) {
       div.appendChild(el('blockquote', '', 'Image' + (c.quote ? ': ' + c.quote : '') + (c.image.box ? ' · a marked part' : '')))
       // the mark stays on the image it was drawn on; once a draft replaces it, point at that draft
-      if (c.status === 'open' && !imageFor(c.image.asset)) {
+      if (c.status === 'open' && !imageNear(c.image.asset, c.anchor)) {
         const rev = state.assets[c.image.asset]
         if (rev) {
-          const a = el('a', 'vc-note', 'On an earlier version of this image, in ' + rev)
+          const a = el('a', 'vc-note', 'On the version of this image in ' + rev)
           a.href = location.pathname + '?rev=' + rev
           div.appendChild(a)
         } else {
@@ -516,6 +538,9 @@
   }
 
   // --- global delegated listeners (survive morphs) ---------------------------
+  // WebKit (Safari on iPhone) turns a tap into a click only when something below the document
+  // listens; without this, tapping an image or a highlight does nothing there
+  document.querySelector('.wrap')?.addEventListener('click', () => {})
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !drawer.hidden) {
       closeDrawer()
@@ -541,7 +566,7 @@
 
   // --- after any content swap: rebind everything that reads the page --------
   const syncTracesButton = () => {
-    const has = Boolean(document.getElementById('traces-tpl'))
+    const has = Boolean(document.querySelector('template#traces-tpl'))
     document.querySelectorAll('.vbar [data-traces-toggle]').forEach((b) => { b.hidden = !has })
   }
   const syncAsk = () => {
@@ -554,12 +579,20 @@
     syncAsk()
     syncSinceNote()
     rerender()
+    syncFormImage()
   }
   document.addEventListener('pentimento:content', () => {
     main = document.querySelector('main')
     syncAsk()
     rerender()
+    syncFormImage()
   })
+  // traces and the scrubber replace the page under an open image comment: find its image again
+  function syncFormImage() {
+    document.querySelectorAll('.vc-mark.pending').forEach((m) => m.remove())
+    document.querySelectorAll('.vc-marking').forEach((w) => w.classList.remove('vc-marking'))
+    if (form && form.reattach) form.reattach()
+  }
 
   // --- scrubber: drag through the drafts ----------------------------------
   const stops = cfg.stops || []
@@ -737,18 +770,6 @@
 
   let pending = null
 
-  const nearestAnchor = (startNode) => {
-    let node = startNode.nodeType === 1 ? startNode : startNode.parentElement
-    if (!node) return ''
-    const closest = node.closest('[id]')
-    if (closest && main.contains(closest)) return '#' + closest.id
-    let best = ''
-    for (const cand of main.querySelectorAll('[id]')) {
-      if (cand.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING) best = '#' + cand.id
-    }
-    return best
-  }
-
   const captureSelection = () => {
     if (!canCommentNow()) { btn.hidden = true; pending = null; return }
     const s = getSelection()
@@ -794,29 +815,37 @@
   const openForm = (sel) => {
     if (!sel) return
     if (form) form.remove()
+    clearPending()
     btn.hidden = true
     form = el('div', 'vc-form')
     if (sel.image) {
-      const img = imageFor(sel.image.asset)
+      const thisForm = form
+      let img = sel.target && sel.target.isConnected ? sel.target : imageNear(sel.image.asset, sel.anchor)
       const where = el('p', 'vc-note')
       const showBox = () => {
         where.textContent = sel.image.box
           ? 'On the part you marked. Drag again to change it, or click the image for all of it.'
           : 'On the whole image. Drag across it to mark a part.'
-        if (img) showPending(img, sel.image.box || null)
+        if (img && canCommentNow()) showPending(img, sel.image.box || null)
       }
       form.dataset.asset = sel.image.asset
+      form.isOn = (candidate) => candidate === img
       form.setBox = (box) => {
         sel.image.box = box || undefined
         showBox()
-        saveDraft(sel, form.querySelector('textarea').value)
+        saveDraft(sel, thisForm.querySelector('textarea').value)
       }
       // a touch on the image draws instead of scrolling while this comment is open
-      if (img) wrapImage(img).classList.add('vc-marking')
+      form.reattach = () => {
+        if (!img || !img.isConnected) img = imageNear(sel.image.asset, sel.anchor)
+        if (img && canCommentNow()) wrapImage(img).classList.add('vc-marking')
+        showBox()
+      }
       form.appendChild(el('blockquote', '', 'Image' + (sel.quote ? ': ' + sel.quote : '')))
       form.appendChild(where)
-      showBox()
+      form.reattach()
     } else if (sel.quote) form.appendChild(el('blockquote', '', sel.quote))
+    if (sel.note) form.appendChild(el('p', 'vc-note', sel.note))
     if (sel.truncated) form.appendChild(el('p', 'vc-note', 'Long selection — quote kept to its first 600 characters.'))
     const ta = el('textarea')
     ta.placeholder = 'Leave a comment for the agent…'
@@ -916,7 +945,11 @@
   // --- comment on an image: click for the whole of it, drag to mark a part -------
   // A touch scrolls the page as usual and a tap comments on the whole image; once that
   // comment is open, a drag on the image marks a part of it.
-  const imageAt = (t) => (t && t.closest ? t.closest('main img[data-asset]') : null)
+  // an image inside a link belongs to the link
+  const imageAt = (t) => {
+    const img = t && t.closest ? t.closest('main img[data-asset]') : null
+    return img && !img.closest('a[href]') ? img : null
+  }
   const boxBetween = (img, x0, y0, x1, y1) => {
     const r = img.getBoundingClientRect()
     if (!r.width || !r.height) return null
@@ -941,7 +974,7 @@
   const commentOnImage = (img, box, x, y) => {
     if (form) {
       // the open comment is on this image: re-mark it; any other open comment keeps its text
-      if (form.dataset.asset === img.dataset.asset && form.setBox) form.setBox(box)
+      if (form.isOn && form.isOn(img)) form.setBox(box)
       return
     }
     const r = img.getBoundingClientRect()
@@ -955,6 +988,7 @@
       suffix: '',
       anchor: nearestAnchor(img),
       image: { asset: img.dataset.asset, box: box || undefined, width: img.naturalWidth || undefined, height: img.naturalHeight || undefined },
+      target: img,
       rect,
     })
   }
@@ -966,7 +1000,9 @@
     lastPointer = e.pointerType
     const img = imageAt(e.target)
     if (!img || e.button !== 0 || !canCommentNow()) return
-    const marking = form && form.dataset.asset === img.dataset.asset
+    const marking = Boolean(form && form.isOn && form.isOn(img))
+    // with a comment open on something else, an image isn't for drawing on
+    if (form && !marking) return
     if (e.pointerType === 'touch' && !marking) return
     e.preventDefault()
     drag = { img, id: e.pointerId, x0: e.clientX, y0: e.clientY, moved: false }
@@ -1001,8 +1037,16 @@
     const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null')
     if (draft && draft.text && draft.image) {
       // the image may have changed since; then the text comes back as a plain comment
-      const img = imageFor(draft.image.asset)
-      openForm(img ? { ...draft, rect: img.getBoundingClientRect() } : { ...draft, image: undefined })
+      const img = imageNear(draft.image.asset, draft.anchor)
+      openForm(img
+        ? { ...draft, target: img, rect: img.getBoundingClientRect() }
+        : {
+            ...draft,
+            image: undefined,
+            // the alt text matches nothing on the page; say what the comment was about instead
+            quote: 'Image: ' + (draft.quote || 'an image that has changed'),
+            note: 'The image this comment was on has changed or moved since. It will be saved as a comment on its section.',
+          })
     } else if (draft && draft.text) {
       const r = findRange(draft)
       openForm({ ...draft, range: r, rect: r && r.getBoundingClientRect() })

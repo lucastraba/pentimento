@@ -2,18 +2,19 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import type { Server as HttpServer } from 'node:http'
 import path from 'node:path'
+import { Readable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 import { serve } from '@hono/node-server'
 import { Hono, type Context } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { getCookie, setCookie } from 'hono/cookie'
 import {
-  addComment, addReply, answerQuestion, approve, canonicalRevisionState, deleteComment, imageFile, imageMarkProblem,
+  addComment, addReply, answerQuestion, approve, canonicalRevisionState, commentImage, deleteComment, imageFile, imageMarkProblem,
   imageRefFor, isPathInside, latestApproval, loadDoc, readMeta, reopenComment, resolveComment, resolveContainedPath,
-  type ImageMark, type Meta,
+  revisionImages, type CanonicalRevisionState, type CommentEntry, type ImageMark, type Meta,
 } from './core.js'
 import { ASSET_RE, imageExtension } from './imageref.js'
-import { MIME } from './images.js'
+import { MAX_IMAGE_BYTES, MIME } from './images.js'
 import { watchTree, type TreeWatcher } from './watch.js'
 import {
   contentSecurityPolicy, FAVICON_TAG, render, renderDiffPage, renderRevisionHtml, renderStylesheet,
@@ -132,7 +133,9 @@ const indexPage = (root: string, canStop = false): string => {
       let meta: Meta = { revisions: [], comments: [] }
       try { meta = readMeta(doc.historyDir) } catch { /* show the doc anyway */ }
       const latest = meta.revisions[meta.revisions.length - 1]
-      const revisionState = canonicalRevisionState(doc, meta)
+      // one unreadable draft must not take the whole list down
+      let revisionState: CanonicalRevisionState = { latest: latest?.id ?? null, dirty: false, label: latest?.id ?? 'Draft' }
+      try { revisionState = canonicalRevisionState(doc, meta) } catch { /* listed as saved */ }
       const rel = path.relative(root, p).split(path.sep).join('/')
       const archetype = doc.frontmatter['Archetype'] ? String(doc.frontmatter['Archetype']) : ''
       const title = /^#\s+(.+)$/m.exec(doc.body)?.[1]?.replace(/[`*_]/g, '').trim() || doc.name
@@ -260,11 +263,18 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
     return readMeta(loadDoc(abs).historyDir).revisions.some((entry) => entry.id === rev)
   }
 
+  /** Comments as the page gets them: an image mark it couldn't use is left off. */
+  const forPage = (c: CommentEntry): CommentEntry => {
+    if (c.image === undefined || commentImage(c)) return c
+    const { image: _unusable, ...rest } = c
+    return rest
+  }
+
   /** The first draft that saved each stored image, so a comment on a replaced image can link to it. */
   const assetDrafts = (meta: Meta): Record<string, string> => {
     const out: Record<string, string> = {}
     for (const r of meta.revisions) {
-      for (const [ref, hash] of Object.entries(r.images ?? {})) {
+      for (const [ref, hash] of Object.entries(revisionImages(r) ?? {})) {
         const asset = `${hash}.${imageExtension(ref.replace(/^\[\[|\]\]$/g, ''))}`
         if (!(asset in out)) out[asset] = r.id
       }
@@ -275,7 +285,7 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
   const commentsPayload = (abs: string) => {
     const meta = readMeta(loadDoc(abs).historyDir)
     return {
-      comments: meta.comments,
+      comments: meta.comments.map(forPage),
       revisions: meta.revisions.map((r) => r.id),
       assets: assetDrafts(meta),
     }
@@ -294,7 +304,11 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
     const ref = asset ? imageRefFor(abs, asset) : null
     if (!ref) return 'the image is not in the document'
     const mark: ImageMark = { ref, asset }
-    if (r.box !== undefined && r.box !== null) mark.box = r.box as ImageMark['box']
+    if (r.box !== undefined && r.box !== null) {
+      // only the four numbers are kept, whatever else the request carried
+      const box = (typeof r.box === 'object' ? r.box : {}) as Record<string, unknown>
+      mark.box = { x: box.x, y: box.y, w: box.w, h: box.h } as ImageMark['box']
+    }
     if (r.width !== undefined) mark.width = r.width as number
     if (r.height !== undefined) mark.height = r.height as number
     const problem = imageMarkProblem(mark)
@@ -345,7 +359,7 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
       canComment,
       canWrite: canWrite(c),
       author: viewerOpts.author ?? 'reader',
-      comments: meta.comments,
+      comments: meta.comments.map(forPage),
       revisions: meta.revisions.map((r) => r.id),
       assets: assetDrafts(meta),
       stops: scrubStops(meta, revisionState.dirty),
@@ -369,12 +383,22 @@ export const createApp = (root: string, viewerOpts: ViewerOptions = {}): ViewerA
     let file: string | null
     try { file = imageFile(abs, asset) } catch { return c.notFound() }
     if (!file) return c.notFound()
-    c.header('Content-Type', MIME[imageExtension(asset)!])
+    let size: number
+    try { size = fs.statSync(file).size } catch { return c.notFound() }
+    if (size > MAX_IMAGE_BYTES) return c.notFound()
+    // the name is the content's hash, so a browser that has it never needs it again
+    const etag = `"${asset}"`
+    c.header('ETag', etag)
     c.header('Cache-Control', 'private, max-age=31536000, immutable')
+    c.header('Cross-Origin-Resource-Policy', 'same-origin')
+    const known = (c.req.header('if-none-match') ?? '').split(',').map((t) => t.trim().replace(/^W\//, ''))
+    if (known.includes('*') || known.includes(etag)) return c.body(null, 304)
+    c.header('Content-Type', MIME[imageExtension(asset)!])
+    c.header('Content-Length', String(size))
     c.header('Content-Security-Policy', "sandbox; default-src 'none'; style-src 'unsafe-inline'")
     c.header('X-Content-Type-Options', 'nosniff')
     c.header('Referrer-Policy', 'no-referrer')
-    return c.body(fs.readFileSync(file))
+    return c.body(Readable.toWeb(fs.createReadStream(file)) as ReadableStream)
   })
 
   app.get('/api/comments', (c) => {

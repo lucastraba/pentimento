@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { loadDoc, parseRevId, readMeta, revId, splitRaw } from './core.js'
+import { loadDoc, parseRevId, readMeta, revId, revisionImages, splitRaw } from './core.js'
 import { imageExtension } from './imageref.js'
-import { assetsDir, imagesDiffer } from './images.js'
+import { imagesDiffer, storedImage, storedImageIntact } from './images.js'
 
 export interface Issue {
   level: 'error' | 'warn' | 'info'
@@ -121,18 +121,22 @@ export const verifyDoc = (docPath: string): Issue[] => {
     }
   }
 
+  const checked = new Set<string>()
   for (const r of meta.revisions) {
-    for (const [ref, hash] of Object.entries(r.images ?? {})) {
+    for (const [ref, hash] of Object.entries(revisionImages(r) ?? {})) {
       const asset = `${hash}.${imageExtension(ref.replace(/^\[\[|\]\]$/g, '')) ?? 'png'}`
-      if (!fs.existsSync(path.join(assetsDir(doc.historyDir), asset))) {
-        err(`${r.id} shows ${ref}, but its saved copy assets/${asset} is missing`)
+      const file = storedImage(doc.historyDir, asset)
+      if (!file) err(`${r.id} shows ${ref}, but its saved copy assets/${asset} is missing`)
+      else if (!checked.has(asset)) {
+        checked.add(asset)
+        if (!storedImageIntact(file, asset)) err(`the saved copy assets/${asset} no longer matches its name; it was damaged or changed`)
       }
     }
   }
 
   if (last && files.includes(last)) {
     const lastBody = splitRaw(fs.readFileSync(path.join(doc.historyDir, `${last}.md`), 'utf8')).body
-    const saved = meta.revisions[meta.revisions.length - 1].images
+    const saved = revisionImages(meta.revisions[meta.revisions.length - 1])
     if (lastBody.trim() !== doc.body.trim()) {
       info(`canonical has changes not yet snapshotted (differs from ${last})`)
     } else if (saved && imagesDiffer(doc.canonicalPath, doc.body, saved)) {

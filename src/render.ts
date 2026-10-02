@@ -6,12 +6,12 @@ import MarkdownIt from 'markdown-it'
 import sanitizeHtml from 'sanitize-html'
 import { parse as parseYaml } from 'yaml'
 import {
-  canonicalRevisionState, latestApproval, loadDoc, readMeta, readRevision, slugify, splitRaw,
+  canonicalRevisionState, latestApproval, loadDoc, readMeta, readRevision, revisionImages, slugify, splitRaw,
   type CommentEntry, type Doc, type Meta,
 } from './core.js'
 import { renderFlowSvg } from './flow.js'
 import { assetsIn, IMAGE_MARK_RE, imageBlock, imageExtension, isRemote, stripImageMarks } from './imageref.js'
-import { dataUri, imageKeys, type ImageKeys } from './images.js'
+import { dataUri, imageKeys, imageSize, type ImageKeys } from './images.js'
 import {
   collectCuttings, renderDiffHtml, TRACE, tracePlan, wordCount, type Cutting,
 } from './semdiff.js'
@@ -46,6 +46,13 @@ const imageData = (asset: string): string | null => {
   return images.data.get(asset) ?? null
 }
 
+/** The image's size, so the page holds its place before it loads and nothing shifts. */
+const sizeAttrs = (asset: string): string => {
+  const file = images.keys?.file(asset)
+  const size = file ? imageSize(file) : null
+  return size ? ` width="${size.width}" height="${size.height}"` : ''
+}
+
 /** `src` and `data-asset` for a stored image, as this page shows it. */
 const imageAttrs = (asset: string): string => {
   if (images.url) return ` src="${escapeHtml(images.url(asset))}" data-asset="${asset}"`
@@ -75,6 +82,9 @@ const imageStore = (): string => {
   return items.length ? `<template id="pentimento-images">${items.join('')}</template>` : ''
 }
 
+/** A line of page HTML that is left out entirely when empty, so pages without images are unchanged. */
+const optionalLine = (html: string): string => (html ? `\n${html}` : '')
+
 /** No URL: the page fills `src` in from its store. */
 const noUrl = (): null => null
 
@@ -85,14 +95,28 @@ const safeDecode = (s: string): string => {
   try { return decodeURI(s) } catch { return s }
 }
 
-const imageHtml = (img: { asset: string | null; src: string; alt: string; title: string; figure: boolean }): string => {
+/** True when an inline token sits inside a link, where another link can't go (`[![badge](…)](…)`). */
+const insideLink = (tokens: { type: string }[], idx: number): boolean => {
+  let depth = 0
+  for (let i = 0; i < idx; i++) {
+    if (tokens[i].type === 'link_open') depth++
+    else if (tokens[i].type === 'link_close') depth--
+  }
+  return depth > 0
+}
+
+const imageHtml = (img: { asset: string | null; src: string; alt: string; title: string; figure: boolean; inLink: boolean }): string => {
   const alt = escapeHtml(img.alt)
   const title = img.title ? ` title="${escapeHtml(img.title)}"` : ''
   let tag: string
-  if (img.asset) tag = `<img${imageAttrs(img.asset)} alt="${alt}"${title} loading="lazy">`
+  if (img.asset) tag = `<img${imageAttrs(img.asset)}${sizeAttrs(img.asset)} alt="${alt}"${title} loading="lazy">`
   else if (/^data:image\/(?:png|jpeg|gif|webp);/i.test(img.src)) tag = `<img src="${escapeHtml(img.src)}" alt="${alt}"${title}>`
-  // the page makes no outside requests, so a remote image is a link to it
-  else if (isRemote(img.src)) return `<a class="image-link" href="${escapeHtml(img.src)}">${alt || escapeHtml(img.src)}</a>`
+  // the page makes no outside requests, so a remote image is a link to it, or just its text inside a link
+  else if (/^https?:\/\//i.test(img.src)) {
+    return img.inLink
+      ? `<span class="image-link">${alt || escapeHtml(img.src)}</span>`
+      : `<a class="image-link" href="${escapeHtml(img.src)}">${alt || escapeHtml(img.src)}</a>`
+  }
   else return `<span class="image-missing" title="Image not found: ${escapeHtml(safeDecode(img.src))}">${alt || escapeHtml(safeDecode(img.src))}</span>`
   if (!img.figure) return tag
   return `<figure class="shot">${tag}${img.title ? `<figcaption>${escapeHtml(img.title)}</figcaption>` : ''}</figure>`
@@ -135,7 +159,10 @@ const makeMd = (breaks: boolean): MarkdownIt => {
   m.renderer.rules.obsidian_wikilink = (tokens, idx) => {
     const t = tokens[idx]
     if (t.meta.embed && imageExtension(t.meta.target)) {
-      return imageHtml({ asset: assetAfter(tokens, idx), src: t.meta.target, alt: t.meta.alt, title: '', figure: Boolean(t.meta.figure) })
+      const asset = assetAfter(tokens, idx)
+      // a missing embed names the file Obsidian would look for
+      if (!asset) return `<span class="image-missing" title="Image not found: ${escapeHtml(t.meta.target)}">${escapeHtml(t.content)}</span>`
+      return imageHtml({ asset, src: t.meta.target, alt: t.meta.alt, title: '', figure: Boolean(t.meta.figure), inLink: false })
     }
     return t.meta.embed
       ? `<span class="embed">${escapeHtml(t.content)}</span>`
@@ -158,6 +185,7 @@ const makeMd = (breaks: boolean): MarkdownIt => {
       alt: self.renderInlineAsText(t.children ?? [], options, env),
       title: t.attrGet('title') ?? '',
       figure: Boolean(t.meta?.figure),
+      inLink: insideLink(tokens, idx),
     })
   }
   // an image alone in its paragraph is a figure, at the width diffs use
@@ -217,7 +245,7 @@ const mdPlan = makeMd(false)
 const mdVerse = makeMd(true)
 let md: MarkdownIt = mdPlan
 // Reader comments arrive over HTTP. Both renderers reject raw HTML and javascript: links.
-const mdUntrusted: MarkdownIt = new MarkdownIt({ html: false, linkify: false, typographer: false })
+const mdUntrusted: MarkdownIt = new MarkdownIt({ html: false, linkify: false, typographer: false }).disable('image')
 
 const escapeHtml = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -1007,7 +1035,7 @@ interface Draft { id: string; body: string }
 
 /** A saved draft's body, keyed with the images it was saved with. */
 const draftBody = (doc: Doc, meta: Meta, rev: string): string =>
-  images.keys!.key(scrubInternal(splitRaw(readRevision(doc.canonicalPath, rev)).body), meta.revisions.find((r) => r.id === rev)?.images)
+  images.keys!.key(scrubInternal(splitRaw(readRevision(doc.canonicalPath, rev)).body), revisionImages(meta.revisions.find((r) => r.id === rev)))
 
 const readDrafts = (doc: Doc, meta: Meta): Draft[] => {
   const drafts: Draft[] = []
@@ -1189,8 +1217,7 @@ ${rail}
 <main>
 ${mainHtml}
 </main>
-${traces}
-${imageStore()}
+${traces}${optionalLine(imageStore())}
 ${appendix ? `<div class="appendix">\n${appendix}\n</div>` : ''}
 <footer class="doc">
   <code>${escapeHtml(pathLabel)}</code>
@@ -1313,8 +1340,7 @@ ${RESTORE_SNIPPET}
 </header>
 <main>
 <div class="rdiff">${rdiff}</div>
-</main>
-${store}
+</main>${optionalLine(store)}
 </div>
 <script>${js}</script>
 </body>

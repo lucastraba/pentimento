@@ -222,11 +222,8 @@ export const validateMeta = (value: unknown, metaPath: string): Meta => {
         metadataError(metaPath, `revisions[${index}].${field} must be a string`)
       }
     }
-    if (revision.images !== undefined) {
-      if (!isRecord(revision.images) || !Object.values(revision.images).every((h) => typeof h === 'string' && /^[0-9a-f]{16}$/.test(h))) {
-        metadataError(metaPath, `revisions[${index}].images must map each image path to a 16-character hash`)
-      }
-    }
+    // `images` is read leniently (see revisionImages): a malformed or newer entry must never
+    // make a history unreadable for an older version
   })
 
   const commentIds = new Set<string>()
@@ -256,10 +253,7 @@ export const validateMeta = (value: unknown, metaPath: string): Meta => {
         metadataError(metaPath, `comments[${index}].${field} must be a string`)
       }
     }
-    if (comment.image !== undefined) {
-      const problem = imageMarkProblem(comment.image)
-      if (problem) metadataError(metaPath, `comments[${index}].image ${problem}`)
-    }
+    // `image` is read leniently too (see commentImage)
     if (comment.replies !== undefined) {
       if (!Array.isArray(comment.replies)) metadataError(metaPath, `comments[${index}].replies must be an array`)
       const replies = comment.replies as unknown[]
@@ -316,6 +310,20 @@ export const makeComment = (meta: Meta, input: NewComment): CommentEntry => {
     resolved_in: null,
   }
 }
+
+/**
+ * A revision's images, keeping only well-formed entries; undefined for drafts saved before
+ * drafts kept images. Unknown or malformed entries stay in meta.yml untouched.
+ */
+export const revisionImages = (revision: RevisionEntry | undefined): Record<string, string> | undefined => {
+  const images: unknown = revision?.images
+  if (!isRecord(images)) return undefined
+  return Object.fromEntries(Object.entries(images).filter(([, hash]) => typeof hash === 'string' && /^[0-9a-f]{16}$/.test(hash))) as Record<string, string>
+}
+
+/** A comment's image mark if it is well formed. */
+export const commentImage = (comment: CommentEntry): ImageMark | undefined =>
+  comment.image !== undefined && imageMarkProblem(comment.image) === null ? comment.image : undefined
 
 /** The most recent approval, if any. */
 export const latestApproval = (meta: Meta): Approval | null =>
