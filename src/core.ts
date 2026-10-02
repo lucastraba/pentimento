@@ -7,6 +7,7 @@ import {
 } from './model.js'
 import { keyedImages } from './imageref.js'
 import { imageKeys, imagesDiffer, restoreImages, storeImages } from './images.js'
+import { holdsHistories } from './drafts.js'
 import { describeChanges } from './semdiff.js'
 
 export * from './model.js'
@@ -415,8 +416,9 @@ export const untrack = (docPath: string): { historyDir: string; drafts: number }
   try { drafts = readMeta(doc.historyDir).revisions.length } catch { /* unreadable history is still removable */ }
   atomicWrite(doc.canonicalPath, unstampCanonical(doc.raw))
   fs.rmSync(doc.historyDir, { recursive: true, force: true })
-  // the shared `.history` folder goes too once its last document leaves
+  // the shared folder (`.history` in `.history/<name>`, whatever it's called) goes too once its last document leaves
   const parent = path.dirname(doc.historyDir)
-  if (path.basename(parent) === '.history' && fs.existsSync(parent) && !fs.readdirSync(parent).length) fs.rmdirSync(parent)
+  const historyRel = path.relative(path.dirname(doc.canonicalPath), doc.historyDir).split(path.sep).join('/')
+  if (holdsHistories(historyRel, doc.name) && fs.existsSync(parent) && !fs.readdirSync(parent).length) fs.rmdirSync(parent)
   return { historyDir: doc.historyDir, drafts }
 }

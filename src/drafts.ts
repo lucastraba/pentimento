@@ -41,6 +41,17 @@ export const joinPath = (...parts: string[]): string => {
   return out.join('/')
 }
 
+/**
+ * True when a history folder's parent is a folder of histories rather than one of the user's
+ * own folders: `.history` or `_history` (the name for vaults where hidden folders don't sync),
+ * or any `<folder>/<note>` named after the note. A renamed note keeps its old history name.
+ */
+export const holdsHistories = (historyRel: string, name: string): boolean => {
+  const segments = historyRel.split('/').filter((s) => s && s !== '.')
+  if (segments.length !== 2 || segments[0] === '..') return false
+  return segments[0] === '.history' || segments[0] === '_history' || segments[1] === name
+}
+
 export interface DocLocation {
   docPath: string
   name: string
@@ -191,9 +202,9 @@ export const removeHistory = async (store: DraftStore, docPath: string, opts: Re
   if (opts.updateCanonical) await opts.updateCanonical(unstampCanonical)
   else await store.write(docPath, unstampCanonical(raw))
   await store.rmdir(where.historyDir)
-  // the shared `.history` folder goes too once its last note leaves
+  // the shared folder (`.history` in `.history/<note>`, whatever it's called) goes too once its last note leaves
   const parent = dirname(where.historyDir)
-  if (basename(parent) === '.history' && await store.isEmptyFolder(parent)) await store.rmdir(parent)
+  if (holdsHistories(where.historyRel, where.name) && await store.isEmptyFolder(parent)) await store.rmdir(parent)
   return { historyDir: where.historyDir, drafts }
 }
 
