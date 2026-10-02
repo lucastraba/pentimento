@@ -246,7 +246,9 @@ export const renderDiffHtml = (oldBody: string, newBody: string, opts: DiffOptio
     const cls = `rdiff-block${isCodey(n || o) ? ' codey' : ''}`
     if (p.type === 'change') {
       if (o !== n) out.push(`<div class="${cls}">${blockDiffHtml(o, n)}</div>`)
-      out.push(imageChangesHtml(p.old!, p.new!, opts, labels))
+      // only when an image changed, so documents without images diff exactly as before
+      const images = imageChangesHtml(p.old!, p.new!, opts, labels)
+      if (images) out.push(images)
     } else if (p.type === 'add') out.push(`<div class="${cls}"><ins>${escapeHtml(n)}</ins></div>`)
     else out.push(`<div class="${cls}"><del>${escapeHtml(o)}</del></div>`)
   }

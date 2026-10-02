@@ -75,6 +75,9 @@ const imageStore = (): string => {
   return items.length ? `<template id="pentimento-images">${items.join('')}</template>` : ''
 }
 
+/** A line of page HTML that is left out entirely when empty, so pages without images are unchanged. */
+const optionalLine = (html: string): string => (html ? `\n${html}` : '')
+
 /** No URL: the page fills `src` in from its store. */
 const noUrl = (): null => null
 
@@ -85,14 +88,28 @@ const safeDecode = (s: string): string => {
   try { return decodeURI(s) } catch { return s }
 }
 
-const imageHtml = (img: { asset: string | null; src: string; alt: string; title: string; figure: boolean }): string => {
+/** True when an inline token sits inside a link, where another link can't go (`[![badge](…)](…)`). */
+const insideLink = (tokens: { type: string }[], idx: number): boolean => {
+  let depth = 0
+  for (let i = 0; i < idx; i++) {
+    if (tokens[i].type === 'link_open') depth++
+    else if (tokens[i].type === 'link_close') depth--
+  }
+  return depth > 0
+}
+
+const imageHtml = (img: { asset: string | null; src: string; alt: string; title: string; figure: boolean; inLink: boolean }): string => {
   const alt = escapeHtml(img.alt)
   const title = img.title ? ` title="${escapeHtml(img.title)}"` : ''
   let tag: string
   if (img.asset) tag = `<img${imageAttrs(img.asset)} alt="${alt}"${title} loading="lazy">`
   else if (/^data:image\/(?:png|jpeg|gif|webp);/i.test(img.src)) tag = `<img src="${escapeHtml(img.src)}" alt="${alt}"${title}>`
-  // the page makes no outside requests, so a remote image is a link to it
-  else if (isRemote(img.src)) return `<a class="image-link" href="${escapeHtml(img.src)}">${alt || escapeHtml(img.src)}</a>`
+  // the page makes no outside requests, so a remote image is a link to it, or just its text inside a link
+  else if (isRemote(img.src)) {
+    return img.inLink
+      ? `<span class="image-link">${alt || escapeHtml(img.src)}</span>`
+      : `<a class="image-link" href="${escapeHtml(img.src)}">${alt || escapeHtml(img.src)}</a>`
+  }
   else return `<span class="image-missing" title="Image not found: ${escapeHtml(safeDecode(img.src))}">${alt || escapeHtml(safeDecode(img.src))}</span>`
   if (!img.figure) return tag
   return `<figure class="shot">${tag}${img.title ? `<figcaption>${escapeHtml(img.title)}</figcaption>` : ''}</figure>`
@@ -135,7 +152,10 @@ const makeMd = (breaks: boolean): MarkdownIt => {
   m.renderer.rules.obsidian_wikilink = (tokens, idx) => {
     const t = tokens[idx]
     if (t.meta.embed && imageExtension(t.meta.target)) {
-      return imageHtml({ asset: assetAfter(tokens, idx), src: t.meta.target, alt: t.meta.alt, title: '', figure: Boolean(t.meta.figure) })
+      const asset = assetAfter(tokens, idx)
+      // a missing embed names the file Obsidian would look for
+      if (!asset) return `<span class="image-missing" title="Image not found: ${escapeHtml(t.meta.target)}">${escapeHtml(t.content)}</span>`
+      return imageHtml({ asset, src: t.meta.target, alt: t.meta.alt, title: '', figure: Boolean(t.meta.figure), inLink: false })
     }
     return t.meta.embed
       ? `<span class="embed">${escapeHtml(t.content)}</span>`
@@ -158,6 +178,7 @@ const makeMd = (breaks: boolean): MarkdownIt => {
       alt: self.renderInlineAsText(t.children ?? [], options, env),
       title: t.attrGet('title') ?? '',
       figure: Boolean(t.meta?.figure),
+      inLink: insideLink(tokens, idx),
     })
   }
   // an image alone in its paragraph is a figure, at the width diffs use
@@ -1189,8 +1210,7 @@ ${rail}
 <main>
 ${mainHtml}
 </main>
-${traces}
-${imageStore()}
+${traces}${optionalLine(imageStore())}
 ${appendix ? `<div class="appendix">\n${appendix}\n</div>` : ''}
 <footer class="doc">
   <code>${escapeHtml(pathLabel)}</code>
@@ -1313,8 +1333,7 @@ ${RESTORE_SNIPPET}
 </header>
 <main>
 <div class="rdiff">${rdiff}</div>
-</main>
-${store}
+</main>${optionalLine(store)}
 </div>
 <script>${js}</script>
 </body>

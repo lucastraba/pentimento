@@ -9,6 +9,7 @@ import { findImageRefs, imageBlock, keyImages, stripImageMarks } from '../src/im
 import { lintDoc } from '../src/lint.js'
 import { parseMeta, serializeMeta } from '../src/model.js'
 import { render, renderDiffPage, renderRevisionHtml } from '../src/render.js'
+import { renderDiffHtml } from '../src/semdiff.js'
 import { verifyDoc } from '../src/verify.js'
 import { createApp } from '../src/viewer.js'
 
@@ -102,6 +103,20 @@ describe('rendering images', () => {
     expect(html).toContain(base64('found by name'))
     expect(html).toContain('alt="two"')
     expect(html).toContain('<span class="embed">Some note</span>')
+  })
+
+  it('keeps a badge inside a link one link, and names a missing embed by its file', () => {
+    const p = write('Plan.md', '# T\n\n## A\n\n[![CI](https://img.shields.io/ci.svg)](https://example.com/ci)\n\nA cover: ![[cover.png]]\n')
+    const html = render(p)
+    expect(html).toContain('<a href="https://example.com/ci"><span class="image-link">CI</span></a>')
+    expect(html).toContain('<span class="image-missing" title="Image not found: cover.png">cover.png</span>')
+  })
+
+  it('diffs documents without images exactly as before', () => {
+    // the plugin calls renderDiffHtml on plain bodies; no blank lines may appear between blocks
+    const html = renderDiffHtml('# T\n\nOne line.\n\nTwo line.\n', '# T\n\nOne changed line.\n\nTwo line.\n')
+    // what 0.12.1 returns for the same two bodies
+    expect(html).toBe('<div class="rdiff-skip">1 unchanged block</div>\n<div class="rdiff-ctx">T</div>\n<div class="rdiff-block">One <ins>changed </ins>line.</div>\n<div class="rdiff-skip">1 unchanged block</div>')
   })
 
   it('never lets document text forge an image marker', () => {
