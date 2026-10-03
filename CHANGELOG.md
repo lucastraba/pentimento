@@ -1,10 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.14.0 - 2026-10-03
 
 ### Changed
 
 - Requires Node 22.13 or newer. Node 20 reached end of life in April 2026.
+
+### Fixed
+
+- A `::: timeline` written with bullets (`- Title :: status`) rendered as one phase holding every line. Each bullet is now its own phase, and lint warns about any phase not written as `1. **Title** [next|later|done] — description`, since it renders without a title or status.
 
 ## 0.13.0 - 2026-10-03
 
