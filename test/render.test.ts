@@ -125,6 +125,13 @@ describe('render', () => {
     expect(html).toContain('<li class="is-done"><span class="ph">1</span>')
   })
 
+  it('keeps bulleted timeline lines as separate phases', () => {
+    const html = render(doc('# T\n\n## S\n\n::: timeline\n- One :: next\n- Two :: planned\n- Three :: planned\n:::\n'))
+    const body = html.split('<main>')[1]
+    expect(body).toContain('<span class="ph">3</span>')
+    expect(body).not.toContain('- Two')
+  })
+
   it('shows progress once a phase is next, and none for an unstarted plan', () => {
     const p = doc('# T\n\n## S\n\n::: timeline\n1. **One** [next] — a\n2. **Two** [later] — b\n:::\n')
     expect(render(p)).toContain('0 of 2 done · 1 next')

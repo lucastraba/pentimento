@@ -68,6 +68,11 @@ describe('lint', () => {
     expect(lintDoc(timeline)).toEqual([])
   })
 
+  it('flags timeline phases written in another directive\'s syntax', () => {
+    const doc = '::: timeline\n1. **Schema** [next] {#p-schema} — the tables.\n- Delivery :: planned\n2. Setup [later]\n:::\n'
+    expect(lintDoc(doc).filter((f) => f.rule === 'timeline-syntax').map((f) => f.line)).toEqual([3, 4])
+  })
+
   it('skips frontmatter, code fences, and figure/diff bodies', () => {
     const doc = [
       '---', 'Archetype: audit', '---', '# T', '',

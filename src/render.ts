@@ -439,9 +439,11 @@ const progressLine = (reached: number, total: number, label: string, text: strin
 const renderTimeline: Handler = (content) => {
   const items: string[] = []
   let current: string[] = []
+  // a bullet starts an item too, so a mis-marked list stays one item per line instead of one blob
+  const ITEM_START = /^(?:\d+\.|[-*+])\s+/
   for (const line of content.split('\n')) {
-    if (/^\d+\.\s+/.test(line.trim()) && current.length) { items.push(current.join(' ')); current = [] }
-    if (line.trim()) current.push(line.trim().replace(/^\d+\.\s+/, ''))
+    if (ITEM_START.test(line.trim()) && current.length) { items.push(current.join(' ')); current = [] }
+    if (line.trim()) current.push(line.trim().replace(ITEM_START, ''))
   }
   if (current.length) items.push(current.join(' '))
   const counts = { done: 0, next: 0, later: 0 }
