@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Requires Node 22.13 or newer. Node 20 reached end of life in April 2026.
+
 ## 0.13.0 - 2026-10-03
 
 Images in documents, with each draft keeping the images it was saved with, and a history folder Obsidian Sync can carry. Histories from earlier versions need no migration.

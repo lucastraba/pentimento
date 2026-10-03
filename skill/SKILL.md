@@ -16,7 +16,7 @@ This file is deliberately short. The version-matched instructions live in the CL
 - If `pentimento` is on PATH, use it.
 - Otherwise use `npx -y pentimento@latest` in its place.
 
-Check with `command -v pentimento`. Node 20.13 or newer either way.
+Check with `command -v pentimento`. Node 22.13 or newer either way.
 
 ## Rules
 

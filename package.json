@@ -6,7 +6,7 @@
   "author": "Lucas Traba",
   "type": "module",
   "engines": {
-    "node": ">=20.13"
+    "node": ">=22.13"
   },
   "bin": {
     "pentimento": "dist/cli.js"
@@ -70,5 +70,6 @@
   "bugs": {
     "url": "https://github.com/lucastraba/pentimento/issues"
   },
-  "homepage": "https://github.com/lucastraba/pentimento#readme"
+  "homepage": "https://github.com/lucastraba/pentimento#readme",
+  "packageManager": "pnpm@11.11.0"
 }

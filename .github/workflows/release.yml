@@ -13,10 +13,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v5
         with:
-          # Trusted publishing needs Node 22.14+ / npm 11.5.1+, well above the
-          # >=20.13 floor the package itself supports.
+          # Trusted publishing needs Node 22.14+ / npm 11.5.1+, just above the
+          # >=22.13 floor the package itself supports.
           node-version: 24
       # No registry-url on setup-node: it writes an _authToken line that expands
       # to empty, which makes npm skip the OIDC handshake entirely.
@@ -31,9 +32,9 @@ jobs:
             exit 1
           fi
 
-      - run: npm ci
-      - run: npm run build
-      - run: npm test
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - run: pnpm test
       - run: node dist/cli.js verify .
 
       - run: npm publish

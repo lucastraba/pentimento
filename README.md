@@ -35,7 +35,7 @@ A scrubber steps through the drafts, and in the live viewer the page tells you w
 
 ## Install
 
-Pentimento needs Node 20.13 or newer.
+Pentimento needs Node 22.13 or newer.
 
 ```bash
 npm install -g pentimento
