@@ -167,6 +167,11 @@ export const lintDoc = (raw: string, docPath?: string): LintFinding[] => {
     if (/^#{1,3}\s/.test(text) && /\p{Extended_Pictographic}/u.test(text)) {
       findings.push({ line, rule: 'emoji-heading', message: 'emoji in a heading' })
     }
+    // anything else renders, but loses its title, status pill, and progress count
+    if (block === 'timeline' && /^\s*(?:\d+\.|[-*+])\s+/.test(text) &&
+      !/^\s*\d+\.\s+\*\*.+?\*\*(?:\s+\[(?:next|later|done)\])?(?:\s+\{#[a-z][\w-]*\})?(?:\s+—\s+.+)?\s*$/.test(text)) {
+      findings.push({ line, rule: 'timeline-syntax', message: 'timeline phase is not `1. **Title** [next|later|done] — description`; it renders without a title or status' })
+    }
     // the timeline syntax requires a bold lead and an em-dash, so both rules skip it
     if (block !== 'timeline') {
       if (block === null && /^\s*[-*+]\s+\*\*[^*]{1,40}(?::\*\*|\*\*\s*[:—])/.test(text)) {
