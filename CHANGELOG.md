@@ -1,11 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.13.0 - 2026-10-03
+
+Images in documents, with each draft keeping the images it was saved with, and a history folder Obsidian Sync can carry. Histories from earlier versions need no migration.
 
 ### Added
 
-- Images. A local image renders in the page, as a figure when it is alone in its paragraph (its title becomes the caption), and `![[shot.png]]` embeds are found the way Obsidian finds them. A static page carries each image once, inside the page; the live viewer serves them by content hash.
-- Each draft keeps the images it was saved with, in `.history/<name>/assets/`, and its `meta.yml` entry records which copy each path pointed to. Stepping back to a draft shows its pictures. A new screenshot at the same path shows in "What changed" as both versions side by side, traces fold the old image under the new one, and removed images appear under cuttings. `revert` puts a draft's images back, storing any file it overwrites first, and `verify` reports a stored image that has gone missing.
+- Images. A local image renders in the page, as a figure when it is alone in its paragraph (its title becomes the caption), and `![[shot.png]]` embeds are found the way Obsidian finds them. Image files must be inside the document's folder (or its Obsidian vault), be real PNG, JPEG, GIF, WebP, or SVG files, and be under 20 MB. A static page carries each image once, inside the page; the live viewer serves them by content hash. Images carry their width and height, so pages don't shift as they load.
+- Each draft keeps the images it was saved with, in `.history/<name>/assets/`, and its `meta.yml` entry records which copy each path pointed to. Stepping back to a draft shows its pictures. A new screenshot at the same path shows in "What changed" as both versions side by side, traces fold the old image under the new one, and removed images appear under cuttings. `revert` puts a draft's images back at their paths, storing any file it overwrites first, and says which it put back and which it skipped (it never writes through a link or for an Obsidian embed). `verify` reports a stored image that has gone missing or no longer matches its name. Drafts saved by earlier versions show the image files on disk, as before.
 - A new screenshot with no markdown edit counts as an unsaved change, and the viewer updates when an image file changes.
 - Comments on images. In the viewer, click an image to comment on all of it, or drag across it to mark a part; on a phone, tap the image, then drag while the comment is open. The mark stays on the image until a draft replaces it, and then the comment links to the draft that had it. `pentimento address` prints the image's file and the marked part in pixels.
 - Lint warns about images that are missing, remote, outside the document's folder, in an unsupported format, over 1 MB, or without alt text. Snapshot warns when an image it should save isn't there.
@@ -15,11 +17,18 @@
 
 ### Fixed
 
+- Tapping a highlighted comment did nothing in Safari on iPhone (and WebKit generally); it now opens the comment.
+- On a 375 px phone the viewer bar ran off the screen, hiding Approve and Stop; it now fits.
+- Markdown in a comment could load an image from another site in an `--artifact` page; images in comments now render as links.
+- Atomic writes (the document, `meta.yml`) used a predictable temporary name, so a link planted there could redirect the write; temporary files are now created exclusively under a random name.
+- A heading whose id was `traces-tpl` stopped traces from working.
 - The viewer no longer crashes when the machine runs out of file watchers. It watches folders instead of every file, skips `node_modules`, `.git`, `dist`, Python environments, and other tool folders, and when a folder can't be watched it says so once and keeps serving without live updates for that folder. Over a folder of 16 repositories this is 6,124 watches instead of 519,544.
 
 ### Changed
 
-- `renderDiffHtml` in `pentimento/semdiff` takes an optional third argument with image URLs and labels. Bodies without images render as before.
+- `renderDiffHtml` in `pentimento/semdiff` takes an optional third argument with image URLs and labels. Bodies without images render exactly as before.
+- New in the package API: `HISTORY_FOLDERS`, `isHistoryFolder`, `revisionImages`, and `commentImage` in `pentimento/model`; `holdsHistories` and the `historyFolder` option in `pentimento/drafts`.
+- `meta.yml` gains `images` on revisions and `image` on comments. Entries a version doesn't understand are ignored when reading and kept when writing, so older and newer versions can share a history.
 
 ## 0.12.1 - 2026-10-02
 
