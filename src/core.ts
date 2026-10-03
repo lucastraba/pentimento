@@ -3,11 +3,12 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import {
-  commentImage, FRONTMATTER_RE, makeComment, nowStamp, parseMeta, planSnapshot, revisionImages, serializeMeta, splitRaw, unstampCanonical,
+  commentImage, FRONTMATTER_RE, isHistoryFolder, makeComment, nowStamp, parseMeta, planSnapshot, revisionImages, serializeMeta, splitRaw, unstampCanonical,
+  type HistoryFolder,
   type Approval, type CommentEntry, type Meta, type NewComment, type SnapshotOptions,
 } from './model.js'
 import { keyedImages } from './imageref.js'
-import { imageKeys, imagesDiffer, restoreImages, storeImages, undoRestore, type RestoredImages } from './images.js'
+import { imageKeys, imagesDiffer, restoreImages, storeImages, undoRestore, vaultRoot, type RestoredImages } from './images.js'
 import { holdsHistories } from './drafts.js'
 import { describeChanges } from './semdiff.js'
 
@@ -61,6 +62,22 @@ export const resolveContainedPath = (root: string, relativePath: string, label =
   return target
 }
 
+/**
+ * Where a new document's history goes: in an Obsidian vault, the folder the Pentimento plugin
+ * is set to use there, so drafts saved from the command line and from Obsidian end up in the
+ * same place; elsewhere, `.history`.
+ */
+export const defaultHistoryFolder = (dir: string): HistoryFolder => {
+  const vault = vaultRoot(dir)
+  if (!vault) return '.history'
+  try {
+    const data = JSON.parse(fs.readFileSync(path.join(vault, '.obsidian', 'plugins', 'pentimento', 'data.json'), 'utf8')) as Record<string, unknown>
+    return isHistoryFolder(data.historyFolder) ? data.historyFolder : '.history'
+  } catch {
+    return '.history'
+  }
+}
+
 export const loadDoc = (docPath: string): Doc => {
   const requestedPath = path.resolve(docPath)
   if (!fs.existsSync(requestedPath)) throw new Error(`No such document: ${requestedPath}`)
@@ -73,7 +90,7 @@ export const loadDoc = (docPath: string): Doc => {
   // History Folder is canonical-relative — the single path contract (audit C3)
   const historyRel = typeof frontmatter['History Folder'] === 'string'
     ? (frontmatter['History Folder'] as string)
-    : path.join('.history', name)
+    : path.join(defaultHistoryFolder(path.dirname(canonicalPath)), name)
   const historyDir = resolveContainedPath(path.dirname(canonicalPath), historyRel, 'History Folder')
   return { canonicalPath, name, historyDir, frontmatter, body, raw }
 }

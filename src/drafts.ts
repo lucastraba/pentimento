@@ -2,6 +2,7 @@ import { parse as parseYaml } from 'yaml'
 import {
   FRONTMATTER_RE, parseMeta, planSnapshot, serializeMeta, splitRaw, stampCanonical, unstampCanonical,
   type Meta, type SnapshotOptions,
+  HISTORY_FOLDERS, isHistoryFolder, type HistoryFolder,
 } from './model.js'
 import { describeChanges } from './semdiff.js'
 
@@ -61,13 +62,17 @@ export interface DocLocation {
   metaPath: string
 }
 
-/** Where a document keeps its history: `History Folder` frontmatter, else `.history/<name>`. */
-export const locate = (docPath: string, raw: string): DocLocation => {
+/**
+ * Where a document keeps its history: its `History Folder` property, else `<folder>/<name>`
+ * in the given history folder (`.history` unless the host chose `_history`).
+ */
+export const locate = (docPath: string, raw: string, historyFolder: HistoryFolder = '.history'): DocLocation => {
+  if (!isHistoryFolder(historyFolder)) throw new Error(`historyFolder must be one of ${HISTORY_FOLDERS.join(', ')}`)
   const m = FRONTMATTER_RE.exec(raw)
   let fm: Record<string, unknown> = {}
   try { fm = m ? ((parseYaml(m[1]) ?? {}) as Record<string, unknown>) : {} } catch { /* treated as no frontmatter */ }
   const name = basename(docPath).replace(/\.md$/i, '')
-  const historyRel = typeof fm['History Folder'] === 'string' ? (fm['History Folder'] as string) : `.history/${name}`
+  const historyRel = typeof fm['History Folder'] === 'string' ? (fm['History Folder'] as string) : `${historyFolder}/${name}`
   if (historyRel.startsWith('/')) throw new Error('History Folder must be relative')
   // same contract as the CLI: the history lives inside the document's folder
   const base = joinPath(dirname(docPath))
@@ -112,6 +117,8 @@ export interface SaveDraftOptions extends SnapshotOptions {
   updateCanonical?: (stamp: (current: string) => string) => Promise<void>
   /** save this body instead of the document's current one (restoring an earlier draft) */
   replacementBody?: string
+  /** where a note's first draft starts its history; a note with drafts keeps its own folder */
+  historyFolder?: HistoryFolder
 }
 
 /** Swap a document's body, keeping its frontmatter. */
@@ -121,12 +128,12 @@ const withBody = (raw: string, body: string): string => raw.slice(0, raw.length 
 export const saveDraft = async (store: DraftStore, docPath: string, opts: SaveDraftOptions = {}): Promise<SaveDraftResult> => {
   const initial = await store.read(docPath)
   if (initial === null) throw new Error(`No such document: ${docPath}`)
-  const where = locate(docPath, initial)
+  const where = locate(docPath, initial, opts.historyFolder)
   return withLock(store, where.historyDir, async () => {
     const current = await store.read(docPath)
     if (current === null) throw new Error(`No such document: ${docPath}`)
     const raw = opts.replacementBody === undefined ? current : withBody(current, opts.replacementBody)
-    if (locate(docPath, raw).historyDir !== where.historyDir) throw new Error('History Folder changed while saving')
+    if (locate(docPath, raw, opts.historyFolder).historyDir !== where.historyDir) throw new Error('History Folder changed while saving')
     const meta = parseMeta(await store.read(where.metaPath), where.metaPath)
     const latest = meta.revisions[meta.revisions.length - 1]
     const latestRaw = latest ? await store.read(joinPath(where.historyDir, `${latest.id}.md`)) : null

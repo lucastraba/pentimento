@@ -11,6 +11,7 @@
 - Lint warns about images that are missing, remote, outside the document's folder, in an unsupported format, over 1 MB, or without alt text. Snapshot warns when an image it should save isn't there.
 - `pentimento guide` covers mocks and prototypes: build them as HTML, screenshot them headlessly, and embed the screenshots. Skill revision 12.
 - History folders by any name, for vaults where `.history` can't be used (Obsidian Sync skips hidden folders): with `History Folder: _history/<note>`, `untrack` and the plugin's "Remove drafts" clean up an empty `_history` folder as they do `.history`, and the viewer's index and `verify` no longer list the saved drafts inside it as documents.
+- `_history` for Obsidian Sync. `saveDraft` in `pentimento/drafts` takes `historyFolder: '_history'` to start a note's history there instead of in `.history`, and the CLI follows the Obsidian plugin's setting for documents in that vault. A note keeps the folder its first draft chose.
 
 ### Fixed
 
