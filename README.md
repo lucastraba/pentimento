@@ -125,4 +125,14 @@ pentimento lint Plan.md [--strict]                   # prose and structure warni
 
 Everything on disk is plain text: the document, its `.history/<name>/rNNN.md` drafts, and a `meta.yml` with summaries, comments, and approvals. Nothing needs git, and nothing conflicts with it.
 
+## Development
+
+```bash
+pnpm install --frozen-lockfile
+pnpm run build
+pnpm test
+```
+
+To release, bump the version in `package.json`, add a `CHANGELOG.md` entry headed `## X.Y.Z - YYYY-MM-DD`, and merge the release to `main`. Once CI passes there, push a tag `vX.Y.Z`. The release workflow checks the tag against `package.json`, runs the tests, and publishes to npm with trusted publishing, so no npm login is needed. npm can take a few minutes to list the new version.
+
 MIT © Lucas Traba
